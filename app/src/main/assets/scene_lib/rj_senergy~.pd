@@ -1,0 +1,16 @@
+#N canvas 0 0 420 330 10;
+#X text 10 5 rj_senergy~: mean square of the first 513 samples of every block. Port of the RjDj C external.;
+#X obj 20 40 inlet~;
+#X obj 20 70 *~;
+#X obj 20 100 tabsend~ \$0-sq;
+#X obj 200 100 table \$0-sq 513;
+#X obj 120 70 bang~;
+#X obj 120 100 array sum \$0-sq;
+#X obj 120 130 / 513;
+#X obj 120 160 outlet;
+#X connect 1 0 2 0;
+#X connect 1 0 2 1;
+#X connect 2 0 3 0;
+#X connect 5 0 6 0;
+#X connect 6 0 7 0;
+#X connect 7 0 8 0;

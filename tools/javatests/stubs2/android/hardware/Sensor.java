@@ -1,0 +1,1 @@
+package android.hardware; public class Sensor { public static final int TYPE_ACCELEROMETER=1, TYPE_MAGNETIC_FIELD=2, TYPE_GYROSCOPE=4, TYPE_LIGHT=5, TYPE_PRESSURE=6, TYPE_PROXIMITY=8, TYPE_ROTATION_VECTOR=11; public int getType(){return 0;} public float getMaximumRange(){return 5f;} }

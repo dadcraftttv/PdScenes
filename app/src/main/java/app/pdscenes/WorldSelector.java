@@ -1,0 +1,138 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+package app.pdscenes;
+
+import java.util.Set;
+
+/**
+ * Decides which "world" fits what is going on around the phone: late at night, walking, in a pocket, a loud room
+ * or a quiet one. Pure logic with no Android in it. It reacts slowly on purpose: a clap must not flip the sound,
+ * and a world only changes after the new situation has lasted a few seconds.
+ */
+final class WorldSelector {
+
+    static final String GHOST = "ghost";
+    static final String KINETIC = "kinetic";
+    static final String FLUX = "flux";
+    static final String TRANQUIL = "tranquil";
+    static final String POCKET = "pocket";
+
+    /** Which world wins when several fit: the first one in this list. */
+    static final String[] PRIORITY = {GHOST, KINETIC, POCKET, FLUX, TRANQUIL};
+
+    static final int NIGHT_START_MINUTE = 0;          // midnight...
+    static final int NIGHT_END_MINUTE = 5 * 60;       // ...to 5 AM
+
+    // Room loudness in the same dB units as the mic level reports (see Modulation). Two thresholds each
+    // (enter / leave) so a level hovering at the edge doesn't flicker.
+    static final float LOUD_ENTER_DB = -28f;
+    static final float LOUD_LEAVE_DB = -33f;
+    static final float QUIET_ENTER_DB = -50f;
+    static final float QUIET_LEAVE_DB = -45f;
+
+    private static final double LEVEL_SMOOTH_S = 3.0;   // loudness is averaged over about this long
+    private static final double DWELL_S = 5.0;          // a new situation must last this long...
+    private static final double MIN_HOLD_S = 10.0;      // ...and the old world must have run this long
+    private static final float NO_READING_DB = -99f;    // the mic level before the patch has reported anything
+
+    private float level = NO_READING_DB;
+    private boolean haveLevel;
+    private boolean loud;
+    private boolean quiet;
+    private boolean pocket;
+    private String active;
+    private String pending;
+    private double pendingFor;
+    private double sinceSwitch = MIN_HOLD_S;
+
+    /** Forget everything (engine start or stop). */
+    void reset() {
+        level = NO_READING_DB;
+        haveLevel = false;
+        loud = false;
+        quiet = false;
+        pocket = false;
+        active = null;
+        pending = null;
+        pendingFor = 0;
+        sinceSwitch = MIN_HOLD_S;
+    }
+
+    /**
+     * Advances by {@code dt} seconds and returns the world that should be playing, or null for "none: the
+     * user's own settings". Only worlds in {@code allowed} are considered.
+     */
+    String update(double dt, float levelDb, boolean walking, int minuteOfDay, Set<String> allowed) {
+        return update(dt, levelDb, walking, false, minuteOfDay, allowed);
+    }
+
+    /** As above, also told whether the phone is in a pocket (see {@link PhoneContext#inPocket()}). */
+    String update(double dt, float levelDb, boolean walking, boolean inPocket, int minuteOfDay,
+                  Set<String> allowed) {
+        pocket = inPocket;
+        trackLevel(dt, levelDb);
+        String wanted = null;
+        for (String id : PRIORITY) {
+            if (allowed.contains(id) && fits(id, walking, minuteOfDay)) {
+                wanted = id;
+                break;
+            }
+        }
+        sinceSwitch += dt;
+        if (equal(wanted, active)) {
+            pending = null;
+            return active;
+        }
+        if (!equal(wanted, pending)) {
+            pending = wanted;
+            pendingFor = 0;
+        }
+        pendingFor += dt;
+        if (pendingFor >= DWELL_S && sinceSwitch >= MIN_HOLD_S) {
+            active = pending;
+            pending = null;
+            sinceSwitch = 0;
+        }
+        return active;
+    }
+
+    private void trackLevel(double dt, float levelDb) {
+        if (levelDb <= NO_READING_DB) {
+            return;   // no real reading yet: don't mistake it for a silent room
+        }
+        if (!haveLevel) {
+            level = levelDb;
+            haveLevel = true;
+        } else {
+            level += (levelDb - level) * (float) (1 - Math.exp(-dt / LEVEL_SMOOTH_S));
+        }
+        if (!loud && level > LOUD_ENTER_DB) {
+            loud = true;
+        } else if (loud && level < LOUD_LEAVE_DB) {
+            loud = false;
+        }
+        if (!quiet && level < QUIET_ENTER_DB) {
+            quiet = true;
+        } else if (quiet && level > QUIET_LEAVE_DB) {
+            quiet = false;
+        }
+    }
+
+    private boolean fits(String id, boolean walking, int minuteOfDay) {
+        switch (id) {
+            case GHOST:
+                return minuteOfDay >= NIGHT_START_MINUTE && minuteOfDay < NIGHT_END_MINUTE;
+            case KINETIC:
+                return walking;
+            case POCKET:
+                return pocket;
+            case FLUX:
+                return loud;
+            default:
+                return quiet;
+        }
+    }
+
+    private static boolean equal(String a, String b) {
+        return a == null ? b == null : a.equals(b);
+    }
+}

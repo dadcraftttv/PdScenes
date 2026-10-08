@@ -1,0 +1,127 @@
+<resources>
+    <string name="app_name">PdScenes</string>
+
+    <!-- Engine state -->
+    <string name="start">Start</string>
+    <string name="stop">Stop</string>
+    <string name="status_running">Running: speak, clap, walk around, do some stuff.</string>
+    <string name="status_running_rate">Running at %1$d Hz: speak, clap, walk around, do some stuff.</string>
+    <string name="status_stopped">Stopped.</string>
+    <string name="mic_permission_required">Microphone permission is required.</string>
+    <string name="no_headphones_warning">No headphones detected. Using the speaker will cause feedback. Plug in or connect headphones first.</string>
+
+    <!-- Sections and appearance -->
+    <string name="section_open">▾ %s</string>
+    <string name="section_closed">▸ %s</string>
+    <string name="section_appearance">Appearance</string>
+    <string name="section_audio">Audio devices</string>
+    <string name="reset_all">Reset everything to defaults</string>
+    <string name="reset_title">Reset everything?</string>
+    <string name="reset_message">Every slider, mover, lock, switch, music setting, auto-world choice, audio device choice and scene volume goes back to how the app was when first installed. Your saved presets, imported scenes and the app\'s appearance are kept. This only happens when you tap Reset here.</string>
+    <string name="reset_confirm">Reset</string>
+    <string name="toast_reset">Everything is back to defaults</string>
+    <string name="audio_input">Input (microphone)</string>
+    <string name="audio_output">Output (headphones only)</string>
+    <string name="audio_output_automatic">Automatic (wired first, then Bluetooth)</string>
+    <string name="audio_no_headphones">No headphones connected</string>
+    <string name="err_no_headphones">Connect wired or Bluetooth headphones first. The app never plays through the phone speaker.</string>
+    <string name="err_bluetooth_mic">The Bluetooth headset\'s mic would not connect. Choose the phone\'s mic as the input instead.</string>
+    <string name="err_headphones_removed">Headphones disconnected, so the audio stopped.</string>
+    <string name="audio_automatic">Automatic</string>
+    <string name="audio_unsupported">This build\'s audio library cannot pick devices, so Android chooses them.</string>
+    <string name="audio_note">Sound only ever plays to headphones; if they are unplugged the audio stops. Changing a device restarts the audio for a moment. A Bluetooth headset used as the input switches to the low-quality call mode; for the best sound use the phone or a wired mic as input and Bluetooth only for output.</string>
+    <string name="mic_hint_no_wired_mic">Android sees your wired earbuds as headphones with no microphone, so their mic cannot be chosen. Unplug them and push the plug in all the way (a half-seated plug looks like plain headphones), and check that the plug has two black bands, not one. Until then, the phone\'s mic is used.</string>
+    <string name="mic_hint_call">This headset\'s mic works in call mode: mono and low quality, and the sound in your ears drops to call quality too. Unless your earbuds support LE Audio, the phone\'s mic gives a much better result.</string>
+    <string name="mic_hint_le">LE Audio headset: its mic should sound far better than ordinary Bluetooth call mode. If it sounds thin or muffled, switch the input back to the phone\'s mic.</string>
+    <string name="dev_builtin_mic">Phone microphone</string>
+    <string name="dev_speaker">Phone speaker</string>
+    <string name="dev_earpiece">Phone earpiece</string>
+    <string name="dev_wired">Wired headset</string>
+    <string name="dev_wired_headphones">Wired headphones (no microphone detected)</string>
+    <string name="dev_other_input">Other input</string>
+    <string name="dev_usb">USB audio</string>
+    <string name="dev_bluetooth">Bluetooth (stereo)</string>
+    <string name="dev_bluetooth_call">Bluetooth headset mic (call quality)</string>
+    <string name="dev_bluetooth_le">Bluetooth LE Audio headset mic</string>
+    <string name="dev_hearing_aid">Hearing aid</string>
+    <string name="theme_light">Material Light</string>
+    <string name="theme_dark">Material Dark</string>
+    <string name="theme_amoled">AMOLED Black</string>
+
+    <!-- Buttons and labels -->
+    <string name="lock">Lock</string>
+    <string name="presets">Presets</string>
+    <string name="save">Save</string>
+    <string name="export">Export</string>
+    <string name="import_preset">Import</string>
+    <string name="randomize">Randomize</string>
+    <string name="nudge">Nudge</string>
+    <string name="undo">Undo</string>
+    <string name="close">Close</string>
+    <string name="cancel">Cancel</string>
+    <string name="delete">Delete</string>
+    <!-- 1$ = parameter name, 2$ = its current value with unit -->
+    <string name="param_value">%1$s: %2$s</string>
+
+    <!-- Preset dialogs and messages -->
+    <string name="presets_title">Presets (long-press a saved one to delete)</string>
+    <string name="preset_saved_suffix">%s  (saved)</string>
+    <string name="save_title">Save current settings as</string>
+    <string name="default_preset_name">My preset</string>
+    <string name="delete_title">Delete \"%s\"?</string>
+    <string name="imported_name">%s imported</string>
+    <string name="toast_loaded">Loaded \"%s\"</string>
+    <string name="toast_saved">Saved \"%s\"</string>
+    <string name="toast_imported">Imported \"%s\"</string>
+    <string name="toast_deleted">Deleted</string>
+    <string name="section_worlds">Worlds (automatic)</string>
+    <string name="worlds_auto">Auto worlds: change the sound to fit what is happening around you</string>
+    <string name="worlds_now">Right now: %s</string>
+    <string name="worlds_yours">your own settings</string>
+    <string name="worlds_off_status">Auto worlds are off.</string>
+    <string name="world_row">%1$s (%2$s)</string>
+    <string name="world_off">Off (not used)</string>
+    <string name="worlds_note">Each world fades the sliders to the preset you pick when its situation lasts a few seconds. When none applies, your own settings fade back. Locked sliders stay put. Only for the built-in effects, not scenes.</string>
+    <string name="export_title">Name this preset</string>
+    <string name="toast_exported">Exported</string>
+    <string name="toast_read_failed">Could not read preset \"%s\"</string>
+    <string name="toast_export_failed">Export failed: %s</string>
+    <string name="toast_import_failed">Import failed: %s</string>
+    <string name="err_open_file">Could not open the file</string>
+
+    <!-- Foreground-service notification and errors -->
+    <string name="notification_channel">Audio engine</string>
+    <string name="notification_title">PdScenes is listening</string>
+    <string name="notification_text">Processing microphone audio. Use headphones.</string>
+    <string name="err_no_mic_permission">Microphone permission not granted</string>
+    <string name="section_about">About and licenses</string>
+    <string name="about_text">Free software under the GNU General Public License v3 or later. It includes the RjDj library of Pd abstractions and Pure Data components under their own licences, and four example scenes from Reality Jockey Ltd.: Hello World World World (Frank Barknecht), and Onset Detection, Street Beatz and Vocoder (the RjDj team).</string>
+    <string name="about_text_with_source">Free software under the GNU General Public License v3 or later. It includes the RjDj library of Pd abstractions and Pure Data components under their own licences, and four example scenes from Reality Jockey Ltd.: Hello World World World (Frank Barknecht), and Onset Detection, Street Beatz and Vocoder (the RjDj team).\n\nSource code: %s</string>
+    <!-- Set to the public repository URL before publishing; leave empty to hide the line. -->
+    <string name="source_url" translatable="false"></string>
+    <string name="show_licenses">Show licences</string>
+    <string name="scene_volume">Volume: %d%%</string>
+    <string name="scene_mic_volume">Mic volume: %d%%</string>
+    <string name="scene_headphones_hint">Use headphones: a speaker feeds back into the mic. If a scene screeches, lower the mic volume.</string>
+    <string name="scene_rjdj_timing">RjDj timing (22 kHz). Keeps scene delays and loops as their authors heard them; off uses the phone\'s own rate.</string>
+    <string name="sensors_line">Sensors on this phone: %1$s</string>
+    <string name="pad_hint">XY pad: switch on Movers in a section, set a slider\'s movement to Pad X or Pad Y, then drag here. The pad holds where you last touched.</string>
+    <string name="choose_scene">Choose scene</string>
+    <string name="import_scene">Import zip</string>
+    <string name="import_scene_folder">Import folder</string>
+    <string name="toast_scene_folder_importing">Importing… many scenes can take a minute</string>
+    <string name="toast_scene_none_found">No scenes found in that folder</string>
+    <string name="toast_scenes_imported">Imported %1$d scenes (%2$d failed)</string>
+    <string name="scene_current">Scene: %s</string>
+    <string name="scene_built_in">Built-in effects</string>
+    <string name="scene_by_author">%1$s (%2$s)</string>
+    <string name="scenes_title">Scenes</string>
+    <string name="scenes_none">No imported scenes yet</string>
+    <string name="delete_scene_title">Delete scene \"%s\"?</string>
+    <string name="toast_scene_deleted">Scene deleted</string>
+    <string name="toast_scene_importing">Importing scene…</string>
+    <string name="toast_scene_imported">Imported: %s</string>
+    <string name="toast_scene_import_failed">Could not import scene: %s</string>
+    <string name="err_scene_open">Could not open scene \"%s\"</string>
+    <string name="err_start_failed">Could not start audio: %s</string>
+</resources>

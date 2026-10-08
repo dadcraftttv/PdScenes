@@ -1,0 +1,1 @@
+package android.graphics; public class BitmapFactory { public static class Options { public boolean inJustDecodeBounds; public int inSampleSize, outWidth, outHeight; } public static Bitmap decodeFile(String p, Options o){ if(o!=null&&o.inJustDecodeBounds){o.outWidth=320;o.outHeight=160;return null;} return new Bitmap(320,160);} }

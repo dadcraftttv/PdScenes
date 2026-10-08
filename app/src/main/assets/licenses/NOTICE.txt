@@ -1,0 +1,36 @@
+Licensing and third-party notices
+
+PdScenes is free software, released under the GNU General Public License v3.0 or later
+(see LICENSE). You may use, study, change and share it under those terms.
+
+It bundles and depends on the following. Full texts are in app/src/main/assets/licenses/ and are shown
+inside the app under *About and licenses*.
+
+- RjDj library of Pd abstractions (rjlib), by Reality Jockey Ltd.
+    Licence: GPLv3; a few files (ADSR, vocoder) are Standard Improved BSD
+    Where: assets/scene_lib/rj/, and the legacy helpers (reverb, sssad, rjdispatch, rjloader, accelerate, touch, ...) beside it
+- Pure Data extras (hilbert~, rev1~..rev3~, complex-mod~) by Miller Puckette and others
+    Licence: Standard Improved BSD
+    Where: assets/scene_lib/
+- The four official RjDj example scenes (Hello World World World by Frank Barknecht; Onset Detection, Street Beatz
+  and Vocoder by the RjDj team), from rjdj/rjlib examplescenes
+    Licence: GPLv3 (each scene carries its LICENSE.txt)
+    Where: assets/builtin_scenes/
+- Helper abstractions closebang, rj_compass, rj_loc, rj_text, rj_time, rjdj and rj_image, from PdParty by Dan Wilcox
+  (Copyright 2011-2023)
+    Licence: Simplified BSD (pdparty-LICENSE.txt)
+    Where: assets/scene_lib/
+- libpd / pd-for-android (pd-core)
+    Licence: Standard Improved BSD
+    Where: Gradle dependency
+- Oboe (audio backend inside pd-core)
+    Licence: Apache License 2.0
+    Where: Gradle dependency
+
+soundinput.pd and soundoutput.pd in assets/scene_lib/ were written for this app.
+
+The four scenes above are the only scenes bundled. RjDj scenes that you import yourself are not part of this app and
+keep their own authors' licences. One shared file, s_fplaytable.pd, has a small fix (see the note inside it) so that
+sample-playing scenes work with current Pure Data.
+
+"RjDj" is a name used by its original authors; this project is not affiliated with or endorsed by them.

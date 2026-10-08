@@ -1,0 +1,1278 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+package app.pdscenes;
+
+import android.Manifest;
+import android.app.Activity;
+import android.app.AlertDialog;
+import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.graphics.Typeface;
+import android.media.AudioDeviceCallback;
+import android.media.AudioDeviceInfo;
+import android.media.AudioManager;
+import android.net.Uri;
+import android.os.Build;
+import android.os.Bundle;
+import android.util.TypedValue;
+import android.view.Gravity;
+import android.view.View;
+import android.view.WindowInsets;
+import android.widget.Button;
+import android.widget.CheckBox;
+import android.widget.EditText;
+import android.widget.LinearLayout;
+import android.widget.RadioButton;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
+import android.widget.RadioGroup;
+import android.widget.ScrollView;
+import android.widget.SeekBar;
+import android.widget.Spinner;
+import android.widget.Switch;
+import android.widget.TextView;
+import android.widget.Toast;
+
+import org.json.JSONException;
+import org.puredata.core.PdBase;
+
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
+/** Control screen: engine on/off, presets, randomize, and one control per parameter. */
+public class MainActivity extends Activity {
+
+    private static final int REQ_PERMISSIONS = 1;
+    private static final int REQ_EXPORT = 2;
+    /** Name chosen in the export dialog, used once the file picker returns. */
+    private String exportName = "preset";
+    private static final int REQ_IMPORT = 3;
+    private static final int REQ_IMPORT_SCENE = 4;
+    private static final int REQ_IMPORT_SCENE_FOLDER = 5;
+
+    private final List<Row> rows = new ArrayList<>();
+    /** The mover controls under each slider, greyed out while their section's movers are off. */
+    private final List<MoverUi> moverUis = new ArrayList<>();
+    private AudioManager audioManager;
+
+    private TextView status;
+    private TextView warning;
+    private Button startStop;
+    private Button undoButton;
+    private TextView sceneLabel;
+    /** Presets, randomize and the effect sections: hidden while an imported scene is selected. */
+    private LinearLayout effectsBox;
+    /** One dropdown per automatic world, and the line saying which one is playing. */
+    private final List<WorldRow> worldRows = new ArrayList<>();
+    private TextView worldStatus;
+
+    private static final class WorldRow {
+        final Worlds.World world;
+        final Spinner spinner;
+        List<String> presets = new ArrayList<>();
+
+        WorldRow(Worlds.World world, Spinner spinner) {
+            this.world = world;
+            this.spinner = spinner;
+        }
+    }
+    private ScenePad scenePad;
+    private LinearLayout sceneLevels;
+    private TextView padHint;
+
+    /** One on-screen control: a slider with a label, or a switch (for toggles). */
+    private static final class MoverUi {
+        final String sectionId;
+        final String paramId;
+        final View box;        // everything: the movement dropdown and the details
+        final View details;    // speed and depth, shown only while a movement is chosen
+
+        MoverUi(String sectionId, String paramId, View box, View details) {
+            this.sectionId = sectionId;
+            this.paramId = paramId;
+            this.box = box;
+            this.details = details;
+        }
+    }
+
+    private static final class Row {
+        final Param param;
+        final TextView label;     // slider rows only
+        final SeekBar slider;     // slider rows only
+        final Switch switchView;  // toggle rows only
+        final Spinner spinner;    // pick-one rows only
+
+        Row(Param param, TextView label, SeekBar slider, Switch switchView, Spinner spinner) {
+            this.param = param;
+            this.label = label;
+            this.slider = slider;
+            this.switchView = switchView;
+            this.spinner = spinner;
+        }
+    }
+
+    /** A dropdown of connected audio devices, plus "Automatic" as the first entry. */
+    private static final class DevicePicker {
+        final boolean input;
+        final Spinner spinner;
+        List<AudioDevices.Device> devices = new ArrayList<>();
+        String shownKey = AudioSettings.AUTOMATIC;   // what the dropdown currently displays
+
+        DevicePicker(boolean input, Spinner spinner) {
+            this.input = input;
+            this.spinner = spinner;
+        }
+    }
+
+    private DevicePicker inputPicker;
+    private DevicePicker outputPicker;
+    private TextView micHint;
+
+    /** Advice that appears when a Bluetooth headset is the chosen microphone. */
+    private void updateMicHint() {
+        if (micHint == null) {
+            return;
+        }
+        AudioDevices.Device in = AudioDevices.find(this, true);
+        if (AudioDevices.isLeAudio(in)) {
+            micHint.setText(R.string.mic_hint_le);
+        } else if (AudioDevices.isBluetoothMic(in)) {
+            micHint.setText(R.string.mic_hint_call);
+        } else if (AudioDevices.wiredWithoutMic(this)) {
+            micHint.setText(R.string.mic_hint_no_wired_mic);
+        } else {
+            micHint.setText("");
+        }
+        micHint.setVisibility(micHint.length() == 0 ? View.GONE : View.VISIBLE);
+    }
+
+    /** Re-checks for headphones when something is plugged in or removed. */
+    private final AudioDeviceCallback deviceCallback = new AudioDeviceCallback() {
+        @Override
+        @SuppressWarnings("NullableProblems")
+        public void onAudioDevicesAdded(AudioDeviceInfo[] added) {
+            refreshDevicePickers();
+            updateUi();
+        }
+
+        @Override
+        @SuppressWarnings("NullableProblems")
+        public void onAudioDevicesRemoved(AudioDeviceInfo[] removed) {
+            refreshDevicePickers();
+            updateUi();
+        }
+    };
+
+    // ---- lifecycle ----
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        int theme = UiSettings.theme(this);
+        setTheme(UiSettings.themeResource(theme));   // must be set before any view is created
+        super.onCreate(savedInstanceState);
+        ParamStore.loadOnce(this);
+        SceneLibrary.installBuiltIns(this, SceneSettings.scenesDir(this));
+        audioManager = getSystemService(AudioManager.class);
+
+        ScrollView scroll = new ScrollView(this);
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        int pad = dp(16);
+        root.setPadding(pad, pad, pad, pad);
+        scroll.addView(root);
+        setContentView(scroll);
+
+        // Targeting Android 15+ draws edge-to-edge; keep content clear of the system bars.
+        if (Build.VERSION.SDK_INT >= 30) {
+            scroll.setOnApplyWindowInsetsListener((v, insets) -> {
+                android.graphics.Insets bars = insets.getInsets(WindowInsets.Type.systemBars());
+                v.setPadding(bars.left, bars.top, bars.right, bars.bottom);
+                return WindowInsets.CONSUMED;
+            });
+        }
+
+        TextView title = new TextView(this);
+        title.setText(R.string.app_name);
+        title.setTextSize(28);
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        root.addView(title);
+
+        status = new TextView(this);
+        status.setTextSize(16);
+        status.setPadding(0, dp(8), 0, dp(8));
+        root.addView(status);
+
+        warning = new TextView(this);
+        warning.setTextSize(14);
+        warning.setTextColor(UiSettings.isLight(theme) ? 0xFFB00020 : 0xFFFF6E6E);
+        warning.setText(R.string.no_headphones_warning);
+        root.addView(warning);
+
+        startStop = new Button(this);
+        startStop.setOnClickListener(v -> onStartStop());
+        root.addView(startStop, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+
+        sceneLabel = new TextView(this);
+        sceneLabel.setTextSize(16);
+        sceneLabel.setPadding(0, dp(12), 0, dp(4));
+        root.addView(sceneLabel);
+        LinearLayout sceneRow = newButtonRow(root);
+        addButton(sceneRow, R.string.choose_scene, this::showScenes);
+        addButton(sceneRow, R.string.import_scene, this::startImportScene);
+        addButton(sceneRow, R.string.import_scene_folder, this::startImportSceneFolder);
+
+        scenePad = new ScenePad(this);
+        scenePad.setListener(this::sendTouch);
+        LinearLayout.LayoutParams padParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        padParams.topMargin = dp(8);
+        root.addView(scenePad, padParams);
+        padHint = new TextView(this);
+        padHint.setText(R.string.pad_hint);
+        padHint.setTextSize(13);
+        root.addView(padHint);
+
+        sceneLevels = new LinearLayout(this);
+        sceneLevels.setOrientation(LinearLayout.VERTICAL);
+        addLevelSlider(sceneLevels, R.string.scene_volume, SceneSettings.volume(this), v -> {
+            SceneSettings.setVolume(this, v);
+            sendSceneLevelsIfRunning();
+        });
+        addLevelSlider(sceneLevels, R.string.scene_mic_volume, SceneSettings.micVolume(this), v -> {
+            SceneSettings.setMicVolume(this, v);
+            sendSceneLevelsIfRunning();
+        });
+        CheckBox timing = new CheckBox(this);
+        timing.setText(R.string.scene_rjdj_timing);
+        timing.setChecked(SceneSettings.rjdjTiming(this));
+        timing.setOnCheckedChangeListener((b, on) -> {
+            SceneSettings.setRjdjTiming(this, on);
+            if (AudioService.isRunning()) {   // the rate is chosen when the engine starts
+                startForegroundService(new Intent(this, AudioService.class).setAction(AudioService.ACTION_RESTART));
+            }
+        });
+        sceneLevels.addView(timing);
+        TextView hint = new TextView(this);
+        hint.setText(R.string.scene_headphones_hint);
+        hint.setTextSize(13);
+        sceneLevels.addView(hint);
+        root.addView(sceneLevels);
+
+        effectsBox = new LinearLayout(this);
+        effectsBox.setOrientation(LinearLayout.VERTICAL);
+        root.addView(effectsBox);
+
+        LinearLayout presetRow = newButtonRow(effectsBox);
+        addButton(presetRow, R.string.presets, this::showPresets);
+        addButton(presetRow, R.string.save, this::showSave);
+        addButton(presetRow, R.string.export, this::startExport);
+        addButton(presetRow, R.string.import_preset, this::startImport);
+
+        LinearLayout randomRow = newButtonRow(effectsBox);
+        addButton(randomRow, R.string.randomize, () -> {
+            ParamStore.randomize();
+            refreshRows();
+        });
+        addButton(randomRow, R.string.nudge, () -> {
+            ParamStore.nudge(ParamStore.get("nudge_amount"));
+            refreshRows();
+        });
+        undoButton = addButton(randomRow, R.string.undo, () -> {
+            ParamStore.undo();
+            refreshRows();
+        });
+
+        LinearLayout resetRow = newButtonRow(effectsBox);
+        addButton(resetRow, R.string.reset_all, this::confirmResetAll);
+
+        Worlds.load(this);
+        addSection(effectsBox, "worlds", getString(R.string.section_worlds), true, this::fillWorldsSection);
+        for (Params.Section section : Params.SECTIONS) {
+            addSection(effectsBox, section.id, section.title, section.openByDefault,
+                    body -> fillEffectSection(body, section));
+        }
+        addAudioSection(root);
+        addAppearanceSection(root);
+        addAboutSection(root);
+        refreshRows();
+        updateSceneUi();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // Event-driven updates instead of polling: the service and the audio routing tell us.
+        AudioService.setStateListener(this::updateUi);
+        Worlds.load(this);
+        Worlds.setListener(() -> {
+            updateWorldStatus();
+            refreshRows();   // sliders move on their own while a world fades in
+        });
+        refreshWorldRows();
+        updateWorldStatus();
+        audioManager.registerAudioDeviceCallback(deviceCallback, null);
+        refreshDevicePickers();
+        updateUi();
+    }
+
+    @Override
+    protected void onPause() {
+        AudioService.setStateListener(null);
+        Worlds.setListener(null);
+        audioManager.unregisterAudioDeviceCallback(deviceCallback);
+        ParamStore.save(this);
+        super.onPause();
+    }
+
+    // ---- building the screen ----
+
+    private LinearLayout newButtonRow(LinearLayout parent) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        parent.addView(row, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        return row;
+    }
+
+    private Button addButton(LinearLayout row, int textRes, Runnable action) {
+        Button b = new Button(this);
+        b.setText(textRes);
+        b.setAllCaps(false);
+        b.setOnClickListener(v -> action.run());
+        row.addView(b, new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        return b;
+    }
+
+    /** A tappable header that shows or hides the returned container. State is remembered. */
+    private LinearLayout addSection(LinearLayout parent, String id, String title,
+                                    boolean openByDefault) {
+        return addSection(parent, id, title, openByDefault, null);
+    }
+
+    /**
+     * A foldable section. {@code fill} (may be null) builds the rows the first time the section is shown, so
+     * folded sections cost nothing at startup.
+     */
+    private LinearLayout addSection(LinearLayout parent, String id, String title, boolean openByDefault,
+                                    java.util.function.Consumer<LinearLayout> fill) {
+        TextView header = new TextView(this);
+        header.setTextSize(18);
+        header.setTypeface(Typeface.DEFAULT_BOLD);
+        header.setPadding(0, dp(20), 0, dp(8));
+        TypedValue ripple = new TypedValue();
+        getTheme().resolveAttribute(android.R.attr.selectableItemBackground, ripple, true);
+        header.setBackgroundResource(ripple.resourceId);
+
+        LinearLayout body = new LinearLayout(this);
+        body.setOrientation(LinearLayout.VERTICAL);
+
+        boolean[] filled = {fill == null};
+        Runnable show = () -> {
+            if (!filled[0]) {
+                filled[0] = true;
+                fill.accept(body);
+                refreshRows();   // the new rows start with the stored values
+            }
+        };
+        boolean open = UiSettings.isExpanded(this, id, openByDefault);
+        showSectionState(header, body, title, open);
+        if (open) {
+            show.run();
+        }
+        header.setOnClickListener(v -> {
+            boolean nowOpen = body.getVisibility() != View.VISIBLE;
+            UiSettings.setExpanded(this, id, nowOpen);
+            showSectionState(header, body, title, nowOpen);
+            if (nowOpen) {
+                show.run();
+            }
+        });
+
+        parent.addView(header);
+        parent.addView(body);
+        return body;
+    }
+
+    /** One effect section: its Movers switch, then each slider followed by its movement settings. */
+    private void fillEffectSection(LinearLayout body, Params.Section section) {
+        Param moversSwitch = Params.byId(Params.moversSwitchId(section.id));
+        if (moversSwitch != null) {
+            addRow(body, moversSwitch);
+        }
+        for (Param p : Params.ALL) {
+            if (p.section.equals(section.id) && p.moverOf == null && p != moversSwitch) {
+                addRow(body, p);
+                if (Params.byId(Params.moverId(p.id, "mv")) != null) {
+                    addMoverRows(body, section.id, p);
+                }
+            }
+        }
+    }
+
+    /** The Worlds section: an on/off switch, what is playing now, and which preset each world uses. */
+    private void fillWorldsSection(LinearLayout body) {
+        Switch auto = new Switch(this);
+        auto.setText(R.string.worlds_auto);
+        auto.setTextSize(16);
+        auto.setPadding(0, dp(8), 0, 0);
+        auto.setChecked(Worlds.isEnabled());
+        auto.setOnClickListener(v -> {
+            Worlds.setEnabled(auto.isChecked());
+            updateWorldStatus();
+        });
+        body.addView(auto);
+
+        worldStatus = new TextView(this);
+        worldStatus.setTextSize(14);
+        worldStatus.setPadding(0, dp(8), 0, dp(4));
+        body.addView(worldStatus);
+
+        for (Worlds.World w : Worlds.ALL) {
+            TextView label = new TextView(this);
+            label.setText(getString(R.string.world_row, w.title, w.when));
+            label.setTextSize(14);
+            label.setPadding(0, dp(8), 0, 0);
+            body.addView(label);
+            Spinner spinner = new Spinner(this);
+            body.addView(spinner);
+            WorldRow row = new WorldRow(w, spinner);
+            worldRows.add(row);
+            spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+                @Override
+                public void onItemSelected(AdapterView<?> parentView, View v, int position, long id) {
+                    String chosen = position == 0 || position > row.presets.size()
+                            ? Worlds.NONE : row.presets.get(position - 1);
+                    if (!chosen.equals(Worlds.presetName(w.id))) {   // ignore our own refresh
+                        Worlds.setPreset(w.id, chosen);
+                    }
+                }
+
+                @Override
+                public void onNothingSelected(AdapterView<?> parentView) { }
+            });
+        }
+        TextView note = new TextView(this);
+        note.setText(R.string.worlds_note);
+        note.setTextSize(13);
+        note.setPadding(0, dp(12), 0, 0);
+        body.addView(note);
+        refreshWorldRows();
+        updateWorldStatus();
+    }
+
+    /** Fills each world's dropdown with the current presets (they change when you save or import one). */
+    private void refreshWorldRows() {
+        List<String> presets = new ArrayList<>(PresetManager.builtInNames());
+        presets.addAll(PresetManager.userNames(this));
+        for (WorldRow row : worldRows) {
+            row.presets = presets;
+            List<String> items = new ArrayList<>();
+            items.add(getString(R.string.world_off));
+            items.addAll(presets);
+            ArrayAdapter<String> adapter = new ArrayAdapter<>(
+                    this, android.R.layout.simple_spinner_item, items);
+            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+            row.spinner.setAdapter(adapter);
+            row.spinner.setSelection(presets.indexOf(Worlds.presetName(row.world.id)) + 1);
+        }
+    }
+
+    private void updateWorldStatus() {
+        if (worldStatus == null) {
+            return;
+        }
+        String id = Worlds.currentWorld();
+        String name = getString(R.string.worlds_yours);
+        for (Worlds.World w : Worlds.ALL) {
+            if (w.id.equals(id)) {
+                name = w.title;
+            }
+        }
+        worldStatus.setText(!Worlds.isEnabled() ? getString(R.string.worlds_off_status)
+                : getString(R.string.worlds_now, name));
+    }
+
+    private void showSectionState(TextView header, View body, String title, boolean open) {
+        body.setVisibility(open ? View.VISIBLE : View.GONE);
+        header.setText(getString(open ? R.string.section_open : R.string.section_closed, title));
+    }
+
+    private void addAudioSection(LinearLayout parent) {
+        LinearLayout body = addSection(parent, "audio", getString(R.string.section_audio), false);
+        inputPicker = addDevicePicker(body, R.string.audio_input, true);
+        outputPicker = addDevicePicker(body, R.string.audio_output, false);
+
+        if (!AudioService.canSelectDevices()) {
+            inputPicker.spinner.setEnabled(false);
+            outputPicker.spinner.setEnabled(false);
+        }
+        micHint = new TextView(this);
+        micHint.setTextSize(13);
+        micHint.setPadding(0, dp(8), 0, 0);
+        body.addView(micHint);
+        updateMicHint();
+        TextView note = new TextView(this);
+        note.setText(AudioService.canSelectDevices()
+                ? R.string.audio_note : R.string.audio_unsupported);
+        note.setTextSize(13);
+        note.setPadding(0, dp(12), 0, 0);
+        body.addView(note);
+    }
+
+    private DevicePicker addDevicePicker(LinearLayout parent, int labelRes, boolean input) {
+        TextView label = new TextView(this);
+        label.setText(labelRes);
+        label.setTextSize(16);
+        label.setPadding(0, dp(16), 0, 0);
+        parent.addView(label);
+
+        Spinner spinner = new Spinner(this);
+        parent.addView(spinner);
+        DevicePicker picker = new DevicePicker(input, spinner);
+        spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parentView, View v, int position, long id) {
+                String key = position == 0 || position > picker.devices.size()
+                        ? AudioSettings.AUTOMATIC : picker.devices.get(position - 1).key;
+                if (key.equals(picker.shownKey)) {
+                    return;   // our own refresh, not a user choice
+                }
+                picker.shownKey = key;
+                AudioSettings.setDeviceKey(MainActivity.this, picker.input, key);
+                updateMicHint();
+                if (AudioService.isRunning()) {
+                    startForegroundService(new Intent(MainActivity.this, AudioService.class)
+                            .setAction(AudioService.ACTION_RESTART));
+                }
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parentView) { }
+        });
+        return picker;
+    }
+
+    /** Rebuilds both dropdowns from the devices connected right now. */
+    private void refreshDevicePickers() {
+        fillPicker(inputPicker);
+        fillPicker(outputPicker);
+        updateMicHint();
+    }
+
+    private void fillPicker(DevicePicker picker) {
+        picker.devices = AudioDevices.list(this, picker.input);
+        List<String> names = new ArrayList<>();
+        names.add(getString(picker.input ? R.string.audio_automatic
+                : picker.devices.isEmpty() ? R.string.audio_no_headphones
+                : R.string.audio_output_automatic));
+        for (AudioDevices.Device d : picker.devices) {
+            names.add(d.label);
+        }
+        // A remembered device that isn't plugged in shows as Automatic, but stays remembered.
+        String saved = AudioSettings.deviceKey(this, picker.input);
+        int selected = 0;
+        for (int i = 0; i < picker.devices.size(); i++) {
+            if (picker.devices.get(i).key.equals(saved)) {
+                selected = i + 1;
+            }
+        }
+        picker.shownKey = selected == 0 ? AudioSettings.AUTOMATIC : saved;
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(
+                this, android.R.layout.simple_spinner_item, names);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        picker.spinner.setAdapter(adapter);
+        picker.spinner.setSelection(selected);
+    }
+
+    private void addAboutSection(LinearLayout parent) {
+        LinearLayout body = addSection(parent, "about", getString(R.string.section_about), false);
+        TextView text = new TextView(this);
+        text.setTextSize(14);
+        String source = getString(R.string.source_url);
+        text.setText(source.isEmpty() ? getString(R.string.about_text)
+                : getString(R.string.about_text_with_source, source));
+        text.setPadding(0, 0, 0, dp(8));
+        body.addView(text);
+        TextView sensorLine = new TextView(this);
+        sensorLine.setTextSize(12);
+        sensorLine.setText(getString(R.string.sensors_line, SensorInput.describe(this)));
+        sensorLine.setPadding(0, 0, 0, dp(8));
+        body.addView(sensorLine);
+        LinearLayout row = newButtonRow(body);
+        addButton(row, R.string.show_licenses, this::showLicenses);
+    }
+
+    /** Licence texts shipped inside the app (assets/licenses), as the GPL requires. */
+    private void showLicenses() {
+        String[][] docs = {
+                {"Notice", "NOTICE.txt"},
+                {"GNU GPL v3", "GPL-3.0.txt"},
+                {"RjDj library (rjlib)", "rjlib-LICENSE.txt"},
+                {"Pure Data (BSD)", "pure-data-LICENSE.txt"},
+                {"PdParty helper objects (BSD)", "pdparty-LICENSE.txt"},
+                {"Oboe and libpd (Apache 2.0)", "Apache-2.0.txt"},
+        };
+        String[] names = new String[docs.length];
+        for (int i = 0; i < docs.length; i++) {
+            names[i] = docs[i][0];
+        }
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.show_licenses)
+                .setItems(names, (d, which) -> showAssetText(docs[which][0], "licenses/" + docs[which][1]))
+                .setNegativeButton(R.string.close, null)
+                .show();
+    }
+
+    private void showAssetText(String title, String assetPath) {
+        String text;
+        try (InputStream in = getAssets().open(assetPath)) {
+            java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+            byte[] buf = new byte[8192];
+            int n;
+            while ((n = in.read(buf)) > 0) {
+                bytes.write(buf, 0, n);
+            }
+            text = new String(bytes.toByteArray(), StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            text = getString(R.string.err_open_file);
+        }
+        TextView view = new TextView(this);
+        view.setText(text);
+        view.setTextSize(12);
+        view.setTypeface(Typeface.MONOSPACE);
+        view.setPadding(dp(16), dp(8), dp(16), dp(8));
+        view.setTextIsSelectable(true);
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(view);
+        new AlertDialog.Builder(this)
+                .setTitle(title)
+                .setView(scroll)
+                .setPositiveButton(R.string.close, null)
+                .show();
+    }
+
+    private void addAppearanceSection(LinearLayout parent) {
+        LinearLayout body = addSection(
+                parent, "appearance", getString(R.string.section_appearance), false);
+        int[] labels = {R.string.theme_light, R.string.theme_dark, R.string.theme_amoled};
+        int current = UiSettings.theme(this);
+        RadioGroup group = new RadioGroup(this);
+        for (int i = 0; i < labels.length; i++) {
+            int theme = i;   // THEME_LIGHT, THEME_DARK, THEME_AMOLED are 0, 1, 2
+            RadioButton choice = new RadioButton(this);
+            choice.setId(View.generateViewId());
+            choice.setText(labels[i]);
+            choice.setChecked(theme == current);
+            choice.setOnClickListener(v -> {
+                if (theme != UiSettings.theme(this)) {
+                    UiSettings.setTheme(this, theme);
+                    recreate();   // rebuilds the screen in the new theme; audio keeps running
+                }
+            });
+            group.addView(choice);
+        }
+        body.addView(group);
+    }
+
+    private void addRow(LinearLayout parent, Param p) {
+        addRow(parent, p, false);
+    }
+
+    /** {@code compact} makes a smaller, tighter row, for the mover settings under a slider. */
+    private void addRow(LinearLayout parent, Param p, boolean compact) {
+        if (p.toggle) {
+            Switch sw = new Switch(this);
+            sw.setText(p.label);
+            sw.setTextSize(16);
+            sw.setPadding(0, dp(16), 0, 0);
+            sw.setOnClickListener(v -> {
+                ParamStore.set(p.id, sw.isChecked() ? 1f : 0f);
+                updateMoverUi();   // a section's movers switch greys its mover controls in or out
+            });
+            parent.addView(sw);
+            rows.add(new Row(p, null, null, sw, null));
+            return;
+        }
+        if (p.choices != null) {
+            addChoiceRow(parent, p, compact);
+            return;
+        }
+
+        LinearLayout head = new LinearLayout(this);
+        head.setOrientation(LinearLayout.HORIZONTAL);
+        head.setGravity(Gravity.CENTER_VERTICAL);
+        head.setPadding(0, dp(compact ? 4 : 16), 0, 0);
+
+        TextView label = new TextView(this);
+        label.setTextSize(compact ? 14 : 16);
+        head.addView(label, new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+
+        if (p.randomizable) {
+            CheckBox lock = new CheckBox(this);
+            lock.setText(R.string.lock);
+            lock.setChecked(ParamStore.isLocked(p.id));
+            lock.setOnCheckedChangeListener((b, checked) -> ParamStore.setLocked(p.id, checked));
+            head.addView(lock);
+        }
+        parent.addView(head);
+
+        SeekBar slider = new SeekBar(this);
+        slider.setMax(1000);
+        parent.addView(slider);
+        rows.add(new Row(p, label, slider, null, null));
+
+        slider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar s, int progress, boolean fromUser) {
+                if (fromUser) {  // ignore changes we make ourselves in refreshRows()
+                    float value = p.toValue(progress / 1000f);
+                    ParamStore.set(p.id, value);
+                    label.setText(valueText(p, value));
+                }
+            }
+
+            @Override public void onStartTrackingTouch(SeekBar s) { }
+            @Override public void onStopTrackingTouch(SeekBar s) { }
+        });
+    }
+
+    /** A label with a dropdown, for settings that pick one of a few named options. */
+    private void addChoiceRow(LinearLayout parent, Param p, boolean compact) {
+        TextView label = new TextView(this);
+        label.setText(p.label);
+        label.setTextSize(compact ? 14 : 16);
+        label.setPadding(0, dp(compact ? 4 : 16), 0, 0);
+        parent.addView(label);
+
+        Spinner spinner = new Spinner(this);
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(
+                this, android.R.layout.simple_spinner_item, p.choices);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinner.setAdapter(adapter);
+        spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parentView, View v, int position, long id) {
+                if (position != Math.round(ParamStore.get(p.id))) {   // ignore refreshRows()
+                    ParamStore.set(p.id, position);
+                    updateMoverUi();
+                }
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parentView) { }
+        });
+        parent.addView(spinner);
+        rows.add(new Row(p, label, null, null, spinner));
+    }
+
+    /** The movement, speed and depth controls of one slider's mover, indented under it. */
+    private void addMoverRows(LinearLayout parent, String sectionId, Param slider) {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(dp(16), 0, 0, dp(4));
+        addRow(box, Params.byId(Params.moverId(slider.id, "mv")), true);
+        LinearLayout details = new LinearLayout(this);
+        details.setOrientation(LinearLayout.VERTICAL);
+        addRow(details, Params.byId(Params.moverId(slider.id, "mvspeed")), true);
+        addRow(details, Params.byId(Params.moverId(slider.id, "mvdepth")), true);
+        box.addView(details);
+        parent.addView(box);
+        moverUis.add(new MoverUi(sectionId, slider.id, box, details));
+    }
+
+    /** Greys out mover controls whose section has its movers off; hides speed and depth while a mover is Off. */
+    private void updateMoverUi() {
+        for (MoverUi m : moverUis) {
+            boolean on = ParamStore.get(Params.moversSwitchId(m.sectionId)) >= 0.5f;
+            boolean moving = Math.round(ParamStore.get(Params.moverId(m.paramId, "mv"))) != 0;
+            m.details.setVisibility(moving ? View.VISIBLE : View.GONE);
+            setTreeEnabled(m.box, on);
+            m.box.setAlpha(on ? 1f : 0.4f);
+        }
+    }
+
+    private static void setTreeEnabled(View view, boolean enabled) {
+        view.setEnabled(enabled);
+        if (view instanceof LinearLayout) {
+            LinearLayout group = (LinearLayout) view;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                setTreeEnabled(group.getChildAt(i), enabled);
+            }
+        }
+    }
+
+    private String valueText(Param p, float value) {
+        return getString(R.string.param_value, p.label, p.format(value));
+    }
+
+    /** Pull current values from the store into every control. */
+    private void refreshRows() {
+        for (Row r : rows) {
+            float v = ParamStore.get(r.param.id);
+            if (r.switchView != null) {
+                r.switchView.setChecked(v >= 0.5f);
+            } else if (r.spinner != null) {
+                r.spinner.setSelection(Math.round(v));
+            } else {
+                r.slider.setProgress(Math.round(r.param.toNorm(v) * 1000f));
+                r.label.setText(valueText(r.param, v));
+            }
+        }
+        updateMoverUi();
+        undoButton.setEnabled(ParamStore.canUndo());
+    }
+
+    // ---- presets ----
+
+    private void showPresets() {
+        List<String> names = new ArrayList<>();
+        List<Boolean> isUser = new ArrayList<>();
+        for (String n : PresetManager.builtInNames()) {
+            names.add(n);
+            isUser.add(false);
+        }
+        for (String n : PresetManager.userNames(this)) {
+            names.add(n);
+            isUser.add(true);
+        }
+        String[] labels = new String[names.size()];
+        for (int i = 0; i < labels.length; i++) {
+            labels[i] = isUser.get(i)
+                    ? getString(R.string.preset_saved_suffix, names.get(i)) : names.get(i);
+        }
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle(R.string.presets_title)
+                .setItems(labels, (d, which) -> loadPreset(names.get(which), isUser.get(which)))
+                .setNegativeButton(R.string.close, null)
+                .create();
+        dialog.show();
+        dialog.getListView().setOnItemLongClickListener((parent, view, pos, id) -> {
+            if (!isUser.get(pos)) {
+                return false;
+            }
+            confirmDelete(names.get(pos));
+            dialog.dismiss();
+            return true;
+        });
+    }
+
+    private void loadPreset(String name, boolean user) {
+        Map<String, Float> values = user
+                ? PresetManager.readUser(this, name) : PresetManager.builtIn(name);
+        if (values == null) {
+            toast(R.string.toast_read_failed, name);
+            return;
+        }
+        ParamStore.applyPreset(values);
+        refreshRows();
+        toast(R.string.toast_loaded, name);
+    }
+
+    /** The one place settings are ever wiped: only when the user taps Reset and confirms. */
+    private void confirmResetAll() {
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.reset_title)
+                .setMessage(R.string.reset_message)
+                .setPositiveButton(R.string.reset_confirm, (d, w) -> {
+                    Worlds.resetSettings();
+                    ParamStore.resetAll();
+                    ParamStore.save(this);
+                    AudioSettings.reset(this);
+                    SceneSettings.resetAll(this);
+                    if (AudioService.isRunning()) {   // scene, devices and rate are chosen at start
+                        startForegroundService(new Intent(this, AudioService.class)
+                                .setAction(AudioService.ACTION_RESTART));
+                    }
+                    toast(R.string.toast_reset);
+                    recreate();   // rebuild every control from the fresh settings
+                })
+                .setNegativeButton(R.string.cancel, null)
+                .show();
+    }
+
+    private void confirmDelete(String name) {
+        new AlertDialog.Builder(this)
+                .setTitle(getString(R.string.delete_title, name))
+                .setPositiveButton(R.string.delete, (d, w) -> {
+                    PresetManager.delete(this, name);
+                    refreshWorldRows();
+                    toast(R.string.toast_deleted);
+                })
+                .setNegativeButton(R.string.cancel, null)
+                .show();
+    }
+
+    private void showSave() {
+        EditText input = new EditText(this);
+        input.setSingleLine(true);
+        input.setText(R.string.default_preset_name);
+        input.selectAll();
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.save_title)
+                .setView(input)
+                .setPositiveButton(R.string.save, (d, w) -> {
+                    try {
+                        String used = PresetManager.save(
+                                this, input.getText().toString(), ParamStore.snapshot());
+                        toast(R.string.toast_saved, used);
+                        refreshWorldRows();
+                    } catch (IOException e) {
+                        Toast.makeText(this, e.getMessage(), Toast.LENGTH_SHORT).show();
+                    }
+                })
+                .setNegativeButton(R.string.cancel, null)
+                .show();
+    }
+
+    /** Asks for the preset's name first: it becomes both the file name and the name shown after importing. */
+    private void startExport() {
+        EditText input = new EditText(this);
+        input.setSingleLine(true);
+        input.setText(R.string.default_preset_name);
+        input.selectAll();
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.export_title)
+                .setView(input)
+                .setPositiveButton(R.string.export, (d, w) -> {
+                    exportName = PresetManager.sanitize(input.getText().toString());
+                    Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT)
+                            .addCategory(Intent.CATEGORY_OPENABLE)
+                            .setType("application/json")
+                            .putExtra(Intent.EXTRA_TITLE, exportName + ".json");
+                    startActivityForResult(intent, REQ_EXPORT);
+                })
+                .setNegativeButton(R.string.cancel, null)
+                .show();
+    }
+
+    private void startImport() {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT)
+                .addCategory(Intent.CATEGORY_OPENABLE)
+                .setType("*/*");
+        startActivityForResult(intent, REQ_IMPORT);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (resultCode != RESULT_OK || data == null || data.getData() == null) {
+            return;
+        }
+        Uri uri = data.getData();
+        if (requestCode == REQ_EXPORT) {
+            exportTo(uri);
+        } else if (requestCode == REQ_IMPORT) {
+            importFrom(uri);
+        } else if (requestCode == REQ_IMPORT_SCENE) {
+            importSceneFrom(uri);
+        } else if (requestCode == REQ_IMPORT_SCENE_FOLDER) {
+            importSceneFolderFrom(uri);
+        }
+    }
+
+    private void exportTo(Uri uri) {
+        try (OutputStream out = getContentResolver().openOutputStream(uri)) {
+            if (out == null) {
+                throw new IOException(getString(R.string.err_open_file));
+            }
+            out.write(PresetManager.toJson(exportName, ParamStore.snapshot())
+                    .getBytes(StandardCharsets.UTF_8));
+            toast(R.string.toast_exported);
+        } catch (IOException | RuntimeException e) {
+            toast(R.string.toast_export_failed, e.getMessage());
+        }
+    }
+
+    private void importFrom(Uri uri) {
+        try (InputStream in = getContentResolver().openInputStream(uri)) {
+            if (in == null) {
+                throw new IOException(getString(R.string.err_open_file));
+            }
+            PresetManager.Preset preset = PresetManager.parse(PresetManager.readAll(in));
+            String name = PresetManager.isBuiltInName(PresetManager.sanitize(preset.name))
+                    ? getString(R.string.imported_name, preset.name) : preset.name;
+            String used = PresetManager.save(this, PresetManager.uniqueName(this, name), preset.values);
+            ParamStore.applyPreset(preset.values);
+            refreshRows();
+            toast(R.string.toast_imported, used);
+            refreshWorldRows();
+        } catch (IOException | JSONException | RuntimeException e) {
+            toast(R.string.toast_import_failed, e.getMessage());
+        }
+    }
+
+    // ---- scenes ----
+
+    private void updateSceneUi() {
+        SceneLibrary.Scene scene = SceneSettings.current(this);
+        sceneLabel.setText(getString(R.string.scene_current,
+                scene != null ? scene.name : getString(R.string.scene_built_in)));
+        effectsBox.setVisibility(scene != null ? View.GONE : View.VISIBLE);
+        scenePad.setScene(scene);
+        // With no scene the pad is an XY controller for the effects' movers (see the per-slider movers).
+        padHint.setVisibility(scene != null ? View.GONE : View.VISIBLE);
+        sceneLevels.setVisibility(scene != null ? View.VISIBLE : View.GONE);
+    }
+
+    private void sendSceneLevelsIfRunning() {
+        if (AudioService.isRunning() && SceneSettings.current(this) != null) {
+            AudioService.sendSceneLevels(this);
+        }
+    }
+
+    /** A 0-100% slider with a live label; {@code onChange} gets a fraction from 0 to 1. */
+    private void addLevelSlider(LinearLayout parent, int labelRes, float initial,
+                                java.util.function.Consumer<Float> onChange) {
+        TextView label = new TextView(this);
+        label.setPadding(0, dp(8), 0, 0);
+        label.setText(getString(labelRes, Math.round(initial * 100)));
+        SeekBar bar = new SeekBar(this);
+        bar.setMax(100);
+        bar.setProgress(Math.round(initial * 100));
+        bar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar b, int progress, boolean fromUser) {
+                label.setText(getString(labelRes, progress));
+                if (fromUser) {
+                    onChange.accept(progress / 100f);
+                }
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar b) { }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar b) { }
+        });
+        parent.addView(label);
+        parent.addView(bar);
+    }
+
+    /** Passes a finger on the scene pad to the scene as an RjDj "#touch" message. */
+    private void sendTouch(String type, int finger, int x, int y) {
+        if (finger == 1 && !ScenePad.UP.equals(type)) {   // the first finger also drives the Pad X / Pad Y movers
+            Modulation.onPad(x / (float) ScenePad.GRID, y / (float) ScenePad.GRID);
+        }
+        if (AudioService.isRunning() && SceneSettings.current(this) != null) {
+            PdBase.sendMessage("#touch", type, (float) finger, (float) x, (float) y);
+        }
+    }
+
+    private void showScenes() {
+        List<SceneLibrary.Scene> scenes = SceneLibrary.list(SceneSettings.scenesDir(this));
+        String[] labels = new String[scenes.size() + 1];
+        labels[0] = getString(R.string.scene_built_in);
+        for (int i = 0; i < scenes.size(); i++) {
+            SceneLibrary.Scene sc = scenes.get(i);
+            labels[i + 1] = sc.author.isEmpty() ? sc.name
+                    : getString(R.string.scene_by_author, sc.name, sc.author);
+        }
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle(scenes.isEmpty() ? getString(R.string.scenes_none) : getString(R.string.scenes_title))
+                .setItems(labels, (d, which) -> selectScene(
+                        which == 0 ? SceneSettings.BUILT_IN : scenes.get(which - 1).dirName))
+                .setNegativeButton(R.string.close, null)
+                .create();
+        dialog.show();
+        dialog.getListView().setOnItemLongClickListener((parent, view, pos, id) -> {
+            if (pos == 0) {
+                return false;
+            }
+            confirmDeleteScene(scenes.get(pos - 1));
+            dialog.dismiss();
+            return true;
+        });
+    }
+
+    private void selectScene(String dirName) {
+        if (dirName.equals(SceneSettings.selected(this))) {
+            return;
+        }
+        SceneSettings.select(this, dirName);
+        updateSceneUi();
+        if (AudioService.isRunning()) {
+            // The patch is opened when the engine starts, so swap scenes by restarting it.
+            startForegroundService(
+                    new Intent(this, AudioService.class).setAction(AudioService.ACTION_RESTART));
+        }
+    }
+
+    private void confirmDeleteScene(SceneLibrary.Scene scene) {
+        new AlertDialog.Builder(this)
+                .setTitle(getString(R.string.delete_scene_title, scene.name))
+                .setPositiveButton(R.string.delete, (d, w) -> {
+                    boolean wasSelected = scene.dirName.equals(SceneSettings.selected(this));
+                    if (wasSelected) {
+                        selectScene(SceneSettings.BUILT_IN);   // stops using its files first
+                    }
+                    SceneLibrary.delete(scene);
+                    toast(R.string.toast_scene_deleted);
+                })
+                .setNegativeButton(R.string.cancel, null)
+                .show();
+    }
+
+    private void startImportScene() {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT)
+                .addCategory(Intent.CATEGORY_OPENABLE)
+                .setType("*/*");
+        startActivityForResult(intent, REQ_IMPORT_SCENE);
+    }
+
+    private void startImportSceneFolder() {
+        startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), REQ_IMPORT_SCENE_FOLDER);
+    }
+
+    /** Copies one scene folder, or every scene inside a folder of scenes, on a background thread. */
+    private void importSceneFolderFrom(Uri tree) {
+        toast(R.string.toast_scene_folder_importing);
+        new Thread(() -> {
+            File dir = SceneSettings.scenesDir(this);
+            if (!dir.isDirectory() && !dir.mkdirs()) {
+                runOnUiThread(() -> toast(R.string.toast_scene_import_failed, "Cannot create " + dir));
+                return;
+            }
+            TreeImporter.Result r = TreeImporter.importTree(getContentResolver(), tree, dir);
+            runOnUiThread(() -> {
+                if (r.imported.isEmpty()) {
+                    toast(R.string.toast_scene_none_found);
+                } else if (r.imported.size() == 1 && r.failed.isEmpty()) {
+                    toast(R.string.toast_scene_imported, r.imported.get(0).name);
+                    selectScene(r.imported.get(0).dirName);
+                } else {
+                    // Don't guess which of many to start; the user picks from the list.
+                    toast(R.string.toast_scenes_imported, r.imported.size(), r.failed.size());
+                }
+            });
+        }, "scene-folder-import").start();
+    }
+
+    /** Unzips on a background thread (scenes can hold many samples), then offers to switch to it. */
+    private void importSceneFrom(Uri uri) {
+        String fileName = displayName(uri);
+        toast(R.string.toast_scene_importing);
+        new Thread(() -> {
+            try (InputStream in = getContentResolver().openInputStream(uri)) {
+                if (in == null) {
+                    throw new IOException(getString(R.string.err_open_file));
+                }
+                File dir = SceneSettings.scenesDir(this);
+                if (!dir.isDirectory() && !dir.mkdirs()) {
+                    throw new IOException("Cannot create " + dir);
+                }
+                SceneLibrary.Scene scene = SceneLibrary.importZip(in, fileName, dir);
+                runOnUiThread(() -> {
+                    toast(R.string.toast_scene_imported, scene.name);
+                    selectScene(scene.dirName);
+                });
+            } catch (IOException | RuntimeException e) {
+                runOnUiThread(() -> toast(R.string.toast_scene_import_failed, e.getMessage()));
+            }
+        }, "scene-import").start();
+    }
+
+    /** The file name behind a picked document, e.g. "Eargasm.rj.zip"; empty if unknown. */
+    private String displayName(Uri uri) {
+        try (android.database.Cursor c = getContentResolver().query(
+                uri, new String[]{android.provider.OpenableColumns.DISPLAY_NAME}, null, null, null)) {
+            if (c != null && c.moveToFirst() && !c.isNull(0)) {
+                return c.getString(0);
+            }
+        } catch (RuntimeException e) {
+            // Fall through.
+        }
+        return "";
+    }
+
+    private void toast(int messageRes, Object... args) {
+        Toast.makeText(this, getString(messageRes, args), Toast.LENGTH_SHORT).show();
+    }
+
+    // ---- engine control ----
+
+    private void onStartStop() {
+        if (AudioService.isRunning()) {
+            startService(new Intent(this, AudioService.class).setAction(AudioService.ACTION_STOP));
+            return;
+        }
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO)
+                != PackageManager.PERMISSION_GRANTED) {
+            List<String> wanted = new ArrayList<>();
+            wanted.add(Manifest.permission.RECORD_AUDIO);
+            if (Build.VERSION.SDK_INT >= 33) {
+                wanted.add(Manifest.permission.POST_NOTIFICATIONS);
+            }
+            requestPermissions(wanted.toArray(new String[0]), REQ_PERMISSIONS);
+            return;
+        }
+        startAudio();
+    }
+
+    private void startAudio() {
+        startForegroundService(
+                new Intent(this, AudioService.class).setAction(AudioService.ACTION_START));
+    }
+
+    @Override
+    @SuppressWarnings("NullableProblems")
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] results) {
+        super.onRequestPermissionsResult(requestCode, permissions, results);
+        if (requestCode != REQ_PERMISSIONS) {
+            return;
+        }
+        for (int i = 0; i < permissions.length; i++) {
+            if (Manifest.permission.RECORD_AUDIO.equals(permissions[i])
+                    && results[i] == PackageManager.PERMISSION_GRANTED) {
+                startAudio();
+                return;
+            }
+        }
+        status.setText(R.string.mic_permission_required);
+    }
+
+    /** Reflects engine state and headphone presence on screen. */
+    private void updateUi() {
+        boolean on = AudioService.isRunning();
+        String error = AudioService.getLastError();
+        startStop.setText(on ? R.string.stop : R.string.start);
+        if (error != null && !on) {
+            status.setText(error);
+        } else {
+            int hz = AudioService.actualSampleRateHz();
+            status.setText(!on ? getString(R.string.status_stopped)
+                    : hz > 0 ? getString(R.string.status_running_rate, hz) : getString(R.string.status_running));
+        }
+        warning.setVisibility(headphonesConnected() ? View.GONE : View.VISIBLE);
+    }
+
+    private boolean headphonesConnected() {
+        for (AudioDeviceInfo d : audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)) {
+            switch (d.getType()) {
+                case AudioDeviceInfo.TYPE_WIRED_HEADPHONES:
+                case AudioDeviceInfo.TYPE_WIRED_HEADSET:
+                case AudioDeviceInfo.TYPE_USB_HEADSET:
+                case AudioDeviceInfo.TYPE_BLUETOOTH_A2DP:
+                    return true;
+                default:
+                    if (Build.VERSION.SDK_INT >= 31
+                            && d.getType() == AudioDeviceInfo.TYPE_BLE_HEADSET) {
+                        return true;
+                    }
+            }
+        }
+        return false;
+    }
+
+    private int dp(int v) {
+        return Math.round(v * getResources().getDisplayMetrics().density);
+    }
+}
