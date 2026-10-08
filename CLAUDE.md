@@ -65,6 +65,9 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   the darkest/brightest of the last ~90 s (min span 10x lux, steady = 0.5), 25% the fixed sun scale. Pocket detection still uses absolute lux. Auto Worlds priority is now Ghost > Kinetic > Pocket > Flux > Tranquil. Tuning of the Pocket world preset and the climb scale (`CLIMB_FULL_HPA`) is untested on a real phone.
 - **Walking beat:** StepDetector sends `step <interval>` messages; foot drift was fixed and confirmed on the phone.
 - **Music (off by default):** key + scale snap the notes; pad is soft glue (default 0.33, Samuel likes ~0.20); chimes/arpeggio follow the room.
+  Pad chords come from `CHORD_POOLS` per scale (Samuel chose: home chord + its two strongest neighbours, picked by brightness, plus one
+  contrast chord ~20% of changes; e.g. C major = C F G + Am; pentatonic/whole tone keep all). No diminished chords. Chord changes
+  crossfade between two oscillator sets (no pitch slides, which sounded like an eerie slide into minor). Chosen roots go to `s pad_chord`.
   Listening uses an *adaptive noise floor* so a quiet room is quiet (chime chance ~ eff^3). Walking arpeggio swells with pace.
   **Room notes** (`music_res`, `add_room_notes`): the mic through 6 `vcf~` resonators on the pad chord's root/third/fifth, 1 and 2
   octaves up (octave = scale size, so pentatonic stays in range). Input opens from the 5 ms level meter vs the room floor (20 ms

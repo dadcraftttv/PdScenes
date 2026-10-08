@@ -77,7 +77,7 @@ check(not bad, "patch loads with no Pd errors" + (": %s" % bad if bad else ""))
 
 jp = java_params()
 patch_text = open(PATCH).read()
-receivers = set(re.findall(r"#X obj \d+ \d+ r (\w+);", patch_text)) - {"step", "scale_n", "pad_glide", "mic_level"}   # events and internal links, not settings
+receivers = set(re.findall(r"#X obj \d+ \d+ r (\w+);", patch_text)) - {"step", "scale_n", "pad_glide", "mic_level", "pad_slot", "pool_n", "pool_x"}   # events and internal links, not settings
 pd_ids = {i for i, _, nopd in jp if not nopd}
 check(len(jp) >= 10, "parsed %d params from Params.java" % len(jp))
 check(pd_ids == receivers, "Params.java ids == patch receivers (java-only %s, patch-only %s)"
@@ -798,20 +798,39 @@ for key, scale, name in ((0, 0, "C major"), (2, 1, "D minor"), (9, 3, "A minor p
           "music: the pad plays only notes of %s (peaks %s, off-key %s)" % (name, [round(f) for f in pk[:8]], off_key(pk, key, scale)))
 
 e = fresh(music_on=1, music_pad=1, music_arp=0, wet=0)
-e.send("music_key", 2); y = e.run(e.silence(6.0))[:, 0]   # the glide to the new key takes 3.5 s
+e.send("music_key", 1); y = e.run(e.silence(6.0))[:, 0]   # the crossfade to the new key takes 3.5 s
 pk = spec_peaks(y[SR * 4:])
-check(not off_key(pk, 2, 0) and off_key(pk, 0, 5) != [], "music: changing the key moves the pad to D major (peaks %s)" % [round(f) for f in pk[:8]])
+check(len(pk) >= 3 and not off_key(pk, 1, 0) and off_key(pk, 0, 0) != [], "music: changing the key moves the pad to C# major (peaks %s)" % [round(f) for f in pk[:8]])
 
-# the pad listens: a high-pitched room puts the chord higher than a low-pitched one
-def pad_floor(tone_hz):
-    e = fresh(music_on=0, music_pad=1, music_arp=0, wet=0)
-    e.run(sine(tone_hz, 0.1, 1.5))
-    e.send("music_on", 1)
-    y = e.run(sine(tone_hz, 0.1, 3.0))[:, 0]
-    pk = [f for f in spec_peaks(y[SR:], rel=0.03) if f > 100 and abs(f - tone_hz) > 12]
-    return min(pk) if pk else 0
-low_floor, high_floor = pad_floor(200), pad_floor(3000)
-check(0 < low_floor < 170 and high_floor > 190, "music: the chord follows the brightness of the room (low sound %.0f Hz, high sound %.0f Hz)" % (low_floor, high_floor))
+# the pad listens: a high-pitched room picks higher chords than a low-pitched one (the chord choices are announced on pad_chord)
+def pad_choices(tone_hz, secs=60, **over):
+    e = fresh(**dict(dict(music_on=0, music_pad=1, music_arp=0, music_res=0, wet=0), **over)); e.listen("pad_chord")
+    e.run(sine(tone_hz, 0.1, 1.5)); e.send("music_on", 1)
+    e.run(sine(tone_hz, 0.1, secs))
+    return e.heard.get("pad_chord", [])
+low, high = pad_choices(200), pad_choices(3000)
+lo_main, hi_main = [c for c in low if c != 5], [c for c in high if c != 5]      # 5 = Am, C major's contrast chord
+check(len(low) >= 6 and lo_main and hi_main and np.mean(lo_main) + 1.5 < np.mean(hi_main),
+      "music: the chord follows the brightness of the room (low sound %s, high sound %s)" % (low, high))
+# pad chords per scale: home chord, its two neighbours, and now and then one contrast chord. Never a diminished chord.
+POOLS = {0: ({0, 3, 4}, 5), 1: ({0, 3, 4}, 2), 2: ({0, 1, 2, 3, 4}, None), 4: ({0, 3, 4}, 6), 5: ({0, 3, 6}, 4), 6: ({0, 1, 4}, 5)}
+NAMES = {0: "major", 1: "minor", 2: "major pentatonic", 4: "dorian", 5: "mixolydian", 6: "lydian"}
+for scale, (pool, contrast) in POOLS.items():
+    picks = pad_choices(200, 40, music_scale=scale) + pad_choices(3000, 40, music_scale=scale) + pad_choices(800, 60, music_scale=scale)
+    allowed = pool | ({contrast} if contrast is not None else set())
+    n_con = sum(1 for c in picks if c == contrast)
+    ok = set(picks) <= allowed and (contrast is None or 0 < n_con <= 0.45 * len(picks))
+    check(ok, "music: %s pad uses only its chords %s%s (picked %s)" % (NAMES[scale], sorted(pool), "" if contrast is None else " + contrast %d" % contrast, picks))
+# chord changes crossfade: no pitch slides through notes outside the key while the chord changes
+e = fresh(music_on=1, music_pad=1, music_arp=0, music_res=0, wet=0); e.listen("pad_chord")
+y = e.run(sine(3000, 0.05, 40))[:, 0]
+changes = e.heard.get("pad_chord", [])
+bad = []
+for a in range(6, 38, 2):
+    seg = y[a * SR:(a + 2) * SR]
+    seg = np.fft.irfft(np.where(np.fft.rfftfreq(len(seg), 1 / SR) > 2500, 0, np.fft.rfft(seg)), len(seg))   # drop the input tone
+    bad += off_key(spec_peaks(seg, rel=0.15), 0, 0)
+check(len(set(changes)) >= 2 and not bad, "music: chord changes crossfade without sliding out of key (chords %s, off-key %s)" % (changes, sorted(set(bad))[:6]))
 
 # a sudden sound makes a chime in the key, then it fades
 e = fresh(music_on=1, music_pad=0, music_arp=1, wet=0)
@@ -830,11 +849,14 @@ check(rms(quiet_after[int(4.45 * SR):int(5.5 * SR)]) < rms(after), "music: no ch
 def band_rms(y, lo=150):
     S = np.fft.rfft(y); f = np.fft.rfftfreq(len(y), 1 / SR); S[f < lo] = 0
     return rms(np.fft.irfft(S, len(y)))
-def room(amp, secs, **over):
+def room(amp, secs, windows=False, **over):
     e = fresh(music_on=1, music_pad=0, music_arp=1, wet=0, gain=1, **over)
-    return band_rms(e.run(sine(50, amp, secs))[:, 0])
-quiet, lively = room(0.001, 40), room(0.3, 40)
-check(quiet < 0.002, "music: a quiet room plays no notes (%.5f)" % quiet)
+    y = e.run(sine(50, amp, secs))[:, 0]
+    return [band_rms(y[a * SR:(a + 5) * SR]) for a in range(0, secs, 5)] if windows else band_rms(y)
+# with react below 1 a quiet room keeps a tiny chime chance (about one in 25 minutes), so allow one stray chime
+qw = room(0.001, 40, windows=True); quiet = float(np.median(qw))
+check(quiet < 0.0005 and sum(w > 0.002 for w in qw) <= 1, "music: a quiet room plays no notes (5 s windows %s)" % ["%.4f" % w for w in qw])
+lively = room(0.3, 40)
 check(lively > 10 * quiet + 0.002, "music: a loud room plays plenty of notes (%.4f vs %.5f)" % (lively, quiet))
 steady_q, steady_l = room(0.001, 40, music_react=0), room(0.3, 40, music_react=0)
 check(0.2 < (steady_l + 1e-9) / (steady_q + 1e-9) < 5, "music: react = 0 ignores the room (quiet %.4f, loud %.4f)" % (steady_q, steady_l))
@@ -899,12 +921,12 @@ check(fades["tap"] < 0.7 and fades["tap"] < fades["clap"] < fades["long"] and fa
 y = room_notes(cl, music_on=0)
 check(rms(y) < 1e-5, "room notes: silent while the music is off (%.6f)" % rms(y))
 e = fresh(music_on=1, music_pad=0, music_arp=0, music_res=1, wet=0)
-e.send("music_key", 2); e.run(e.silence(1.0))
+e.send("music_key", 1); e.run(e.silence(1.0))
 y_on = e.run(cl)[:, 0]
 e = fresh(music_on=1, music_pad=0, music_arp=0, music_res=0, wet=0)
-e.send("music_key", 2); e.run(e.silence(1.0))
+e.send("music_key", 1); e.run(e.silence(1.0))
 y = y_on - e.run(cl)[:, 0]; pk = spec_peaks(y[c0:c0 + SR])
-check(len(pk) >= 3 and not off_key(pk, 2, 0) and off_key(pk, 0, 0), "room notes: changing the key retunes them to D major (peaks %s)" % [round(f) for f in pk[:6]])
+check(len(pk) >= 3 and not off_key(pk, 1, 0) and off_key(pk, 0, 0), "room notes: changing the key retunes them to C# major (peaks %s)" % [round(f) for f in pk[:6]])
 sung = np.concatenate([np.zeros(SR, np.float32), sine(261.63, 0.5, 3)])
 y = room_notes(sung, music_react=0)
 check(float(np.abs(y).max()) <= 0.31, "room notes: a loud note sung right on a resonator stays soft-limited (peak %.3f)" % float(np.abs(y).max()))

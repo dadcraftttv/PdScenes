@@ -47,8 +47,22 @@ SCALES = [
     (0, 2, 4, 6, 7, 9, 11),     # Lydian
     (0, 2, 4, 6, 8, 10),        # Whole tone
 ]
+# Pad chords per scale, as scale steps of the chord root (0 = the key chord): the home chord and its two strongest
+# neighbours, picked by the brightness of the room, plus one contrast chord now and then (None = no contrast;
+# pentatonic and whole-tone chords are all consonant, so they keep every chord). No diminished chords anywhere.
+CHORD_POOLS = [
+    ((0, 3, 4), 5),            # Major: C F G + Am
+    ((0, 3, 4), 2),            # Minor: Cm Fm Gm + Eb
+    ((0, 1, 2, 3, 4), None),   # Major pentatonic
+    ((0, 1, 2, 3, 4), None),   # Minor pentatonic
+    ((0, 3, 4), 6),            # Dorian: Cm F Gm + Bb
+    ((0, 3, 6), 4),            # Mixolydian: C F Bb + Gm
+    ((0, 1, 4), 5),            # Lydian: C D G + Am
+    ((0, 1, 2, 3, 4, 5), None),  # Whole tone
+]
+CONTRAST_PCT = 20             # chance (in 100) that a chord change picks the contrast chord
 ARP_PATTERN = (0, 2, 4, 7, 4, 2)    # scale steps above the current chord root, one per footstep
-PAD_GLIDE_MS = 3500
+PAD_GLIDE_MS = 3500     # the pad crossfades from one chord to the next over this time (no pitch slides)
 
 # Room notes: resonators that make the mic's own sound ring the current chord: root, third and fifth (scale steps
 # 0, 2, 4 above the chord root), one and two octaves above the pad. (octaves, steps) pairs, so pentatonic and
@@ -239,9 +253,13 @@ def add_music(P):
     sel = P.obj("mu_scale_sel", "sel " + " ".join(str(i) for i in range(len(SCALES))), x, 80)
     P.c("mu_r_scale", "mu_scale_t"); P.c("mu_scale_t", sel, 1, 0)
     for i, iv in enumerate(SCALES):
-        text = f"{BS}; scale_iv 0 {' '.join(str(v) for v in iv)} {BS}; scale_n {len(iv)}"
+        pool, contrast = CHORD_POOLS[i]
+        text = (f"{BS}; scale_iv 0 {' '.join(str(v) for v in iv)} {BS}; scale_n {len(iv)}"
+                f" {BS}; chord_pool 0 {' '.join(str(v) for v in pool)} {BS}; pool_n {len(pool)}"
+                f" {BS}; pool_x {-1 if contrast is None else contrast}")
         P.msg(f"mu_scale_msg{i}", text, x + 60 * i, 110)
         P.c(sel, f"mu_scale_msg{i}", i, 0)
+    P.obj("mu_pool_tab", "table chord_pool 8", x + 200, 20)
     P.obj("mu_r_n", "r scale_n", x + 520, 50)
     P.obj("mu_v_n", "value scale_n", x + 520, 80)
     P.c("mu_r_n", "mu_v_n")
@@ -488,17 +506,30 @@ def add_music(P):
     px = x + 1500
     P.obj("mu_chord_tick", "metro 7000", px, 20)
     P.c("mu_load", "mu_chord_tick")
-    P.obj("mu_chord_go", "t b b", px, 50)
+    P.obj("mu_chord_go", "t b b b", px, 50)
     P.c("mu_chord_tick", "mu_chord_go")
     P.c("mu_scale_t", "mu_chord_go", 0, 0); P.c("mu_key_t", "mu_chord_go", 0, 0)
     P.obj("mu_pad_jit", "random 3", px + 80, 80)
     P.obj("mu_pad_jit_m", "- 1", px + 80, 110)
-    ex("mu_pad_root", "int(min(max($f1*5+$f2,0),6)+0.5)", px, 140)       # chord root: brighter sound, higher chord
-    P.c("mu_chord_go", "mu_pad_jit", 1, 0); P.c("mu_pad_jit", "mu_pad_jit_m"); P.c("mu_pad_jit_m", "mu_pad_root", 0, 1)
+    P.obj("mu_r_pool_n", "r pool_n", px + 240, 80)
+    # which of the scale's main chords: brighter sound, higher chord (plus a little wander)
+    ex("mu_pad_idx", "int(min(max($f1*($f3-1)+$f2*0.6,0),$f3-1)+0.5)", px, 140)
+    P.c("mu_chord_go", "mu_pad_jit", 1, 0); P.c("mu_pad_jit", "mu_pad_jit_m"); P.c("mu_pad_jit_m", "mu_pad_idx", 0, 1)
+    P.c("mu_r_pool_n", "mu_pad_idx", 0, 2)
     P.obj("mu_rd_root", "value mbright", px + 160, 110)
-    P.c("mu_chord_go", "mu_rd_root", 0, 0); P.c("mu_rd_root", "mu_pad_root")
-    P.obj("mu_pad_root_v", "t f f", px, 170)
+    P.c("mu_chord_go", "mu_rd_root", 0, 0); P.c("mu_rd_root", "mu_pad_idx")
+    P.obj("mu_pad_pool", "tabread chord_pool", px, 160)
+    P.c("mu_pad_idx", "mu_pad_pool")
+    # now and then the contrast chord instead (when the scale has one)
+    P.obj("mu_pad_roll", "random 100", px + 160, 140)
+    P.c("mu_chord_go", "mu_pad_roll", 2, 0)
+    P.obj("mu_r_pool_x", "r pool_x", px + 300, 140)
+    ex("mu_pad_root", f"if($f2<{CONTRAST_PCT}&&$f3>=0,$f3,$f1)", px, 180)
+    P.c("mu_pad_pool", "mu_pad_root"); P.c("mu_pad_roll", "mu_pad_root", 0, 1); P.c("mu_r_pool_x", "mu_pad_root", 0, 2)
+    P.obj("mu_pad_root_v", "t f f b", px, 200)
     P.c("mu_pad_root", "mu_pad_root_v")
+    P.obj("mu_chord_s", "s pad_chord", px + 240, 230)               # for the tests
+    P.c("mu_pad_root_v", "mu_chord_s", 1, 0)
     P.obj("mu_v_chord_set", "value mchord", px + 80, 200)
     P.c("mu_pad_root_v", "mu_v_chord_set", 1, 0)
     # Instant chord when the music is switched on; slow glides afterwards.
@@ -511,6 +542,22 @@ def add_music(P):
     P.c("mu_on_t", "mu_glide0", 2, 0); P.c("mu_on_t", "mu_chord_go", 1, 0); P.c("mu_on_t", "mu_glide_wait", 0, 0)
     P.c("mu_glide_wait", "mu_glide1")
     P.obj("mu_r_glide", "r pad_glide", px + 160, 80)
+    # Crossfade: every chord change flips to the other of two oscillator sets. The silent set takes the new notes at
+    # once and fades in while the old one fades out, so no note slides through pitches outside the key.
+    P.obj("mu_slot", "f", px + 400, 200)
+    P.obj("mu_slot_add", "+ 1", px + 440, 200)
+    P.obj("mu_slot_mod", "mod 2", px + 480, 200)
+    P.c("mu_pad_root_v", "mu_slot", 2, 0)
+    P.c("mu_slot", "mu_slot_add"); P.c("mu_slot_add", "mu_slot_mod"); P.c("mu_slot_mod", "mu_slot", 0, 1)
+    P.obj("mu_slot_s", "s pad_slot", px + 400, 230)
+    P.c("mu_slot_mod", "mu_slot_s")
+    P.obj("mu_r_slot", "r pad_slot", px + 400, 260)
+    for k in (0, 1):
+        P.obj(f"mu_xf{k}_is", f"== {k}", px + 400 + 80 * k, 290)
+        P.obj(f"mu_xf{k}_pk", f"pack 0 {PAD_GLIDE_MS}", px + 400 + 80 * k, 320)
+        P.obj(f"mu_xf{k}", "line~", px + 400 + 80 * k, 350)
+        P.c("mu_r_slot", f"mu_xf{k}_is"); P.c(f"mu_xf{k}_is", f"mu_xf{k}_pk"); P.c(f"mu_xf{k}_pk", f"mu_xf{k}")
+        P.c("mu_r_glide", f"mu_xf{k}_pk", 0, 1)
     pad_sum = None
     offsets = ["+ 0", "+ 2", "+ 4", None]
     for i in range(4):
@@ -524,14 +571,21 @@ def add_music(P):
             P.c("mu_r_n", f"mu_pad{i}_deg", 0, 1)
         dg_in, dg_hz = degree_to_hz(f"mu_p{i}", vx, 260)
         P.c(f"mu_pad{i}_deg", dg_in)
-        P.obj(f"mu_pad{i}_pk", "pack 0 3500", vx, 440)
-        P.obj(f"mu_pad{i}_ln", "line~", vx, 470)
-        P.c(dg_hz, f"mu_pad{i}_pk"); P.c("mu_r_glide", f"mu_pad{i}_pk", 0, 1); P.c(f"mu_pad{i}_pk", f"mu_pad{i}_ln")
-        P.obj(f"mu_pad{i}_o1", "osc~", vx, 500)
-        P.obj(f"mu_pad{i}_det", "*~ 1.004", vx + 70, 500)
-        P.obj(f"mu_pad{i}_o2", "osc~", vx + 70, 530)
-        P.c(f"mu_pad{i}_ln", f"mu_pad{i}_o1"); P.c(f"mu_pad{i}_ln", f"mu_pad{i}_det"); P.c(f"mu_pad{i}_det", f"mu_pad{i}_o2")
-        P.sig2(f"mu_pad{i}_sum", "+~", f"mu_pad{i}_o1", f"mu_pad{i}_o2", vx, 560)
+        parts = []
+        for k in (0, 1):                                   # the two crossfaded sets of this voice
+            kx = vx + 75 * k
+            P.obj(f"mu_pad{i}_{k}_gate", "spigot", kx, 440)
+            P.c(dg_hz, f"mu_pad{i}_{k}_gate"); P.c(f"mu_xf{k}_is", f"mu_pad{i}_{k}_gate", 0, 1)
+            P.obj(f"mu_pad{i}_{k}_t", "t f f", kx, 460)
+            P.obj(f"mu_pad{i}_{k}_det", "* 1.004", kx + 40, 480)
+            P.obj(f"mu_pad{i}_{k}_o1", "osc~", kx, 500)
+            P.obj(f"mu_pad{i}_{k}_o2", "osc~", kx + 40, 510)
+            P.c(f"mu_pad{i}_{k}_gate", f"mu_pad{i}_{k}_t")
+            P.c(f"mu_pad{i}_{k}_t", f"mu_pad{i}_{k}_o1", 0, 0)
+            P.c(f"mu_pad{i}_{k}_t", f"mu_pad{i}_{k}_det", 1, 0); P.c(f"mu_pad{i}_{k}_det", f"mu_pad{i}_{k}_o2")
+            P.sig2(f"mu_pad{i}_{k}_s", "+~", f"mu_pad{i}_{k}_o1", f"mu_pad{i}_{k}_o2", kx, 530)
+            parts.append(P.sig2(f"mu_pad{i}_{k}_x", "*~", f"mu_pad{i}_{k}_s", f"mu_xf{k}", kx, 545))
+        P.sig2(f"mu_pad{i}_sum", "+~", parts[0], parts[1], vx, 560)
         P.obj(f"mu_pad{i}_g", "*~ " + ("0.042", "0.033", "0.03", "0.021")[i], vx, 590)
         P.c(f"mu_pad{i}_sum", f"mu_pad{i}_g")
         pad_sum = f"mu_pad{i}_g" if pad_sum is None else P.sig2(f"mu_pad_acc{i}", "+~", pad_sum, f"mu_pad{i}_g", vx, 620)
