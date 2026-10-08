@@ -51,7 +51,7 @@ def fresh(**over):
                 phaser_on=1, phaser_mix=0, phaser_rate=0.4, phaser_depth=0.7, phaser_fb=0.4,
                 beat_on=1, beat_level=0, beat_hats=0.5, beat_snare=0.6, beat_pitch=55,
                 music_on=0, music_key=0, music_scale=0, music_pad=0.33, music_arp=0.4,
-                music_tone=0.5, music_react=0.8, music_res=0.8)
+                music_tone=0.5, music_react=0.8, music_res=0.8, pocket_hush=0.9)
     base.update(over)
     for k, v in base.items():
         e.send(k, v)
@@ -77,7 +77,7 @@ check(not bad, "patch loads with no Pd errors" + (": %s" % bad if bad else ""))
 
 jp = java_params()
 patch_text = open(PATCH).read()
-receivers = set(re.findall(r"#X obj \d+ \d+ r (\w+);", patch_text)) - {"step", "scale_n", "pad_glide", "mic_level", "pad_slot", "pool_n", "pool_x"}   # events and internal links, not settings
+receivers = set(re.findall(r"#X obj \d+ \d+ r (\w+);", patch_text)) - {"step", "scale_n", "pad_glide", "mic_level", "pad_slot", "pool_n", "pool_x", "pocket"}   # events and internal links, not settings
 pd_ids = {i for i, _, nopd in jp if not nopd}
 check(len(jp) >= 10, "parsed %d params from Params.java" % len(jp))
 check(pd_ids == receivers, "Params.java ids == patch receivers (java-only %s, patch-only %s)"
@@ -875,6 +875,38 @@ check(not off_key(spec_peaks(brisk[-SR * 3:]), 0, 0), "music: the walking arpegg
 e = fresh(music_on=0, music_pad=1, music_arp=1, wet=0)
 e.send("step", 0.5)
 check(rms(e.run(e.silence(1.0))) < 1e-6, "music: footsteps are silent while the music is off")
+
+# variety: chimes walk a melody (no note twice in a row) and footsteps switch between arpeggio patterns, with rests
+e = fresh(music_on=1, music_pad=0, music_arp=1, wet=0, gain=1); e.listen("chime_deg")
+e.run(sine(50, 0.3, 40))
+cd = [int(v) for v in e.heard["chime_deg"]]
+rep = sum(a == b for a, b in zip(cd, cd[1:]))
+check(len(cd) >= 10 and len(set(cd)) >= 5 and rep == 0,
+      "music: chimes wander through %d different notes, none twice in a row (%d notes, %d repeats)" % (len(set(cd)), len(cd), rep))
+e = fresh(music_on=1, music_pad=0, music_arp=1, wet=0); e.listen("chime_deg")
+for _ in range(64):
+    e.send("step", 0.4); e.run(e.silence(0.4))
+ad = [int(v) for v in e.heard["chime_deg"]]
+bars = {tuple(ad[i:i + 6]) for i in range(0, len(ad) - 6, 3)}
+check(40 <= len(ad) < 64 and len(bars) >= 6,
+      "music: 64 footsteps play %d notes (some rest) in %d different phrases" % (len(ad), len(bars)))
+
+# pocket hush: in a pocket the mic is turned down before the effects and the chimes
+def pocket_level(pocket, hush, **over):
+    e = fresh(wet=0, dry=1, **dict(dict(pocket_hush=hush), **over))
+    e.send("pocket", pocket); e.run(e.silence(1.0))
+    return rms(e.run(sine(440, 0.05, 1.0))[:, 0])
+out, inp, off = pocket_level(0, 0.9), pocket_level(1, 0.9), pocket_level(1, 0)
+check(inp < 0.1 * out and abs(off - out) < 0.02 * out,
+      "pocket hush: the mic drops %.0f dB in a pocket (hush 0: %.1f dB)" % (20 * np.log10(out / inp), 20 * np.log10(off / out)))
+e = fresh(wet=0, dry=1); e.run(sine(440, 0.05, 0.5))
+e.send("pocket", 1); yy = e.run(sine(440, 0.05, 1.0))[:, 0]
+check(max_jump(yy) < 0.03, "pocket hush: fades in without a click (max step %.4f)" % max_jump(yy))
+def pocket_room(pocket):
+    e = fresh(music_on=1, music_pad=0, music_arp=1, wet=0, gain=1); e.send("pocket", pocket)
+    return band_rms(e.run(sine(50, 0.3, 30))[:, 0])
+free, pocketed = pocket_room(0), pocket_room(1)
+check(pocketed < 0.1 * free, "pocket hush: rustle rings far fewer chimes in a pocket (%.5f vs %.4f)" % (pocketed, free))
 
 # room notes: resonators make the mic's own sound ring the current chord
 def claps(n, gap, amp, quiet=0.0005, seed=1):

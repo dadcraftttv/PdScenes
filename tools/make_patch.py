@@ -33,7 +33,7 @@ DEFAULTS = [
     ("phaser_on", 1), ("phaser_mix", 0), ("phaser_rate", 0.4), ("phaser_depth", 0.7), ("phaser_fb", 0.4),
     ("beat_on", 1), ("beat_level", 0), ("beat_hats", 0.5), ("beat_snare", 0.6), ("beat_pitch", 55),
     ("music_on", 0), ("music_key", 0), ("music_scale", 0), ("music_pad", 0.33), ("music_arp", 0.4),
-    ("music_tone", 0.5), ("music_react", 0.8), ("music_res", 0.8),
+    ("music_tone", 0.5), ("music_react", 0.8), ("music_res", 0.8), ("pocket_hush", 0.9),
 ]
 
 # Scales as semitone steps above the key note. The patch snaps every note it plays to these.
@@ -61,7 +61,19 @@ CHORD_POOLS = [
     ((0, 1, 2, 3, 4, 5), None),  # Whole tone
 ]
 CONTRAST_PCT = 20             # chance (in 100) that a chord change picks the contrast chord
-ARP_PATTERN = (0, 2, 4, 7, 4, 2)    # scale steps above the current chord root, one per footstep
+# Footstep arpeggios: scale steps above the current chord root, one per footstep. Every bar (8 steps) a new
+# pattern is picked at random, and now and then a step rests.
+ARP_PATTERNS = (
+    (0, 2, 4, 7, 4, 2, 0, 2),        # up and back
+    (0, 4, 2, 4, 7, 4, 2, 4),        # broken chord
+    (7, 4, 2, 0, 2, 4, 6, 4),        # down and up, with a passing note
+    (0, 2, 4, 5, 4, 2, 1, 2),        # a little melody around the root
+    (4, 2, 7, 4, 9, 7, 4, 2),        # high and leaping
+)
+ARP_REST_PCT = 12            # chance (in 100) that a footstep plays no note
+CHIME_SPAN = 4               # chime melodies wander this many scale steps either side of the brightness note
+CHIME_DECAY_MS = (900, 2600)     # each chime's fade, picked at random
+CHIME_OVERTONE = (0.12, 0.45)    # each chime's 2nd-harmonic level (3rd is a third of it): mellow to bright
 PAD_GLIDE_MS = 3500     # the pad crossfades from one chord to the next over this time (no pitch slides)
 
 # Room notes: resonators that make the mic's own sound ring the current chord: root, third and fifth (scale steps
@@ -84,6 +96,8 @@ RES_GAIN = 20.0     # make-up: a narrow band holds little of a broad sound
 RES_MAX = 0.3       # soft ceiling for the whole voice
 RES_OPEN_DB = 10    # the input opens fully this many dB above the room's quiet
 RES_LOOKAHEAD_MS = 20
+POCKET_HUSH_DB = 24         # pocket hush at 1 turns the mic down this far (0.9, the default: about 22 dB)
+POCKET_HUSH_MS = 400        # how fast the hush fades in and out
 
 # Flanger: the delay sweeps from this minimum up to minimum + depth (ms). [delread4~] cannot go
 # below one audio block (1.35 ms at 48 kHz) and the feedback loop needs at least that, so 2 ms.
@@ -357,7 +371,7 @@ def add_music(P):
     # ---- chimes: four voices taken in turn, each a bell-like tone with two overtones ----
     cx = x
     cy = 600
-    P.obj("mu_deg", "t b b f", cx, cy)                                    # in: a velocity from 0 to 1
+    P.obj("mu_deg", "t b b b f", cx, cy)                                  # in: a velocity from 0 to 1
     # (the three paths below each end in "mu_note": a scale degree in, a chime out)
     degree_in, degree_hz = degree_to_hz("mu_c", cx + 200, cy + 60)
     P.obj("mu_note_t", "t b f", cx + 200, cy + 250)
@@ -368,15 +382,26 @@ def add_music(P):
     P.obj("mu_rr_add", "+ 1", cx + 200, cy + 340)
     P.obj("mu_rr_mod", "mod 4", cx + 200, cy + 370)
     P.obj("mu_rr_sel", "sel 0 1 2 3", cx + 200, cy + 400)
-    P.c("mu_note_t", "mu_rr", 0, 0)
+    # Each chime gets its own length and colour, so a run of notes does not sound stamped out.
+    P.obj("mu_tim_t", "t b b b", cx + 200, cy + 290)
+    P.c("mu_note_t", "mu_tim_t", 0, 0)
+    P.obj("mu_tim_rd", "random 1000", cx + 330, cy + 310)
+    ex("mu_tim_dec", f"{CHIME_DECAY_MS[0]}+{CHIME_DECAY_MS[1] - CHIME_DECAY_MS[0]}*$f1/1000", cx + 330, cy + 340)
+    P.obj("mu_tim_wd", "value cdec", cx + 330, cy + 370)
+    P.c("mu_tim_t", "mu_tim_rd", 2, 0); P.c("mu_tim_rd", "mu_tim_dec"); P.c("mu_tim_dec", "mu_tim_wd")
+    P.obj("mu_tim_rb", "random 1000", cx + 450, cy + 310)
+    ex("mu_tim_br", f"{CHIME_OVERTONE[0]}+{CHIME_OVERTONE[1] - CHIME_OVERTONE[0]}*$f1/1000", cx + 450, cy + 340)
+    P.obj("mu_tim_wb", "value cbright", cx + 450, cy + 370)
+    P.c("mu_tim_t", "mu_tim_rb", 1, 0); P.c("mu_tim_rb", "mu_tim_br"); P.c("mu_tim_br", "mu_tim_wb")
+    P.c("mu_tim_t", "mu_rr", 0, 0)
     P.c("mu_rr", "mu_rr_add"); P.c("mu_rr_add", "mu_rr_mod"); P.c("mu_rr_mod", "mu_rr", 0, 1)
     P.c("mu_rr", "mu_rr_sel")
     P.obj("mu_v_vel", "value cvel", cx, cy + 40)
-    P.c("mu_deg", "mu_v_vel", 2, 0)
+    P.c("mu_deg", "mu_v_vel", 3, 0)
     voices = []
     for k in range(4):
         vx = cx + 600 + k * 260
-        P.obj(f"mu_v{k}_trig", "t b b", vx, cy)
+        P.obj(f"mu_v{k}_trig", "t b b b b", vx, cy)
         P.c("mu_rr_sel", f"mu_v{k}_trig", k, 0)
         P.obj(f"mu_v{k}_f", "value cfreq", vx + 60, cy + 30)
         P.obj(f"mu_v{k}_ft", "t f f f", vx + 60, cy + 60)
@@ -387,7 +412,13 @@ def add_music(P):
         P.obj(f"mu_v{k}_o3", "osc~", vx + 160, cy + 120)
         P.obj(f"mu_v{k}_g2", "*~ 0.3", vx + 100, cy + 150)
         P.obj(f"mu_v{k}_g3", "*~ 0.1", vx + 160, cy + 150)
-        P.c(f"mu_v{k}_trig", f"mu_v{k}_f", 1, 0)
+        P.c(f"mu_v{k}_trig", f"mu_v{k}_f", 3, 0)
+        P.obj(f"mu_v{k}_br", "value cbright", vx + 220, cy + 30)
+        P.obj(f"mu_v{k}_br3", "/ 3", vx + 220, cy + 60)
+        P.c(f"mu_v{k}_trig", f"mu_v{k}_br", 2, 0)
+        P.c(f"mu_v{k}_br", f"mu_v{k}_g2", 0, 1); P.c(f"mu_v{k}_br", f"mu_v{k}_br3"); P.c(f"mu_v{k}_br3", f"mu_v{k}_g3", 0, 1)
+        P.obj(f"mu_v{k}_dec", "value cdec", vx + 30, cy + 15)
+        P.c(f"mu_v{k}_trig", f"mu_v{k}_dec", 1, 0)
         P.c(f"mu_v{k}_f", f"mu_v{k}_ft")
         P.c(f"mu_v{k}_ft", f"mu_v{k}_o1", 2, 0)
         P.c(f"mu_v{k}_ft", f"mu_v{k}_f2", 1, 0); P.c(f"mu_v{k}_f2", f"mu_v{k}_o2")
@@ -397,9 +428,11 @@ def add_music(P):
         P.sig2(f"mu_v{k}_s", "+~", f"mu_v{k}_s12", f"mu_v{k}_g3", vx + 60, cy + 210)
         P.obj(f"mu_v{k}_vel", "value cvel", vx, cy + 30)
         P.c(f"mu_v{k}_trig", f"mu_v{k}_vel", 0, 0)
-        P.msg(f"mu_v{k}_env_msg", ("0, " + BS + "$1 4, 0 1600 4").replace(",", comma), vx, cy + 60)
+        P.obj(f"mu_v{k}_pk", "pack f 1600", vx, cy + 45)                 # velocity, decay (ms)
+        P.c(f"mu_v{k}_dec", f"mu_v{k}_pk", 0, 1)
+        P.msg(f"mu_v{k}_env_msg", ("0, " + BS + "$1 4, 0 " + BS + "$2 4").replace(",", comma), vx, cy + 60)
         P.obj(f"mu_v{k}_env", "vline~", vx, cy + 90)
-        P.c(f"mu_v{k}_vel", f"mu_v{k}_env_msg"); P.c(f"mu_v{k}_env_msg", f"mu_v{k}_env")
+        P.c(f"mu_v{k}_vel", f"mu_v{k}_pk"); P.c(f"mu_v{k}_pk", f"mu_v{k}_env_msg"); P.c(f"mu_v{k}_env_msg", f"mu_v{k}_env")
         P.sig2(f"mu_v{k}_out", "*~", f"mu_v{k}_s", f"mu_v{k}_env", vx + 60, cy + 240)
         voices.append(f"mu_v{k}_out")
     acc = voices[0]
@@ -409,17 +442,27 @@ def add_music(P):
     P.c(acc, "mu_chime_scale")
     P.obj("mu_chime_lp", "lop~ 3000", cx + 600, cy + 410)
     P.c("mu_chime_scale", "mu_chime_lp")
-    # mu_deg: store velocity, then pick a degree from the brightness (plus a little wander).
-    P.obj("mu_jit", "random 3", cx + 100, cy + 40)
-    P.obj("mu_jit_m", "- 1", cx + 100, cy + 70)
-    P.c("mu_deg", "mu_jit", 1, 0); P.c("mu_jit", "mu_jit_m")
-    ex("mu_pick", "int($f1*2*$f2+0.5)+$f2+$f3", cx, cy + 100)
+    # mu_deg: store velocity, then pick the next note. The melody walks a step or two from the last chime
+    # (never the same note twice), around the register the brightness asks for, and turns back at its edges.
+    P.obj("mu_jit", "random 4", cx + 100, cy + 40)
+    ex("mu_jit_m", "$f1-2+($f1>=2)", cx + 100, cy + 70)                   # -2, -1, +1 or +2 scale steps
+    P.c("mu_deg", "mu_jit", 2, 0); P.c("mu_jit", "mu_jit_m")
+    P.obj("mu_rd_last", "value clast", cx + 160, cy + 70)
+    P.c("mu_deg", "mu_rd_last", 1, 0)
+    ex("mu_pick", f"min(max(if(abs($f4+$f2-int($f1*2*$f3+0.5)-$f3)>{CHIME_SPAN},$f4-$f2,$f4+$f2),"
+                  f"int($f1*2*$f3+0.5)+$f3-{CHIME_SPAN}),int($f1*2*$f3+0.5)+$f3+{CHIME_SPAN})", cx, cy + 100)
     P.obj("mu_rd_pick", "value mbright", cx, cy + 70)                     # a bang makes it output its number
     P.c("mu_deg", "mu_rd_pick", 0, 0)
     P.c("mu_rd_pick", "mu_pick", 0, 0)
-    P.c("mu_r_n", "mu_pick", 0, 1)
-    P.c("mu_jit_m", "mu_pick", 0, 2)
-    P.c("mu_pick", degree_in)
+    P.c("mu_r_n", "mu_pick", 0, 2)
+    P.c("mu_jit_m", "mu_pick", 0, 1)
+    P.c("mu_rd_last", "mu_pick", 0, 3)
+    P.obj("mu_pick_t", "t f f", cx, cy + 130)
+    P.obj("mu_wr_last", "value clast", cx + 60, cy + 160)
+    P.c("mu_pick", "mu_pick_t"); P.c("mu_pick_t", "mu_wr_last", 1, 0)
+    P.c("mu_pick_t", degree_in)
+    P.obj("mu_note_s", "s chime_deg", cx - 100, cy + 160)              # every note played, for the tests
+    P.c("mu_pick_t", "mu_note_s")
 
     # Path 1, sudden sounds: a chime whose loudness follows the room.
     P.obj("mu_ons_gate", "spigot 1", x + 300, 510)
@@ -431,9 +474,12 @@ def add_music(P):
     P.c("mu_ons_gate", "mu_ons_gate_on"); P.c("mu_ons_gate_on", "mu_ons_t")
     P.c("mu_ons_t", "mu_ons_close", 2, 0); P.c("mu_ons_close", "mu_ons_gate", 0, 1)
     P.c("mu_ons_t", "mu_ons_wait", 1, 0); P.c("mu_ons_wait", "mu_ons_open"); P.c("mu_ons_open", "mu_ons_gate", 0, 1)
-    ex("mu_ons_vel", "0.3+0.5*$f1", x + 300, 660)
+    ex("mu_ons_vel", "(0.3+0.5*$f1)*$f2*$f2", x + 300, 660)          # in a pocket the "sudden sound" is rustle
     P.obj("mu_rd_ons", "value mloud", x + 300, 640)
-    P.c("mu_ons_t", "mu_rd_ons", 0, 0); P.c("mu_rd_ons", "mu_ons_vel"); P.c("mu_ons_vel", "mu_deg")
+    P.obj("mu_ons_rt", "t b b", x + 240, 610)
+    P.obj("mu_ons_hush", "value phush", x + 240, 640)
+    P.c("mu_ons_t", "mu_ons_rt", 0, 0); P.c("mu_ons_rt", "mu_ons_hush", 1, 0); P.c("mu_ons_hush", "mu_ons_vel", 0, 1)
+    P.c("mu_ons_rt", "mu_rd_ons", 0, 0); P.c("mu_rd_ons", "mu_ons_vel"); P.c("mu_ons_vel", "mu_deg")
 
     # Path 2, a slow pattern while you are still: now and then a chime, more often in a livelier room.
     P.obj("mu_still_tick", "metro 250", x + 800, 600)
@@ -452,9 +498,11 @@ def add_music(P):
     P.c("mu_roll", "mu_chance")
     P.obj("mu_chance_sel", "sel 1", x + 800, 780)
     P.c("mu_chance", "mu_chance_sel")
-    ex("mu_still_vel", "0.12+0.5*$f1", x + 800, 840)
-    P.obj("mu_still_load", "t b", x + 800, 810)
+    ex("mu_still_vel", "(0.12+0.5*$f1)*$f2*$f2", x + 800, 840)
+    P.obj("mu_still_load", "t b b", x + 800, 810)
     P.obj("mu_rd_still", "value mloud", x + 900, 810)
+    P.obj("mu_still_hush", "value phush", x + 980, 810)
+    P.c("mu_still_load", "mu_still_hush", 1, 0); P.c("mu_still_hush", "mu_still_vel", 0, 1)
     P.c("mu_chance_sel", "mu_still_load"); P.c("mu_still_load", "mu_rd_still"); P.c("mu_rd_still", "mu_still_vel")
     P.c("mu_still_vel", "mu_deg")
     P.msg("mu_still_off", "0", x + 900, 600); P.msg("mu_still_back", "1", x + 960, 600)
@@ -471,18 +519,30 @@ def add_music(P):
     P.c("mu_pace_vel", "mu_v_vel")
     P.obj("mu_arp_gate", "spigot", x + 1100, 660)
     P.c("mu_step_t", "mu_arp_gate", 0, 0)
-    P.obj("mu_arp_t", "t b b b", x + 1100, 690)
+    P.obj("mu_arp_t", "t b b b b", x + 1100, 690)
     P.c("mu_arp_gate", "mu_arp_t")
     P.obj("mu_v_chord", "value mchord", x + 1100, 720)
-    P.obj("mu_ptab", "table arp_pat 6", x + 1300, 20)
-    P.msg("mu_ptab_init", f"{BS}; arp_pat 0 {' '.join(str(v) for v in ARP_PATTERN)}", x + 1300, 50)
+    n_pat, bar = len(ARP_PATTERNS), len(ARP_PATTERNS[0])
+    P.obj("mu_ptab", f"table arp_pat {n_pat * bar}", x + 1300, 20)
+    P.msg("mu_ptab_init", f"{BS}; arp_pat 0 {' '.join(str(v) for pat in ARP_PATTERNS for v in pat)}", x + 1300, 50)
     P.c("mu_load", "mu_ptab_init")
+    # step counter within the bar; at the start of each bar a different pattern is picked
     P.obj("mu_pat_i", "f", x + 1100, 750)
     P.obj("mu_pat_add", "+ 1", x + 1100, 780)
-    P.obj("mu_pat_mod", "mod 6", x + 1100, 810)
-    P.obj("mu_pat_tab", "tabread arp_pat", x + 1100, 840)
+    P.obj("mu_pat_mod", f"mod {bar}", x + 1100, 810)
     P.c("mu_pat_i", "mu_pat_add"); P.c("mu_pat_add", "mu_pat_mod"); P.c("mu_pat_mod", "mu_pat_i", 0, 1)
-    P.c("mu_pat_i", "mu_pat_tab")
+    P.obj("mu_pat_it", "t f f", x + 1020, 780)
+    P.c("mu_pat_i", "mu_pat_it")
+    P.obj("mu_pat_bar", "sel 0", x + 960, 810)
+    P.obj("mu_pat_rnd", f"random {n_pat - 1}", x + 960, 840)
+    ex("mu_pat_new", f"($f1+1+$f2)%{n_pat}", x + 960, 870)               # never the same pattern twice
+    P.obj("mu_pat_cur", "t f f", x + 960, 900)
+    P.c("mu_pat_it", "mu_pat_bar", 1, 0); P.c("mu_pat_bar", "mu_pat_rnd"); P.c("mu_pat_rnd", "mu_pat_new")
+    P.c("mu_pat_new", "mu_pat_cur"); P.c("mu_pat_cur", "mu_pat_new", 1, 1)
+    ex("mu_pat_idx", f"$f1+{bar}*$f2", x + 1100, 830)
+    P.c("mu_pat_cur", "mu_pat_idx", 0, 1); P.c("mu_pat_it", "mu_pat_idx", 0, 0)
+    P.obj("mu_pat_tab", "tabread arp_pat", x + 1100, 845)
+    P.c("mu_pat_idx", "mu_pat_tab")
     ex("mu_arp_deg", "$f1+$f2+$f3", x + 1100, 870)
     P.obj("mu_arp_n", "value scale_n", x + 1250, 780)
     P.c("mu_arp_t", "mu_arp_n", 2, 0)                                 # bang: output the scale size
@@ -490,7 +550,13 @@ def add_music(P):
     P.c("mu_arp_t", "mu_v_chord", 1, 0); P.c("mu_v_chord", "mu_arp_deg", 0, 1)
     P.c("mu_arp_t", "mu_pat_i", 0, 0)
     P.c("mu_pat_tab", "mu_arp_deg")
-    P.c("mu_arp_deg", degree_in)
+    # now and then a step rests (the bar still moves on)
+    P.obj("mu_rest_rnd", "random 100", x + 1300, 690)
+    P.obj("mu_rest_play", f">= {ARP_REST_PCT}", x + 1300, 720)
+    P.obj("mu_rest_gate", "spigot 1", x + 1100, 885)
+    P.c("mu_arp_t", "mu_rest_rnd", 3, 0); P.c("mu_rest_rnd", "mu_rest_play"); P.c("mu_rest_play", "mu_rest_gate", 0, 1)
+    P.c("mu_arp_deg", "mu_rest_gate")
+    P.c("mu_rest_gate", degree_in); P.c("mu_rest_gate", "mu_note_s")
     # The arpeggio note itself needs the chime path's tail (frequency, round robin): it joins at degree_in.
     # Walking state: while steps keep coming the "still" pattern stays quiet.
     P.obj("mu_walk_t", "t b b", x + 1100, 900)
@@ -513,7 +579,7 @@ def add_music(P):
     P.obj("mu_pad_jit_m", "- 1", px + 80, 110)
     P.obj("mu_r_pool_n", "r pool_n", px + 240, 80)
     # which of the scale's main chords: brighter sound, higher chord (plus a little wander)
-    ex("mu_pad_idx", "int(min(max($f1*($f3-1)+$f2*0.6,0),$f3-1)+0.5)", px, 140)
+    ex("mu_pad_idx", "int(min(max($f1*($f3-1)+$f2*0.9,0),$f3-1)+0.5)", px, 140)
     P.c("mu_chord_go", "mu_pad_jit", 1, 0); P.c("mu_pad_jit", "mu_pad_jit_m"); P.c("mu_pad_jit_m", "mu_pad_idx", 0, 1)
     P.c("mu_r_pool_n", "mu_pad_idx", 0, 2)
     P.obj("mu_rd_root", "value mbright", px + 160, 110)
@@ -629,8 +695,9 @@ def add_room_notes(P, rx, ex, degree_to_hz):
     resonators glide to the new notes when the chord, key or scale changes. Returns the output signal."""
     # Input: the gated mic without rumble. It opens as soon as the level rises above the room's own quiet
     # (the floor the chimes use), so a single clap rings but a quiet room stays silent. With react = 0 it stays open.
+    P.sig2("rn_src", "*~", "mic_gated", "ph_ln", rx - 100, 20)    # quieter in a pocket, like the rest
     P.obj("rn_hip", "hip~ 120", rx, 20)
-    P.c("mic_gated", "rn_hip")
+    P.c("rn_src", "rn_hip")
     # The level is measured in short windows, so the gate opens a little late; delay the sound to match.
     P.obj("rn_look_wr", "delwrite~ rn_look 100", rx, 50)
     P.obj("rn_look", f"delread~ rn_look {RES_LOOKAHEAD_MS}", rx, 80)
@@ -748,7 +815,26 @@ def build():
     P.obj("pk_comp", "pack f 40", 450, 260)
     P.obj("ln_comp", "line~", 450, 290)
     P.c("comp_calc", "comp_lin"); P.c("comp_lin", "pk_comp"); P.c("pk_comp", "ln_comp")
-    P.sig2("mic_comp", "*~", "mic_gated", "ln_comp", 20, 380)
+    P.sig2("mic_comp0", "*~", "mic_gated", "ln_comp", 20, 380)
+
+    # --- pocket hush: in a pocket the mic hears only cloth and rustle, so turn it down after the compressor
+    # (which would otherwise lift the rustle back up). "pocket" (0/1) comes from the app. ---
+    P.obj("r_pocket", "r pocket", 800, 170)
+    P.obj("ph_pocket", "f", 800, 230)
+    P.obj("r_pocket_hush", "r pocket_hush", 880, 170)
+    P.obj("ph_amt_t", "t b f", 880, 200)
+    ex = lambda name, text, xx, yy: P.obj(name, "expr " + text.replace(",", BS + ",").replace("$", BS + "$"), xx, yy)
+    ex("ph_calc", f"pow(10,-$f1*$f2*{POCKET_HUSH_DB}/20)", 800, 260)
+    P.c("r_pocket", "ph_pocket"); P.c("ph_pocket", "ph_calc")
+    P.c("r_pocket_hush", "ph_amt_t"); P.c("ph_amt_t", "ph_calc", 1, 1); P.c("ph_amt_t", "ph_pocket", 0, 0)
+    P.obj("ph_t", "t f f", 800, 290)
+    P.obj("ph_v", "value phush", 880, 320)                        # the music reads it too (chimes from rustle)
+    P.obj("ph_pk", f"pack f {POCKET_HUSH_MS}", 800, 320)
+    P.obj("ph_ln", "line~", 800, 350)
+    P.c("ph_calc", "ph_t"); P.c("ph_t", "ph_v", 1, 0); P.c("ph_t", "ph_pk", 0, 0); P.c("ph_pk", "ph_ln")
+    P.obj("ph_init", "loadbang", 960, 230); P.msg("ph_init_msg", "1", 960, 260)
+    P.c("ph_init", "ph_init_msg"); P.c("ph_init_msg", "ph_v"); P.c("ph_init_msg", "ph_ln")
+    P.sig2("mic_comp", "*~", "mic_comp0", "ph_ln", 20, 395)
 
     # --- ring modulator with bypass ---
     P.obj("r_ring_freq", "r ring_freq", 250, 20)

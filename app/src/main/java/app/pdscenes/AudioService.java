@@ -69,6 +69,9 @@ public class AudioService extends Service {
     private int minuteOfDay;
     /** True while the built-in effects run (not a scene): then the automatic worlds may change the sliders. */
     private boolean autoWorlds;
+    /** Last pocket state sent to the patch (it hushes the mic while pocketed) and last world logged. */
+    private boolean pocketSent;
+    private String worldLogged;
     private final Runnable moverTick = new Runnable() {
         @Override
         public void run() {
@@ -77,6 +80,17 @@ public class AudioService extends Service {
             double dt = Math.min((now - lastMoverTick) / 1000.0, 0.25);
             Modulation.tick(dt, (id, value) -> PdBase.sendFloat(id, value));
             if (autoWorlds) {
+                boolean pocket = PhoneContext.inPocket();
+                if (pocket != pocketSent) {
+                    pocketSent = pocket;
+                    PdBase.sendFloat("pocket", pocket ? 1f : 0f);
+                    Log.i(TAG, pocket ? "Phone went into a pocket" : "Phone came out of the pocket");
+                }
+                String world = Worlds.currentWorld();
+                if (world != null ? !world.equals(worldLogged) : worldLogged != null) {
+                    worldLogged = world;
+                    Log.i(TAG, "World: " + (world == null ? "own settings" : world));
+                }
                 if (now - lastClockCheck > CLOCK_CHECK_MS) {   // the time of day changes slowly
                     minuteOfDay = Worlds.minuteOfDayNow();
                     lastClockCheck = now;
@@ -329,6 +343,7 @@ public class AudioService extends Service {
         Worlds.load(this);
         Worlds.reset();
         autoWorlds = scene == null;
+        pocketSent = false;   // a freshly opened patch starts out of the pocket
         lastClockCheck = -CLOCK_CHECK_MS;
         lastMoverTick = SystemClock.uptimeMillis();
         handler.postDelayed(moverTick, MOVER_INTERVAL_MS);

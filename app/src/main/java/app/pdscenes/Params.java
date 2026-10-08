@@ -88,6 +88,9 @@ final class Params {
                     .inSection("main").noRandom().noPreset().decimals(1),
             new Param("comp_makeup", "Compressor make-up gain", 0f, 24f, 0f, " dB",
                     Param.Curve.LINEAR).inSection("main").noRandom().noPreset().decimals(0),
+            // In a pocket the mic hears only cloth and rustle: turn it down (1 = about -24 dB) before the effects and music.
+            new Param("pocket_hush", "Pocket hush (mic quieter while in a pocket)", 0f, 1f, 0.9f, "",
+                    Param.Curve.LINEAR).inSection("main").noRandom().noPreset().resetWhenAbsent(),
             new Param("dry", "Dry level (direct sound)", 0f, 1.5f, 1f, "", Param.Curve.LINEAR)
                     .inSection("main").rand(0.3f, 1.2f),
 
