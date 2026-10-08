@@ -356,7 +356,7 @@ public class AudioService extends Service {
     private final android.media.AudioDeviceCallback outputWatcher = new android.media.AudioDeviceCallback() {
         @Override
         public void onAudioDevicesRemoved(android.media.AudioDeviceInfo[] removed) {
-            if (!running) {
+            if (!running || outputLost) {
                 return;
             }
             for (android.media.AudioDeviceInfo d : removed) {
@@ -368,7 +368,29 @@ public class AudioService extends Service {
         }
     };
 
+    /**
+     * How long to leave libpd alone after the headphones go. Its Oboe layer reacts to the disconnect on its own
+     * thread: it closes both streams and reopens them (on the phone speaker), which took about 0.1 s on the Moto G.
+     */
+    private static final long DISCONNECT_SETTLE_MS = 600;
+    /** True between losing the headphones and acting on it. */
+    private boolean outputLost;
+    private final Runnable afterHeadphonesLost = this::afterHeadphonesLost;
+
     private void headphonesLost() {
+        // Stopping right away closes the same streams as libpd's own disconnect handling, at the same time and
+        // without a lock, and crashes in native code (OboeEngine::closeStream). So go silent at once, which also
+        // keeps the reopened speaker stream quiet, and stop only after libpd has finished.
+        outputLost = true;
+        PdBase.computeAudio(false);
+        handler.postDelayed(afterHeadphonesLost, DISCONNECT_SETTLE_MS);
+    }
+
+    private void afterHeadphonesLost() {
+        outputLost = false;
+        if (!running) {
+            return;   // stopped by hand meanwhile
+        }
         stopEngine();
         try {
             startEngine();   // picks the best headphones still connected, or throws if none
@@ -385,6 +407,8 @@ public class AudioService extends Service {
             return;
         }
         running = false;
+        outputLost = false;
+        handler.removeCallbacks(afterHeadphonesLost);
         getSystemService(AudioManager.class).unregisterAudioDeviceCallback(outputWatcher);
         handler.removeCallbacks(moverTick);
         Modulation.reset();
