@@ -121,6 +121,8 @@ final class Params {
                     .inSection("music").rand(0.2f, 0.9f).resetWhenAbsent(),
             new Param("music_react", "How much the music follows what it hears", 0f, 1f, 0.8f, "",
                     Param.Curve.LINEAR).inSection("music").rand(0.3f, 1f).resetWhenAbsent(),
+            new Param("music_res", "Room notes (sounds around you ring the chord)", 0f, 1f, 0.4f, "",
+                    Param.Curve.LINEAR).inSection("music").rand(0f, 0.8f).resetWhenAbsent(),
 
             // ---- Echo ----
             new Param("echo_on", "Echo enabled", 0f, 1f, 1f, "", Param.Curve.LINEAR)

@@ -51,7 +51,7 @@ def fresh(**over):
                 phaser_on=1, phaser_mix=0, phaser_rate=0.4, phaser_depth=0.7, phaser_fb=0.4,
                 beat_on=1, beat_level=0, beat_hats=0.5, beat_snare=0.6, beat_pitch=55,
                 music_on=0, music_key=0, music_scale=0, music_pad=0.33, music_arp=0.4,
-                music_tone=0.5, music_react=0.8)
+                music_tone=0.5, music_react=0.8, music_res=0.4)
     base.update(over)
     for k, v in base.items():
         e.send(k, v)
@@ -853,6 +853,44 @@ check(not off_key(spec_peaks(brisk[-SR * 3:]), 0, 0), "music: the walking arpegg
 e = fresh(music_on=0, music_pad=1, music_arp=1, wet=0)
 e.send("step", 0.5)
 check(rms(e.run(e.silence(1.0))) < 1e-6, "music: footsteps are silent while the music is off")
+
+# room notes: resonators make the mic's own sound ring the current chord
+def claps(n, gap, amp, quiet=0.0005, seed=1):
+    rng = np.random.default_rng(seed)
+    seg = [rng.standard_normal(3 * SR) * quiet]
+    for _ in range(n):
+        k = np.arange(int(0.03 * SR))
+        seg += [rng.standard_normal(len(k)) * amp * np.exp(-k / (0.008 * SR)), rng.standard_normal(int(gap * SR)) * quiet]
+    return np.concatenate(seg).astype(np.float32)
+def room_notes(x, **over):
+    """The room-notes voice alone: the same input with the voice on, minus with it off."""
+    base = dict(music_on=1, music_pad=0, music_arp=0, wet=0)
+    base.update(over)
+    on = fresh(**dict(base, music_res=1)).run(x)[:, 0]
+    off = fresh(**dict(base, music_res=0)).run(x)[:, 0]
+    return on - off
+cl = claps(3, 1.5, 0.5); c0 = 3 * SR
+for key, scale, name in ((0, 0, "C major"), (2, 1, "D minor"), (9, 3, "A minor pentatonic")):
+    y = room_notes(cl, music_key=key, music_scale=scale)
+    ring = y[c0:c0 + SR]; pk = spec_peaks(ring)
+    check(rms(ring[:int(0.3 * SR)]) > 0.01 and len(pk) >= 3 and not off_key(pk, key, scale) and max(pk) < 1800,
+          "room notes: a clap rings notes of %s, below 1800 Hz (rms %.4f, peaks %s, off-key %s)" % (name, rms(ring[:int(0.3 * SR)]), [round(f) for f in pk[:6]], off_key(pk, key, scale)))
+y = room_notes(cl)
+early, tail = rms(y[c0:c0 + int(0.3 * SR)]), rms(y[c0 + int(0.5 * SR):c0 + SR])
+check(tail > 0.03 * early and tail < 0.5 * early, "room notes: the ring fades over about a second (0-0.3 s %.4f, 0.5-1 s %.4f)" % (early, tail))
+check(rms(y[SR:c0]) < 0.001, "room notes: a quiet room rings nothing (%.6f)" % rms(y[SR:c0]))
+y = room_notes(cl, music_on=0)
+check(rms(y) < 1e-5, "room notes: silent while the music is off (%.6f)" % rms(y))
+e = fresh(music_on=1, music_pad=0, music_arp=0, music_res=1, wet=0)
+e.send("music_key", 2); e.run(e.silence(1.0))
+y_on = e.run(cl)[:, 0]
+e = fresh(music_on=1, music_pad=0, music_arp=0, music_res=0, wet=0)
+e.send("music_key", 2); e.run(e.silence(1.0))
+y = y_on - e.run(cl)[:, 0]; pk = spec_peaks(y[c0:c0 + SR])
+check(len(pk) >= 3 and not off_key(pk, 2, 0) and off_key(pk, 0, 0), "room notes: changing the key retunes them to D major (peaks %s)" % [round(f) for f in pk[:6]])
+sung = np.concatenate([np.zeros(SR, np.float32), sine(261.63, 0.5, 3)])
+y = room_notes(sung, music_react=0)
+check(float(np.abs(y).max()) <= 0.31, "room notes: a loud note sung right on a resonator stays soft-limited (peak %.3f)" % float(np.abs(y).max()))
 
 # echo, reverb and the ear stage shape the music like any other sound
 def tail(**over):

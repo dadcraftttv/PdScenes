@@ -4,7 +4,7 @@ Gathered from research (Designing Sound "RjDj: crafting Dimensions", CDM's Dimen
 episode). The sources give ideas, not thresholds or timings; tune everything by ear on the phone. Samuel decides the order.
 Suggested order is the numbering. Each one needs a test in `tools/test_patch.py` (or a new test file) and a tester-guide update.
 
-1. **The room plays the notes (Dimensions "Flux").** Run the mic through resonators/filterbank tuned to the chosen
+1. **(BUILT 2026-10-08 as "Room notes", `music_res`; needs tuning by ear) The room plays the notes (Dimensions "Flux").** Run the mic through resonators/filterbank tuned to the chosen
    key and scale; filter frequencies move with pitch changes and onsets, so sounds around you ring notes in key.
    Likely a new voice in the Music section (level slider + on/off) or part of the Flux world. Joins the output after
    the filter like the other music voices, so echo/reverb/spatial shape it.

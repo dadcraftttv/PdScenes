@@ -33,7 +33,7 @@ DEFAULTS = [
     ("phaser_on", 1), ("phaser_mix", 0), ("phaser_rate", 0.4), ("phaser_depth", 0.7), ("phaser_fb", 0.4),
     ("beat_on", 1), ("beat_level", 0), ("beat_hats", 0.5), ("beat_snare", 0.6), ("beat_pitch", 55),
     ("music_on", 0), ("music_key", 0), ("music_scale", 0), ("music_pad", 0.33), ("music_arp", 0.4),
-    ("music_tone", 0.5), ("music_react", 0.8),
+    ("music_tone", 0.5), ("music_react", 0.8), ("music_res", 0.4),
 ]
 
 # Scales as semitone steps above the key note. The patch snaps every note it plays to these.
@@ -49,6 +49,18 @@ SCALES = [
 ]
 ARP_PATTERN = (0, 2, 4, 7, 4, 2)    # scale steps above the current chord root, one per footstep
 PAD_GLIDE_MS = 3500
+
+# Room notes: resonators that make the mic's own sound ring the current chord: root, third and fifth (scale steps
+# 0, 2, 4 above the chord root), one and two octaves above the pad. (octaves, steps) pairs, so pentatonic and
+# whole-tone scales get real octaves too. A note rings for about RES_RING_S * sqrt(262 / Hz) seconds
+# (time constant): low notes longer, high notes shorter, like strings.
+RES_NOTES = ((1, 0), (1, 2), (1, 4), (2, 0), (2, 2), (2, 4))
+RES_RING_S = 0.3
+RES_GLIDE_MS = 400
+RES_GAIN = 20.0     # make-up: a narrow band holds little of a broad sound
+RES_MAX = 0.3       # soft ceiling for the whole voice
+RES_OPEN_DB = 10    # the input opens fully this many dB above the room's quiet
+RES_LOOKAHEAD_MS = 20
 
 # Flanger: the delay sweeps from this minimum up to minimum + depth (ms). [delread4~] cannot go
 # below one audio block (1.35 ms at 48 kHz) and the feedback loop needs at least that, so 2 ms.
@@ -542,9 +554,61 @@ def add_music(P):
     mon = smoothed(P, "music_on", "music_on", px + 700, 20)
     P.sig2("mu_pad_out", "*~", "mu_pad_b", pad_lvl, px, 900)
     P.sig2("mu_chime_out", "*~", "mu_chime_lp", arp_lvl, px + 200, 900)
-    P.sig2("mu_mix", "+~", "mu_pad_out", "mu_chime_out", px, 930)
+    P.sig2("mu_mix0", "+~", "mu_pad_out", "mu_chime_out", px, 930)
+    P.sig2("mu_mix", "+~", "mu_mix0", add_room_notes(P, x + 2500, ex, degree_to_hz), px, 945)
     P.sig2("mu_out", "*~", "mu_mix", mon, px, 960)
     return "mu_out"
+
+
+def add_room_notes(P, rx, ex, degree_to_hz):
+    """The room plays the notes: the mic goes through narrow resonators tuned to the current chord, so a clap,
+    a voice or traffic rings in key. Quiet rooms stay quiet (the input follows the room's liveliness). The
+    resonators glide to the new notes when the chord, key or scale changes. Returns the output signal."""
+    # Input: the gated mic without rumble. It opens as soon as the level rises above the room's own quiet
+    # (the floor the chimes use), so a single clap rings but a quiet room stays silent. With react = 0 it stays open.
+    P.obj("rn_hip", "hip~ 120", rx, 20)
+    P.c("mic_gated", "rn_hip")
+    # The level is measured in short windows, so the gate opens a little late; delay the sound to match.
+    P.obj("rn_look_wr", "delwrite~ rn_look 100", rx, 50)
+    P.obj("rn_look", f"delread~ rn_look {RES_LOOKAHEAD_MS}", rx, 80)
+    P.c("rn_hip", "rn_look_wr")
+    P.obj("rn_v_thr", "value mthr", rx + 300, 20)
+    P.c("mu_fl_thr", "rn_v_thr")
+    P.obj("rn_lvl_t", "t f b", rx + 150, 50)                       # the level meter itself: every 5 ms, not 33
+    P.obj("rn_rd_thr", "value mthr", rx + 230, 80)
+    P.c("meter", "rn_lvl_t"); P.c("rn_lvl_t", "rn_rd_thr", 1, 0)
+    ex("rn_open", f"(1-$f3)+$f3*min(max(($f1-$f2)/{RES_OPEN_DB},0),1)", rx + 150, 110)
+    P.c("rn_rd_thr", "rn_open", 0, 1); P.c("mu_r_react", "rn_open", 0, 2); P.c("rn_lvl_t", "rn_open", 0, 0)
+    P.obj("rn_open_sig", "sig~", rx + 150, 140)
+    P.obj("rn_open_lp", "lop~ 20", rx + 150, 170)
+    P.c("rn_open", "rn_open_sig"); P.c("rn_open_sig", "rn_open_lp")
+    P.sig2("rn_in", "*~", "rn_look", "rn_open_lp", rx, 200)
+    acc = None
+    for i, (octs, step) in enumerate(RES_NOTES):
+        vx = rx + i * 170
+        ex(f"rn{i}_deg", f"$f1+{octs}*$f2+{step}", vx, 180)        # chord root + octaves (scale size each) + step
+        P.c("mu_r_n", f"rn{i}_deg", 0, 1)
+        P.c("mu_pad_root_v", f"rn{i}_deg", 0, 0)        # the pad's chord root (a scale degree)
+        dg_in, dg_hz = degree_to_hz(f"rn{i}", vx, 210)
+        P.c(f"rn{i}_deg", dg_in)
+        P.obj(f"rn{i}_ft", "t f f", vx, 390)
+        P.c(dg_hz, f"rn{i}_ft")
+        P.obj(f"rn{i}_pk", f"pack 0 {RES_GLIDE_MS}", vx, 420)
+        P.obj(f"rn{i}_ln", "line~", vx, 450)
+        P.c(f"rn{i}_ft", f"rn{i}_pk", 1, 0); P.c(f"rn{i}_pk", f"rn{i}_ln")
+        ex(f"rn{i}_q", f"6.28318*$f1*{RES_RING_S}*sqrt(262/$f1)", vx + 70, 420)    # [vcf~] rings for Q / (2 pi f) s
+        P.c(f"rn{i}_ft", f"rn{i}_q", 0, 0)
+        P.obj(f"rn{i}_vcf", "vcf~", vx, 480)
+        P.c("rn_in", f"rn{i}_vcf", 0, 0); P.c(f"rn{i}_ln", f"rn{i}_vcf", 0, 1); P.c(f"rn{i}_q", f"rn{i}_vcf", 0, 2)
+        acc = f"rn{i}_vcf" if acc is None else P.sig2(f"rn_acc{i}", "+~", acc, f"rn{i}_vcf", vx, 510)
+    P.obj("rn_gain", f"*~ {RES_GAIN}", rx, 540)
+    P.c(acc, "rn_gain")
+    # Soft limit: a note sung right on a resonator passes at full strength, so cap the voice gently.
+    P.obj("rn_soft", "expr~ " + f"{RES_MAX}*tanh($v1/{RES_MAX})".replace("$", BS + "$"), rx, 570)
+    P.c("rn_gain", "rn_soft")
+    lvl = smoothed(P, "music_res", "music_res", rx + 300, 540)
+    P.sig2("rn_out", "*~", "rn_soft", lvl, rx, 600)
+    return "rn_out"
 
 
 def build():

@@ -197,6 +197,7 @@ final class PresetManager {
         mover(tranquil, "reverb_mix", 1, 0.05f, 0.4f);
         tranquil.put("music_pad", 0.22f);                 // soft and low; only heard if Music is switched on
         tranquil.put("music_arp", 0.25f);
+        tranquil.put("music_res", 0.3f);
         BUILT_IN.put("Tranquil world", tranquil);
 
         Map<String, Float> flux = make(180f, 0.45f, 0.35f, 120f, 0.3f);
@@ -208,6 +209,7 @@ final class PresetManager {
         mover(flux, "glitch_hold", 2, 2f, 0.8f);         // loud sounds freeze the room
         flux.put("music_pad", 0.08f);
         flux.put("music_arp", 0.35f);
+        flux.put("music_res", 0.7f);                    // the loud room rings in key
         BUILT_IN.put("Flux world", flux);
 
         Map<String, Float> kinetic = make(250f, 0.5f, 0.45f, 80f, 0f);
@@ -218,6 +220,7 @@ final class PresetManager {
         kinetic.put("beat_level", 0.6f);                 // your footsteps play drums
         kinetic.put("music_pad", 0.1f);                 // the notes start soft and swell as your pace rises
         kinetic.put("music_arp", 0.65f);
+        kinetic.put("music_res", 0.25f);                // footsteps and wind should not swamp the arpeggio
         BUILT_IN.put("Kinetic world", kinetic);
 
         Map<String, Float> ghostWorld = make(450f, 0.5f, 0.4f, 80f, 0f);
@@ -226,6 +229,7 @@ final class PresetManager {
         filter(ghostWorld, 0.6f, FILTER_LOW, 2500f, 1f);
         ghostWorld.put("pitch_semi", -5f);
         ghostWorld.put("pitch_mix", 0.3f);
+        ghostWorld.put("music_res", 0.3f);
         mover(ghostWorld, "space_pan", 1, 0.05f, 0.9f);
         mover(ghostWorld, "rvs_time", 1, 0.04f, 0.5f);
         BUILT_IN.put("Ghost world", ghostWorld);
@@ -239,6 +243,7 @@ final class PresetManager {
         pocketWorld.put("beat_level", 0.45f);
         pocketWorld.put("music_pad", 0.2f);
         pocketWorld.put("music_arp", 0.45f);
+        pocketWorld.put("music_res", 0f);               // the mic only hears cloth: no ringing rustle
         BUILT_IN.put("Pocket world", pocketWorld);
     }
 
