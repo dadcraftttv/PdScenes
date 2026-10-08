@@ -51,7 +51,7 @@ def fresh(**over):
                 phaser_on=1, phaser_mix=0, phaser_rate=0.4, phaser_depth=0.7, phaser_fb=0.4,
                 beat_on=1, beat_level=0, beat_hats=0.5, beat_snare=0.6, beat_pitch=55,
                 music_on=0, music_key=0, music_scale=0, music_pad=0.33, music_arp=0.4,
-                music_tone=0.5, music_react=0.8, music_res=0.4)
+                music_tone=0.5, music_react=0.8, music_res=0.8)
     base.update(over)
     for k, v in base.items():
         e.send(k, v)
@@ -876,9 +876,26 @@ for key, scale, name in ((0, 0, "C major"), (2, 1, "D minor"), (9, 3, "A minor p
     check(rms(ring[:int(0.3 * SR)]) > 0.01 and len(pk) >= 3 and not off_key(pk, key, scale) and max(pk) < 1800,
           "room notes: a clap rings notes of %s, below 1800 Hz (rms %.4f, peaks %s, off-key %s)" % (name, rms(ring[:int(0.3 * SR)]), [round(f) for f in pk[:6]], off_key(pk, key, scale)))
 y = room_notes(cl)
-early, tail = rms(y[c0:c0 + int(0.3 * SR)]), rms(y[c0 + int(0.5 * SR):c0 + SR])
-check(tail > 0.03 * early and tail < 0.5 * early, "room notes: the ring fades over about a second (0-0.3 s %.4f, 0.5-1 s %.4f)" % (early, tail))
 check(rms(y[SR:c0]) < 0.001, "room notes: a quiet room rings nothing (%.6f)" % rms(y[SR:c0]))
+# how long it rings follows what was heard: a soft tap chimes, a loud clap rings, a long loud sound becomes a bell
+def burst(amp, secs, seed=2, quiet=0.0005):
+    rng = np.random.default_rng(seed); k = np.arange(int(secs * SR))
+    env = np.exp(-k / (0.008 * SR)) if secs < 0.1 else np.ones(len(k))
+    return np.concatenate([rng.standard_normal(3 * SR) * quiet, rng.standard_normal(len(k)) * amp * env,
+                           rng.standard_normal(6 * SR) * quiet]).astype(np.float32), 3 * SR + len(k)
+def fade_time(y, end, drop_db=20):
+    win = int(0.05 * SR); ref = rms(y[end:end + win])
+    for t in range(end, len(y) - win, win):
+        if rms(y[t:t + win]) < ref * 10 ** (-drop_db / 20):
+            return (t - end) / SR
+    return float("inf")
+fades = {}
+for name, amp, secs in (("tap", 0.03, 0.03), ("clap", 0.5, 0.03), ("long", 0.2, 2.0)):
+    x, end = burst(amp, secs)
+    fades[name] = fade_time(room_notes(x), end)
+check(fades["tap"] < 0.7 and fades["tap"] < fades["clap"] < fades["long"] and fades["long"] > 1.8,
+      "room notes: a soft tap chimes, a loud clap rings longer, a long loud sound rings like a bell (20 dB fade %.2f / %.2f / %.2f s)"
+      % (fades["tap"], fades["clap"], fades["long"]))
 y = room_notes(cl, music_on=0)
 check(rms(y) < 1e-5, "room notes: silent while the music is off (%.6f)" % rms(y))
 e = fresh(music_on=1, music_pad=0, music_arp=0, music_res=1, wet=0)

@@ -33,7 +33,7 @@ DEFAULTS = [
     ("phaser_on", 1), ("phaser_mix", 0), ("phaser_rate", 0.4), ("phaser_depth", 0.7), ("phaser_fb", 0.4),
     ("beat_on", 1), ("beat_level", 0), ("beat_hats", 0.5), ("beat_snare", 0.6), ("beat_pitch", 55),
     ("music_on", 0), ("music_key", 0), ("music_scale", 0), ("music_pad", 0.33), ("music_arp", 0.4),
-    ("music_tone", 0.5), ("music_react", 0.8), ("music_res", 0.4),
+    ("music_tone", 0.5), ("music_react", 0.8), ("music_res", 0.8),
 ]
 
 # Scales as semitone steps above the key note. The patch snaps every note it plays to these.
@@ -52,10 +52,19 @@ PAD_GLIDE_MS = 3500
 
 # Room notes: resonators that make the mic's own sound ring the current chord: root, third and fifth (scale steps
 # 0, 2, 4 above the chord root), one and two octaves above the pad. (octaves, steps) pairs, so pentatonic and
-# whole-tone scales get real octaves too. A note rings for about RES_RING_S * sqrt(262 / Hz) seconds
-# (time constant): low notes longer, high notes shorter, like strings.
+# whole-tone scales get real octaves too.
 RES_NOTES = ((1, 0), (1, 2), (1, 4), (2, 0), (2, 2), (2, 4))
-RES_RING_S = 0.3
+# How long they ring follows what was heard: a short soft sound gives a quick chime, a loud one rings longer, and a
+# sound that goes on builds up to a long bell. A note rings for about ring * sqrt(262 / Hz) seconds (time constant,
+# so low notes longer, high notes shorter), with ring from RES_RING_SHORT_S to RES_RING_LONG_S.
+RES_RING_SHORT_S = 0.08
+RES_RING_LONG_S = 2.0
+RES_LOUD_DB = 30        # this far above the room's quiet counts as fully loud
+RES_LOUD_SHARE = 0.5    # how far loudness alone moves the ring toward long (the rest comes from duration)
+RES_BUILD_S = 1.5       # a fully loud sound that lasts this long reaches the long bell
+RES_RELAX_S = 8.0       # afterwards the ring length relaxes back toward short (time constant)
+RES_STEADY = 0.4        # ring length with react = 0 (ignores the room)
+RES_RING_REF_S = 0.3    # the ring length RES_GAIN was tuned at
 RES_GLIDE_MS = 400
 RES_GAIN = 20.0     # make-up: a narrow band holds little of a broad sound
 RES_MAX = 0.3       # soft ceiling for the whole voice
@@ -574,15 +583,37 @@ def add_room_notes(P, rx, ex, degree_to_hz):
     P.c("rn_hip", "rn_look_wr")
     P.obj("rn_v_thr", "value mthr", rx + 300, 20)
     P.c("mu_fl_thr", "rn_v_thr")
-    P.obj("rn_lvl_t", "t f b", rx + 150, 50)                       # the level meter itself: every 5 ms, not 33
+    P.obj("rn_lvl_t", "t f f b b", rx + 150, 50)                   # the level meter itself: every 5 ms, not 33
     P.obj("rn_rd_thr", "value mthr", rx + 230, 80)
-    P.c("meter", "rn_lvl_t"); P.c("rn_lvl_t", "rn_rd_thr", 1, 0)
+    P.c("meter", "rn_lvl_t"); P.c("rn_lvl_t", "rn_rd_thr", 3, 0)
     ex("rn_open", f"(1-$f3)+$f3*min(max(($f1-$f2)/{RES_OPEN_DB},0),1)", rx + 150, 110)
     P.c("rn_rd_thr", "rn_open", 0, 1); P.c("mu_r_react", "rn_open", 0, 2); P.c("rn_lvl_t", "rn_open", 0, 0)
+    # Ring length: "how much was heard" (0..1) jumps with loudness, grows while the sound goes on, then relaxes.
+    P.obj("rn_dt", "expr 256/$f1".replace("$", BS + "$"), rx + 450, 20)   # seconds between level readings
+    P.c("sr", "rn_dt")
+    P.obj("rn_rd_int", "value rn_int", rx + 330, 80)
+    P.c("rn_lvl_t", "rn_rd_int", 2, 0)
+    ex("rn_int", f"min(max($f3*exp(-$f4/{RES_RELAX_S}),min(max(($f1-$f2)/{RES_LOUD_DB},0),1)*{RES_LOUD_SHARE})"
+                 f"+min(max(($f1-$f2)/{RES_LOUD_DB},0),1)*$f4/{RES_BUILD_S},1)", rx + 300, 110)
+    P.c("rn_rd_thr", "rn_int", 0, 1); P.c("rn_rd_int", "rn_int", 0, 2); P.c("rn_dt", "rn_int", 0, 3)
+    P.c("rn_lvl_t", "rn_int", 1, 0)
+    P.obj("rn_int_t", "t f f", rx + 300, 140)
+    P.obj("rn_wr_int", "value rn_int", rx + 380, 170)
+    P.c("rn_int", "rn_int_t"); P.c("rn_int_t", "rn_wr_int", 1, 0)
+    # Squared, so small sounds stay near the short chime and only big or long ones reach the bell.
+    ex("rn_ring", f"{RES_RING_SHORT_S}+({RES_RING_LONG_S}-{RES_RING_SHORT_S})*pow((1-$f2)*{RES_STEADY}+$f2*$f1,2)", rx + 300, 170)
+    P.c("rn_int_t", "rn_ring", 0, 0); P.c("mu_r_react", "rn_ring", 0, 1)
+    # A narrower (longer-ringing) filter catches less of a sharp sound: feed it harder so notes start as loud.
+    ex("rn_exc", f"sqrt($f1/{RES_RING_REF_S})", rx + 450, 200)
+    P.c("rn_ring", "rn_exc")
+    P.obj("rn_exc_sig", "sig~", rx + 450, 230)
+    P.obj("rn_exc_lp", "lop~ 20", rx + 450, 260)
+    P.c("rn_exc", "rn_exc_sig"); P.c("rn_exc_sig", "rn_exc_lp")
     P.obj("rn_open_sig", "sig~", rx + 150, 140)
     P.obj("rn_open_lp", "lop~ 20", rx + 150, 170)
     P.c("rn_open", "rn_open_sig"); P.c("rn_open_sig", "rn_open_lp")
-    P.sig2("rn_in", "*~", "rn_look", "rn_open_lp", rx, 200)
+    P.sig2("rn_in0", "*~", "rn_look", "rn_open_lp", rx, 200)
+    P.sig2("rn_in", "*~", "rn_in0", "rn_exc_lp", rx, 290)
     acc = None
     for i, (octs, step) in enumerate(RES_NOTES):
         vx = rx + i * 170
@@ -596,8 +627,9 @@ def add_room_notes(P, rx, ex, degree_to_hz):
         P.obj(f"rn{i}_pk", f"pack 0 {RES_GLIDE_MS}", vx, 420)
         P.obj(f"rn{i}_ln", "line~", vx, 450)
         P.c(f"rn{i}_ft", f"rn{i}_pk", 1, 0); P.c(f"rn{i}_pk", f"rn{i}_ln")
-        ex(f"rn{i}_q", f"6.28318*$f1*{RES_RING_S}*sqrt(262/$f1)", vx + 70, 420)    # [vcf~] rings for Q / (2 pi f) s
-        P.c(f"rn{i}_ft", f"rn{i}_q", 0, 0)
+        ex(f"rn{i}_q", "6.28318*$f2*$f1*sqrt(262/$f2)", vx + 70, 420)    # [vcf~] rings for Q / (2 pi f) s
+        P.c(f"rn{i}_ft", f"rn{i}_q", 0, 1)                       # the note (cold), then the ring length (every 5 ms)
+        P.c("rn_ring", f"rn{i}_q", 0, 0)
         P.obj(f"rn{i}_vcf", "vcf~", vx, 480)
         P.c("rn_in", f"rn{i}_vcf", 0, 0); P.c(f"rn{i}_ln", f"rn{i}_vcf", 0, 1); P.c(f"rn{i}_q", f"rn{i}_vcf", 0, 2)
         acc = f"rn{i}_vcf" if acc is None else P.sig2(f"rn_acc{i}", "+~", acc, f"rn{i}_vcf", vx, 510)
