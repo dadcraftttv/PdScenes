@@ -695,7 +695,9 @@ def add_room_notes(P, rx, ex, degree_to_hz):
     resonators glide to the new notes when the chord, key or scale changes. Returns the output signal."""
     # Input: the gated mic without rumble. It opens as soon as the level rises above the room's own quiet
     # (the floor the chimes use), so a single clap rings but a quiet room stays silent. With react = 0 it stays open.
-    P.sig2("rn_src", "*~", "mic_gated", "ph_ln", rx - 100, 20)    # quieter in a pocket, like the rest
+    # In a pocket the mic hears cloth, so Room notes hear the hush twice: the rustle rings nothing.
+    P.sig2("rn_src0", "*~", "mic_gated", "ph_ln", rx - 100, 5)
+    P.sig2("rn_src", "*~", "rn_src0", "ph_ln", rx - 100, 20)
     P.obj("rn_hip", "hip~ 120", rx, 20)
     P.c("rn_src", "rn_hip")
     # The level is measured in short windows, so the gate opens a little late; delay the sound to match.

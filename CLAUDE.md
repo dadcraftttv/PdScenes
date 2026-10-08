@@ -58,14 +58,16 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   (the mic and speaker are separate devices with separate ids; matching by id failed). LE Audio headsets can be better. The UI hints about it.
 - **Soft limiter** at the output (`clip~` base plus cubic-eased excess, never above 1.0). Hard clipping sounded fuzzy.
 - **Defaults:** input gain 2.5, compressor -30 dB 4:1. Gain, gate, compressor, smoothing, nudge and music on/key/scale are `noPreset`.
-- **Auto Worlds:** Tranquil / Flux / Kinetic / Ghost / Pocket, priority Ghost > Kinetic > Pocket > Flux > Tranquil. Worlds skip locked params and `*_on`
+- **Auto Worlds:** Tranquil / Flux / Kinetic / Ghost / Pocket, priority Ghost > Kinetic > Flux > Tranquil > Pocket. Worlds skip locked params and `*_on`
   switches and never flip `music_on`.
 - **Sensors / Pocket world:** `PhoneContext` (pure logic, test X) holds brightness/pocket/climb and the rotation-vector heading; `SensorInput` feeds it. Mover shapes 13-15 are Brighter/In pocket/Climbing.
   Brightness is *room-relative* (Samuel: "it should respond to the world/room/situation around the user"): 75% where the light sits between
-  the darkest/brightest of the last ~90 s (min span 10x lux, steady = 0.5), 25% the fixed sun scale. Pocket detection still uses absolute lux. Auto Worlds priority is now Ghost > Kinetic > Pocket > Flux > Tranquil. Tuning of the Pocket world preset and the climb scale (`CLIMB_FULL_HPA`) is untested on a real phone.
+  the darkest/brightest of the last ~90 s (min span 10x lux, steady = 0.5), 25% the fixed sun scale. Pocket detection still uses absolute lux. Pocket is a *layer*, not a rival world (Samuel's idea): in a pocket the world still follows night/walking/room, the pocket hush
+  rides on top, and the Pocket world only plays when nothing else fits. In a pocket, loudness is judged from the room's floor
+  (quietest moments, rising <= 3 dB/s, +6 dB for cloth muffling) so rustle bursts don't count as a loud room. Tuning of the Pocket world preset and the climb scale (`CLIMB_FULL_HPA`) is untested on a real phone.
 - **Pocket hush** (`pocket_hush`, main section, noPreset, default 0.9 = -22 dB): AudioService sends `pocket 0|1` to the built-in
   patch whenever `PhoneContext.inPocket()` flips, whether or not Auto Worlds is on. The mic is turned down after the compressor (so it
-  cannot lift the rustle back up), Room notes hear the hushed mic, and rustle-triggered chimes are scaled by hush squared. Footstep
+  cannot lift the rustle back up), Room notes hear the hush twice (silent in a pocket), and rustle-triggered chimes are scaled by hush squared. Footstep
   arpeggio, beat and pad are untouched. Needed because walking with the phone pocketed picks Kinetic, not Pocket, so the Pocket
   world alone never quieted the rustle (Samuel heard all the cloth noise at the store). Pocket and world changes are logged
   (`adb logcat -s AudioService`).

@@ -16,8 +16,12 @@ final class WorldSelector {
     static final String TRANQUIL = "tranquil";
     static final String POCKET = "pocket";
 
-    /** Which world wins when several fit: the first one in this list. */
-    static final String[] PRIORITY = {GHOST, KINETIC, POCKET, FLUX, TRANQUIL};
+    /**
+     * Which world wins when several fit: the first one in this list. Pocket comes last: in a pocket the world still
+     * follows the time, your walking and the room, and the pocket is a layer on top (the patch's pocket hush). The
+     * Pocket world only plays when nothing else fits.
+     */
+    static final String[] PRIORITY = {GHOST, KINETIC, FLUX, TRANQUIL, POCKET};
 
     static final int NIGHT_START_MINUTE = 0;          // midnight...
     static final int NIGHT_END_MINUTE = 5 * 60;       // ...to 5 AM
@@ -33,8 +37,17 @@ final class WorldSelector {
     private static final double DWELL_S = 5.0;          // a new situation must last this long...
     private static final double MIN_HOLD_S = 10.0;      // ...and the old world must have run this long
     private static final float NO_READING_DB = -99f;    // the mic level before the patch has reported anything
+    /**
+     * In a pocket, rustle comes in bursts, so the room is judged by its quietest moments instead: this floor follows
+     * the level down at once and creeps up at most this fast. Rustle's gaps keep it down; a loud shop's steady
+     * noise lifts it within a few seconds.
+     */
+    static final float FLOOR_RISE_DB_PER_S = 3f;
+    /** The floor sits below the average, and cloth muffles the mic: in a pocket the floor counts this much louder. */
+    static final float POCKET_FLOOR_BOOST_DB = 6f;
 
     private float level = NO_READING_DB;
+    private float floor = NO_READING_DB;
     private boolean haveLevel;
     private boolean loud;
     private boolean quiet;
@@ -47,6 +60,7 @@ final class WorldSelector {
     /** Forget everything (engine start or stop). */
     void reset() {
         level = NO_READING_DB;
+        floor = NO_READING_DB;
         haveLevel = false;
         loud = false;
         quiet = false;
@@ -101,18 +115,21 @@ final class WorldSelector {
         }
         if (!haveLevel) {
             level = levelDb;
+            floor = levelDb;
             haveLevel = true;
         } else {
             level += (levelDb - level) * (float) (1 - Math.exp(-dt / LEVEL_SMOOTH_S));
+            floor = Math.min(levelDb, floor + FLOOR_RISE_DB_PER_S * (float) dt);
         }
-        if (!loud && level > LOUD_ENTER_DB) {
+        float room = pocket ? floor + POCKET_FLOOR_BOOST_DB : level;
+        if (!loud && room > LOUD_ENTER_DB) {
             loud = true;
-        } else if (loud && level < LOUD_LEAVE_DB) {
+        } else if (loud && room < LOUD_LEAVE_DB) {
             loud = false;
         }
-        if (!quiet && level < QUIET_ENTER_DB) {
+        if (!quiet && room < QUIET_ENTER_DB) {
             quiet = true;
-        } else if (quiet && level > QUIET_LEAVE_DB) {
+        } else if (quiet && room > QUIET_LEAVE_DB) {
             quiet = false;
         }
     }

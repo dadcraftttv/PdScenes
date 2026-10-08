@@ -907,6 +907,13 @@ def pocket_room(pocket):
     return band_rms(e.run(sine(50, 0.3, 30))[:, 0])
 free, pocketed = pocket_room(0), pocket_room(1)
 check(pocketed < 0.1 * free, "pocket hush: rustle rings far fewer chimes in a pocket (%.5f vs %.4f)" % (pocketed, free))
+def pocket_res(pocket):
+    e = fresh(music_on=1, music_pad=0, music_arp=0, music_res=1, wet=0, dry=1, gain=1); e.send("pocket", pocket); e.run(e.silence(1))
+    rng = np.random.default_rng(5)
+    x = np.concatenate([rng.standard_normal(int(0.05 * SR)) * 0.5, np.zeros(SR)]).astype(np.float32)
+    return e.run(x)[:, 0][int(0.1 * SR):]          # the ringing after the burst (the dry burst is over by then)
+rfree, rpocket = rms(pocket_res(0)), rms(pocket_res(1))
+check(rpocket < 0.01 * rfree, "pocket hush: Room notes stay silent in a pocket (%.6f vs %.4f)" % (rpocket, rfree))
 
 # room notes: resonators make the mic's own sound ring the current chord
 def claps(n, gap, amp, quiet=0.0005, seed=1):

@@ -61,13 +61,23 @@ public class X {
     PhoneContext.onPressure(900f,t+100); check(PhoneContext.climb()==0f,"a long gap restarts the averages");
     // ---- selector with pocket ----
     WorldSelector s=new WorldSelector(); Set<String> all=new HashSet<>(Arrays.asList(WorldSelector.PRIORITY));
-    check(Arrays.asList(WorldSelector.PRIORITY).indexOf("pocket")>Arrays.asList(WorldSelector.PRIORITY).indexOf("kinetic")&&Arrays.asList(WorldSelector.PRIORITY).indexOf("pocket")<Arrays.asList(WorldSelector.PRIORITY).indexOf("flux"),"pocket ranks below kinetic and above flux");
-    String w=null; for(int i=0;i<400;i++) w=s.update(0.1,-10f,false,true,12*60,all);
-    check("pocket".equals(w),"loud rustle in a pocket -> pocket, not flux: "+w);
-    for(int i=0;i<400;i++) w=s.update(0.1,-10f,true,true,12*60,all);
+    check(Arrays.asList(WorldSelector.PRIORITY).indexOf("pocket")==WorldSelector.PRIORITY.length-1,"pocket is the fallback: every other world outranks it");
+    String w=null;
+    // rustle: loud bursts with ordinary gaps between them (not walking)
+    for(int i=0;i<400;i++) w=s.update(0.1,(i%10<3)?-10f:-42f,false,true,12*60,all);
+    check("pocket".equals(w),"rustle bursts in a pocket -> pocket, not flux: "+w);
+    s.reset(); for(int i=0;i<400;i++) w=s.update(0.1,(i%10<3)?-10f:-60f,false,true,12*60,all);
+    check("tranquil".equals(w),"rustle in a pocket in a quiet room -> tranquil: "+w);
+    s.reset(); for(int i=0;i<400;i++) w=s.update(0.1,-30f+((i%10<3)?8f:0f),false,true,12*60,all);
+    check("flux".equals(w),"a loud shop heard from a pocket -> flux: "+w);
+    s.reset(); for(int i=0;i<400;i++) w=s.update(0.1,-30f,false,false,12*60,all);
+    check(w==null,"the same shop out of the pocket is not loud enough for flux (the pocket muffles): "+w);
+    s.reset(); for(int i=0;i<400;i++) w=s.update(0.1,-10f,true,true,12*60,all);
     check("kinetic".equals(w),"walking with the phone in a pocket -> kinetic: "+w);
+    s.reset(); for(int i=0;i<400;i++) w=s.update(0.1,-10f,false,true,2*60,all);
+    check("ghost".equals(w),"late at night in a pocket -> ghost: "+w);
     for(int i=0;i<400;i++) w=s.update(0.1,-40f,false,false,12*60,all);
-    check(w==null,"phone out of the pocket: back to nothing: "+w);
+    check(w==null,"phone out of the pocket in the day, ordinary room: back to nothing: "+w);
     // ---- movers use the new sensors ----
     Modulation.reset(); ParamStore.set("wet",0.4f);
     M.setMover("wet",13,2f,1f);
