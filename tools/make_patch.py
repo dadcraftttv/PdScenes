@@ -33,7 +33,7 @@ DEFAULTS = [
     ("phaser_on", 1), ("phaser_mix", 0), ("phaser_rate", 0.4), ("phaser_depth", 0.7), ("phaser_fb", 0.4),
     ("beat_on", 1), ("beat_level", 0), ("beat_hats", 0.5), ("beat_snare", 0.6), ("beat_pitch", 55),
     ("music_on", 0), ("music_key", 0), ("music_scale", 0), ("music_pad", 0.33), ("music_arp", 0.4),
-    ("music_tone", 0.5), ("music_react", 0.8), ("music_res", 0.8), ("pocket_hush", 0.9),
+    ("music_tone", 0.5), ("music_react", 0.8), ("music_res", 0.8), ("pocket_hush", 0.5),
 ]
 
 # Scales as semitone steps above the key note. The patch snaps every note it plays to these.
@@ -96,7 +96,7 @@ RES_GAIN = 20.0     # make-up: a narrow band holds little of a broad sound
 RES_MAX = 0.3       # soft ceiling for the whole voice
 RES_OPEN_DB = 10    # the input opens fully this many dB above the room's quiet
 RES_LOOKAHEAD_MS = 20
-POCKET_HUSH_DB = 24         # pocket hush at 1 turns the mic down this far (0.9, the default: about 22 dB)
+POCKET_HUSH_DB = 24         # pocket hush at 1 turns the mic down this far (0.5, the default: 12 dB)
 POCKET_HUSH_MS = 400        # how fast the hush fades in and out
 
 # Flanger: the delay sweeps from this minimum up to minimum + depth (ms). [delread4~] cannot go
@@ -474,7 +474,7 @@ def add_music(P):
     P.c("mu_ons_gate", "mu_ons_gate_on"); P.c("mu_ons_gate_on", "mu_ons_t")
     P.c("mu_ons_t", "mu_ons_close", 2, 0); P.c("mu_ons_close", "mu_ons_gate", 0, 1)
     P.c("mu_ons_t", "mu_ons_wait", 1, 0); P.c("mu_ons_wait", "mu_ons_open"); P.c("mu_ons_open", "mu_ons_gate", 0, 1)
-    ex("mu_ons_vel", "(0.3+0.5*$f1)*$f2*$f2", x + 300, 660)          # in a pocket the "sudden sound" is rustle
+    ex("mu_ons_vel", "(0.3+0.5*$f1)*$f2", x + 300, 660)              # in a pocket the "sudden sound" may be rustle
     P.obj("mu_rd_ons", "value mloud", x + 300, 640)
     P.obj("mu_ons_rt", "t b b", x + 240, 610)
     P.obj("mu_ons_hush", "value phush", x + 240, 640)
@@ -498,7 +498,7 @@ def add_music(P):
     P.c("mu_roll", "mu_chance")
     P.obj("mu_chance_sel", "sel 1", x + 800, 780)
     P.c("mu_chance", "mu_chance_sel")
-    ex("mu_still_vel", "(0.12+0.5*$f1)*$f2*$f2", x + 800, 840)
+    ex("mu_still_vel", "(0.12+0.5*$f1)*$f2", x + 800, 840)
     P.obj("mu_still_load", "t b b", x + 800, 810)
     P.obj("mu_rd_still", "value mloud", x + 900, 810)
     P.obj("mu_still_hush", "value phush", x + 980, 810)
@@ -695,9 +695,7 @@ def add_room_notes(P, rx, ex, degree_to_hz):
     resonators glide to the new notes when the chord, key or scale changes. Returns the output signal."""
     # Input: the gated mic without rumble. It opens as soon as the level rises above the room's own quiet
     # (the floor the chimes use), so a single clap rings but a quiet room stays silent. With react = 0 it stays open.
-    # In a pocket the mic hears cloth, so Room notes hear the hush twice: the rustle rings nothing.
-    P.sig2("rn_src0", "*~", "mic_gated", "ph_ln", rx - 100, 5)
-    P.sig2("rn_src", "*~", "rn_src0", "ph_ln", rx - 100, 20)
+    P.sig2("rn_src", "*~", "mic_gated", "ph_ln", rx - 100, 20)    # quieter in a pocket, like the rest
     P.obj("rn_hip", "hip~ 120", rx, 20)
     P.c("rn_src", "rn_hip")
     # The level is measured in short windows, so the gate opens a little late; delay the sound to match.

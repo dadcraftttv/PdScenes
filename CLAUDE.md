@@ -65,12 +65,16 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   the darkest/brightest of the last ~90 s (min span 10x lux, steady = 0.5), 25% the fixed sun scale. Pocket detection still uses absolute lux. Pocket is a *layer*, not a rival world (Samuel's idea): in a pocket the world still follows night/walking/room, the pocket hush
   rides on top, and the Pocket world only plays when nothing else fits. In a pocket, loudness is judged from the room's floor
   (quietest moments, rising <= 3 dB/s, +6 dB for cloth muffling) so rustle bursts don't count as a loud room. Tuning of the Pocket world preset and the climb scale (`CLIMB_FULL_HPA`) is untested on a real phone.
-- **Pocket hush** (`pocket_hush`, main section, noPreset, default 0.9 = -22 dB): AudioService sends `pocket 0|1` to the built-in
+- **Pocket hush** (`pocket_hush`, main section, noPreset, default 0.5 = -12 dB; 0.9 hid a finger snap next to the pocket): AudioService sends `pocket 0|1` to the built-in
   patch whenever `PhoneContext.inPocket()` flips, whether or not Auto Worlds is on. The mic is turned down after the compressor (so it
-  cannot lift the rustle back up), Room notes hear the hush twice (silent in a pocket), and rustle-triggered chimes are scaled by hush squared. Footstep
+  cannot lift the rustle back up), Room notes hear the hushed mic, and rustle-triggered chimes are scaled by the hush. Footstep
   arpeggio, beat and pad are untouched. Needed because walking with the phone pocketed picks Kinetic, not Pocket, so the Pocket
-  world alone never quieted the rustle (Samuel heard all the cloth noise at the store). Pocket and world changes are logged
-  (`adb logcat -s AudioService`).
+  world alone never quieted the rustle (Samuel heard all the cloth noise at the store). Pocket and world changes, plus a
+  "Hearing:" line every 30 s (level, floor, swing), go to `files/events.log` (64 KB, one rollover):
+  `adb shell run-as app.pdscenes cat files/events.log`. Phone logcat only holds ~10 minutes.
+- **Flux needs a lively room:** loud AND the level swinging >3 dB around its average (leave <2). Running water hit Flux and
+  became pure fuzz; a steady roar now leaves the user's own settings. Flux preset was softened (dist 0.2 soft, crush 0.15,
+  ring 0.15, freeze mover depth 0.4) so the room still comes through.
 - **Walking beat:** StepDetector sends `step <interval>` messages; foot drift was fixed and confirmed on the phone.
 - **Music (off by default):** key + scale snap the notes; pad is soft glue (default 0.33, Samuel likes ~0.20); chimes/arpeggio follow the room.
   Pad chords come from `CHORD_POOLS` per scale (Samuel chose: home chord + its two strongest neighbours, picked by brightness, plus one

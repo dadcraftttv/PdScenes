@@ -72,6 +72,8 @@ public class AudioService extends Service {
     /** Last pocket state sent to the patch (it hushes the mic while pocketed) and last world logged. */
     private boolean pocketSent;
     private String worldLogged;
+    private static final long HEARING_LOG_MS = 30_000;
+    private long lastHearingLog;
     private final Runnable moverTick = new Runnable() {
         @Override
         public void run() {
@@ -84,12 +86,16 @@ public class AudioService extends Service {
                 if (pocket != pocketSent) {
                     pocketSent = pocket;
                     PdBase.sendFloat("pocket", pocket ? 1f : 0f);
-                    Log.i(TAG, pocket ? "Phone went into a pocket" : "Phone came out of the pocket");
+                    logEvent(pocket ? "Phone went into a pocket" : "Phone came out of the pocket");
                 }
                 String world = Worlds.currentWorld();
                 if (world != null ? !world.equals(worldLogged) : worldLogged != null) {
                     worldLogged = world;
-                    Log.i(TAG, "World: " + (world == null ? "own settings" : world));
+                    logEvent("World: " + (world == null ? "own settings" : world) + " (" + Worlds.hearing() + ")");
+                }
+                if (now - lastHearingLog >= HEARING_LOG_MS) {   // a trace of the room, to tune the thresholds by
+                    lastHearingLog = now;
+                    logEvent("Hearing: " + Worlds.hearing());
                 }
                 if (now - lastClockCheck > CLOCK_CHECK_MS) {   // the time of day changes slowly
                     minuteOfDay = Worlds.minuteOfDayNow();
@@ -103,6 +109,30 @@ public class AudioService extends Service {
             handler.postDelayed(this, MOVER_INTERVAL_MS);
         }
     };
+
+    /** Pocket and world changes, kept in a small file so a whole outing can be read back afterwards
+     *  ({@code adb shell run-as app.pdscenes cat files/events.log}); logcat on the phone only holds minutes. */
+    private static final String EVENT_LOG = "events.log";
+    private static final long EVENT_LOG_MAX_BYTES = 64 * 1024;
+
+    private void logEvent(String what) {
+        Log.i(TAG, what);
+        try {
+            File f = new File(getFilesDir(), EVENT_LOG);
+            if (f.length() > EVENT_LOG_MAX_BYTES) {
+                File old = new File(getFilesDir(), EVENT_LOG + ".1");
+                old.delete();
+                f.renameTo(old);
+            }
+            String line = new java.text.SimpleDateFormat("MM-dd HH:mm:ss", java.util.Locale.US)
+                    .format(new java.util.Date()) + "  " + what + "\n";
+            try (FileOutputStream out = new FileOutputStream(f, true)) {
+                out.write(line.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            }
+        } catch (IOException e) {
+            Log.w(TAG, "Could not write the event log", e);
+        }
+    }
 
     private int patchHandle = -1;
     private boolean bluetoothMicRouted = false;
@@ -349,6 +379,7 @@ public class AudioService extends Service {
         handler.postDelayed(moverTick, MOVER_INTERVAL_MS);
         notifyStateChanged();
         Log.i(TAG, "Audio started, asked for " + sampleRate + " Hz, got " + actualRate + " Hz");
+        logEvent(scene == null ? "Audio started (built-in effects)" : "Audio started (scene)");
     }
 
     /** The rate Pd really runs at; 0 if the library can't say (PdBase.audioRuntimeInfo is newer than rc6). */

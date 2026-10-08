@@ -45,9 +45,18 @@ final class WorldSelector {
     static final float FLOOR_RISE_DB_PER_S = 3f;
     /** The floor sits below the average, and cloth muffles the mic: in a pocket the floor counts this much louder. */
     static final float POCKET_FLOOR_BOOST_DB = 6f;
+    /**
+     * Flux wants a lively loud place (voices, music, clatter), not a steady roar: running water, a fan or a vacuum
+     * is loud but hardly moves. "Liveliness" is how far the level swings from its average (dB, averaged over a few
+     * seconds); a steady noise swings about 1 dB, speech and music 5 or more.
+     */
+    static final float LIVELY_ENTER_DB = 3f;
+    static final float LIVELY_LEAVE_DB = 2f;
 
     private float level = NO_READING_DB;
     private float floor = NO_READING_DB;
+    private float swing;
+    private boolean lively;
     private boolean haveLevel;
     private boolean loud;
     private boolean quiet;
@@ -61,6 +70,8 @@ final class WorldSelector {
     void reset() {
         level = NO_READING_DB;
         floor = NO_READING_DB;
+        swing = 0;
+        lively = false;
         haveLevel = false;
         loud = false;
         quiet = false;
@@ -120,6 +131,12 @@ final class WorldSelector {
         } else {
             level += (levelDb - level) * (float) (1 - Math.exp(-dt / LEVEL_SMOOTH_S));
             floor = Math.min(levelDb, floor + FLOOR_RISE_DB_PER_S * (float) dt);
+            swing += (Math.abs(levelDb - level) - swing) * (float) (1 - Math.exp(-dt / LEVEL_SMOOTH_S));
+        }
+        if (!lively && swing > LIVELY_ENTER_DB) {
+            lively = true;
+        } else if (lively && swing < LIVELY_LEAVE_DB) {
+            lively = false;
         }
         float room = pocket ? floor + POCKET_FLOOR_BOOST_DB : level;
         if (!loud && room > LOUD_ENTER_DB) {
@@ -143,10 +160,17 @@ final class WorldSelector {
             case POCKET:
                 return pocket;
             case FLUX:
-                return loud;
+                return loud && lively;
             default:
                 return quiet;
         }
+    }
+
+    /** What the selector is hearing, for the event log. */
+    String describe() {
+        return String.format(java.util.Locale.US, "level %.0f dB, floor %.0f dB, swing %.1f dB%s%s%s%s",
+                level, floor, swing, loud ? ", loud" : "", quiet ? ", quiet" : "", lively ? ", lively" : "",
+                pocket ? ", in pocket" : "");
     }
 
     private static boolean equal(String a, String b) {

@@ -200,13 +200,15 @@ final class PresetManager {
         tranquil.put("music_res", 0.6f);
         BUILT_IN.put("Tranquil world", tranquil);
 
-        Map<String, Float> flux = make(180f, 0.45f, 0.35f, 120f, 0.3f);
-        distortion(flux, 0.45f, DIST_HARD, 6f);
-        crush(flux, 0.3f, 6f, 9000f);
+        // Edgy but see-through: Samuel heard heavy distortion + freeze turn running water into nothing but fuzz,
+        // so the room itself must still come through.
+        Map<String, Float> flux = make(180f, 0.45f, 0.35f, 120f, 0.15f);
+        distortion(flux, 0.2f, DIST_SOFT, 4f);
+        crush(flux, 0.15f, 8f, 11000f);
         flanger(flux, 0.5f, 0.3f, 4f, 0.6f);
         mover(flux, "echo_time", 11, 1.5f, 0.6f);        // Random jump
         mover(flux, "ring_freq", 11, 1f, 0.5f);
-        mover(flux, "glitch_hold", 2, 2f, 0.8f);         // loud sounds freeze the room
+        mover(flux, "glitch_hold", 2, 2f, 0.4f);         // loud sounds half-freeze the room
         flux.put("music_pad", 0.08f);
         flux.put("music_arp", 0.35f);
         flux.put("music_res", 1f);                       // the loud room rings in key

@@ -35,7 +35,9 @@ public class W {
     for(int i=0;i<10;i++) w=s.update(0.1,-10f,false,12*60,all);
     check("tranquil".equals(w),"a short loud burst does not change the world");
     for(int i=0;i<400;i++) w=s.update(0.1,-10f,false,12*60,all);
-    check("flux".equals(w),"loud room for a while -> flux: "+w);
+    check(w==null,"a steady roar (running water, a fan) is not flux: "+w);
+    for(int i=0;i<400;i++) w=s.update(0.1,(i%5<2?-6f:-16f),false,12*60,all);
+    check("flux".equals(w),"lively loud room for a while -> flux: "+w);
     for(int i=0;i<400;i++) w=s.update(0.1,-10f,true,12*60,all);
     check("kinetic".equals(w),"walking beats loud -> kinetic: "+w);
     for(int i=0;i<400;i++) w=s.update(0.1,-10f,true,60,all);
@@ -48,7 +50,7 @@ public class W {
     s.reset(); for(int i=0;i<400;i++) w=s.update(0.1,-100f,false,12*60,all);
     check(w==null,"no mic reading yet is not mistaken for silence");
     // hysteresis: level hovering at the loud edge doesn't flip-flop
-    s.reset(); for(int i=0;i<400;i++) w=s.update(0.1,-20f,false,12*60,all); int changes=0; String prev=w;
+    s.reset(); for(int i=0;i<400;i++) w=s.update(0.1,-20f,false,12*60,all); for(int i=0;i<400;i++) w=s.update(0.1,-29f,false,12*60,all); int changes=0; String prev=w;
     for(int i=0;i<1200;i++){ w=s.update(0.1,i%2==0?-27f:-31f,false,12*60,all); if(!Objects.equals(prev,w)){changes++;prev=w;} }
     check(changes==0,"level hovering between the thresholds causes no flicker: "+changes);
     // ---- controller ----
@@ -72,7 +74,7 @@ public class W {
     Worlds.setEnabled(true); Worlds.reset();
     for(int i=0;i<400;i++) Worlds.tick(0.033,-60f,false,12*60);
     ParamStore.setLocked("reverb_mix",true); float before=ParamStore.get("reverb_mix");
-    for(int i=0;i<400;i++) Worlds.tick(0.033,-10f,false,12*60);   // -> flux
+    for(int i=0;i<400;i++) Worlds.tick(0.033,(i%5<2?-6f:-16f),false,12*60);   // -> flux
     check("flux".equals(Worlds.currentWorld())&&ParamStore.get("reverb_mix")==before,"locked slider is left alone while the world changes");
     ParamStore.setLocked("reverb_mix",false);
     // midway through a fade values are between
@@ -83,8 +85,8 @@ public class W {
     Worlds.setEnabled(false); for(int i=0;i<200;i++) Worlds.tick(0.033,-60f,false,12*60);
     Worlds.setPreset("flux","Flux world"); Worlds.setEnabled(true); Worlds.reset();
     ParamStore.set("crush_on",0f); ParamStore.set("ring_on",0f); ParamStore.set("crush_mix",0f);
-    for(int i=0;i<600;i++) Worlds.tick(0.033,-10f,false,12*60);
-    check("flux".equals(Worlds.currentWorld())&&ParamStore.get("crush_mix")>0.25f,"flux world is playing (crush mix "+ParamStore.get("crush_mix")+")");
+    for(int i=0;i<600;i++) Worlds.tick(0.033,(i%5<2?-6f:-16f),false,12*60);
+    check("flux".equals(Worlds.currentWorld())&&ParamStore.get("crush_mix")>0.1f,"flux world is playing (crush mix "+ParamStore.get("crush_mix")+")");
     check(ParamStore.get("crush_on")==0f&&ParamStore.get("ring_on")==0f,"switched-off effects stay switched off in a world");
     Worlds.reset();
     // stop restores home

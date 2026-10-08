@@ -129,6 +129,11 @@ final class Worlds {
         }
     }
 
+    /** What the automatic choice is hearing (loudness, floor, liveliness), for the event log. */
+    static String hearing() {
+        return selector.describe();
+    }
+
     /** The world playing now, or null. */
     static String currentWorld() {
         return current;

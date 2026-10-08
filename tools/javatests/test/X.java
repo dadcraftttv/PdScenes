@@ -68,7 +68,7 @@ public class X {
     check("pocket".equals(w),"rustle bursts in a pocket -> pocket, not flux: "+w);
     s.reset(); for(int i=0;i<400;i++) w=s.update(0.1,(i%10<3)?-10f:-60f,false,true,12*60,all);
     check("tranquil".equals(w),"rustle in a pocket in a quiet room -> tranquil: "+w);
-    s.reset(); for(int i=0;i<400;i++) w=s.update(0.1,-30f+((i%10<3)?8f:0f),false,true,12*60,all);
+    s.reset(); for(int i=0;i<400;i++) w=s.update(0.1,-30f+((i%10<3)?10f:0f),false,true,12*60,all);
     check("flux".equals(w),"a loud shop heard from a pocket -> flux: "+w);
     s.reset(); for(int i=0;i<400;i++) w=s.update(0.1,-30f,false,false,12*60,all);
     check(w==null,"the same shop out of the pocket is not loud enough for flux (the pocket muffles): "+w);
