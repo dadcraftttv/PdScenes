@@ -97,6 +97,8 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   **Pad register** (`music_pad_reg` Low/Mid/Both, default Both, noPreset; Samuel's idea, he likes it: deep without overpowering): a bass voice (sine + 0.35 2nd + 0.15
   3rd harmonic, folded to 65-131 Hz) on the key root, moving to the chord root on 40% of chord changes; note changes dip out
   and back in (no slides); each footstep ducks it 60% while the walking beat is audible. It rides the pad level/swell.
+  **Stop breath:** 1.2 s after the last step the pad+bass ease to 55% over 2.5 s, then return over 8 s (a step
+  brings them back in 0.8 s); only steps start it.
   Music joins after the filter, so chorus/flanger/phaser/tremolo/reverse/glitch/echo/reverb/spatial shape it; pitch/ring/crush/dist/filter do not.
   It follows the Dry level. Only the real room tells us if the tuning is right — expect further tweaks from Samuel's reports.
 - **Screen:** a bar pinned to the bottom (thumb reach while walking) holds the status, a "Now: <world> · why" line
@@ -114,6 +116,15 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
 - **Start path:** the Bluetooth-mic link wait runs on a background thread (`starting`, `startGeneration` cancels it on
   stop). `patches` and `scene_lib` are copied only when the install changes (`.copied` stamp = lastUpdateTime).
 - **No recording audio** to files (Samuel, Oct 9): the mic never touches disk. Revisit only for a feature that unlocks a lot.
+- **Echo follows your steps** (`echo_sync` Off/1/half/quarter step, default half, in presets): while walking the echo
+  time is the averaged step interval (20 ms grid, so step wobble doesn't warble it); 2.5 s after the last step the
+  slider's time returns.
+- **Dice morph:** with audio running, Randomize glides there over 6 s (`ParamStore.morphTick` from the service tick,
+  smoothstep; switches/menus flip halfway). A slider moved meanwhile (hand or world) drops out of the glide; undo,
+  nudge, presets and reset stop it. Stopped audio: Randomize jumps as before.
+- **Switchable DSP:** make_patch.py groups reverb, pitch, chorus, flanger, phaser, reverse echo, Room notes and music
+  into `[switch~]` subpatches (`Patch.group` + `add_switch`), on while their level > 0, off 3x smoothing + tail after.
+  Room notes fade in 200 ms on switch-on. Phone: music on ~39% of a core on the audio thread, music off ~18%.
 - Presets store: sliders, movers, music pad/notes/tone/follow, beat, dry. A slider kept out of presets keeps its mover out too
   (`Params.withMovers`), or loading a preset or world switched it off. Not stored: gain/gate/compressor, smoothing/nudge,
   music on/key/scale, locks, worlds choices, audio device, scenes, appearance.

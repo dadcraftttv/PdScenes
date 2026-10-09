@@ -50,7 +50,7 @@ Suggested order is the numbering. Each one needs a test in `tools/test_patch.py`
       HashMap in `Modulation.tick`, Bluetooth-mic wait (up to ~3.3 s of `Thread.sleep`) off the main thread, copy
       `patches`/`scene_lib` assets only when a version stamp changes (393 files on every Start today), a step-detector
       test for shaking the phone while sitting.
-    - *CPU*: measured on the phone (built-in patch, music on): ~50% of one core, the audio thread ~44% (desktop 2.4%).
+    - *CPU* (BUILT 2026-10-09: switch~ groups; accel 100 Hz still to try): measured on the phone (built-in patch, music on): ~50% of one core, the audio thread ~44% (desktop 2.4%).
       Effects at 0 or off cost the same as on. Wrap effects and music voices in `switch~` subpatches (reverb and pitch
       shifter first) via a helper in make_patch.py, with tests that an off effect is unchanged and toggling doesn't click.
       Try the accelerometer at 100 Hz instead of 200 Hz if the beat still lands.
@@ -58,7 +58,7 @@ Suggested order is the numbering. Each one needs a test in `tools/test_patch.py`
       collapsed by default, a mover indicator on moving sliders, a "hold this world" control, a one-tap snapshot preset
       (time-stamped, name later), an optional quiet earcon on world change, SeekBar content descriptions, the Bluetooth
       hint on the input picker, a short first-run flow, later a simple "walk mode" screen.
-    - *Sound*: echo time synced to steps, dice morph (Randomize glides over 5-10 s), shake-to-scatter while still
+    - *Sound* (BUILT 2026-10-09: step-synced echo, stop breath, dice morph): echo time synced to steps, dice morph (Randomize glides over 5-10 s), shake-to-scatter while still
       (overlaps item 5), cadence groove reward, an Intensity macro, step strength (harder step opens the hat), a
       2-3 s thin-out of pad and chimes when you stop, a wind/handling detector that ducks only the reactive voices
       (overlaps item 13).
