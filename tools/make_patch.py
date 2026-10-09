@@ -17,7 +17,7 @@ OUT = os.path.join(os.path.dirname(__file__), "..", "app", "src", "main", "asset
 # Defaults for the loadbang message (lets the patch also run standalone in desktop Pd).
 # tools/test_patch.py checks these against Params.java so they cannot drift.
 DEFAULTS = [
-    ("gain", 2.5), ("dry", 1), ("echo_on", 1), ("echo_time", 350), ("feedback", 0.4),
+    ("gain", 2.5), ("dry", 1), ("echo_on", 1), ("echo_time", 350), ("echo_sync", 2), ("feedback", 0.4),
     ("wet", 0.5), ("ring_on", 1), ("ring_freq", 80), ("ring_mix", 0), ("smooth", 30),
     ("pitch_on", 1), ("pitch_semi", 0), ("pitch_mix", 0), ("pitch_window", 60),
     ("crush_on", 1), ("crush_mix", 0), ("crush_bits", 8), ("crush_rate", 8000),
@@ -104,6 +104,8 @@ RES_MAX = 0.3       # soft ceiling for the whole voice
 RES_OPEN_DB = 10    # the input opens fully this many dB above the room's quiet
 RES_LOOKAHEAD_MS = 20
 POCKET_HUSH_DB = 24         # pocket hush at 1 turns the mic down this far (0.5, the default: 12 dB)
+ECHO_WALK_HOLD_MS = 2500   # echo stays locked to the steps this long after the last one
+RES_FADE_IN_MS = 200       # Room notes fade in this long each time their block switches on
 DUCK_MS = 600           # how quickly the output dips (and comes back) when other audio plays
 POCKET_HUSH_MS = 400        # how fast the hush fades in and out
 POCKET_GUARD_DB = 12        # mic-down protection at 1 turns the mic down this much more...
@@ -1016,7 +1018,14 @@ def add_room_notes(P, rx, ex, degree_to_hz):
     P.obj("rn_soft", "expr~ " + f"{RES_MAX}*tanh($v1/{RES_MAX})".replace("$", BS + "$"), rx, 570)
     P.c("rn_gain", "rn_soft")
     lvl = smoothed(P, "music_res", "music_res", rx + 300, 540)
-    P.sig2("rn_out", "*~", "rn_soft", lvl, rx, 600)
+    # Fade in whenever the block switches on: its resonators start from rest, and with a sound already going
+    # they would jump in with a click once the lookahead buffer fills.
+    P.obj("rn_fade_sel", "sel 1", rx + 200, 540)
+    P.msg("rn_fade_msg", ("0, 1 " + str(RES_FADE_IN_MS) + " " + str(RES_LOOKAHEAD_MS + 10)).replace(",", " " + BS + ","), rx + 200, 560)
+    P.obj("rn_fade", "vline~", rx + 200, 580)
+    P.c("grp_roomnotes_r", "rn_fade_sel"); P.c("rn_fade_sel", "rn_fade_msg"); P.c("rn_fade_msg", "rn_fade")
+    P.sig2("rn_faded", "*~", "rn_soft", "rn_fade", rx, 590)
+    P.sig2("rn_out", "*~", "rn_faded", lvl, rx, 600)
     return "rn_out"
 
 
@@ -1514,7 +1523,40 @@ def build():
     P.obj("r_echo_time", "r echo_time", 560, 20)
     P.obj("pk_echo_time", "pack f 100", 560, 50)
     P.obj("ln_echo_time", "line~", 560, 80)
-    P.c("r_echo_time", "pk_echo_time")
+    # While walking, the echo can lock to the step rhythm (echo_sync: 0 off, 1 = a step, 2 = half, 3 = quarter).
+    # The step interval is averaged and moved in 20 ms jumps, so ordinary step-to-step wobble doesn't make the
+    # echo warble; 2.5 s after the last step the slider's own time comes back.
+    P.obj("ec_r_step", "r step", 700, 20)
+    P.obj("ec_step_t", "t b f", 700, 50)
+    P.c("ec_r_step", "ec_step_t")
+    P.obj("ec_clip", "clip 0.25 1.2", 760, 80)
+    ex = lambda n, t, x, y: P.obj(n, "expr " + t.replace(",", BS + ",").replace("$", BS + "$"), x, y)
+    ex("ec_avg", "if($f2>0, $f1*0.3+$f2*0.7, $f1)", 760, 110)
+    P.obj("ec_avg_t", "t f f", 760, 140)
+    ex("ec_grid", "int($f1*50+0.5)/50", 760, 170)
+    P.obj("ec_chg", "change", 760, 200)
+    P.c("ec_step_t", "ec_clip", 1, 0); P.c("ec_clip", "ec_avg"); P.c("ec_avg", "ec_avg_t")
+    P.c("ec_avg_t", "ec_avg", 1, 1); P.c("ec_avg_t", "ec_grid", 0, 0); P.c("ec_grid", "ec_chg")
+    P.msg("ec_walk1", "1", 840, 80)
+    P.obj("ec_walk_del", f"del {ECHO_WALK_HOLD_MS}", 900, 80)
+    P.msg("ec_walk0", "0", 900, 110)
+    P.c("ec_step_t", "ec_walk1", 0, 0); P.c("ec_step_t", "ec_walk_del", 0, 0); P.c("ec_walk_del", "ec_walk0")
+    P.obj("ec_r_sync", "r echo_sync", 980, 20)
+    # gather: slider time, step interval, sync choice, walking -> the echo time to use
+    ex("ec_calc", "if($f3>0 && $f4>0.5, min($f2*1000/pow(2, $f3-1), 1900), $f1)", 560, 230)
+    P.obj("ec_s0", "f", 560, 200)
+    P.c("ec_s0", "ec_calc")
+    for k, src in enumerate(("r_echo_time", "ec_chg", "ec_r_sync", None)):
+        P.obj(f"ec_in{k}", "t b f", 600 + 60 * k, 170)
+        if src:
+            P.c(src, f"ec_in{k}")
+        if k == 0:
+            P.c(f"ec_in{k}", "ec_s0", 1, 1)
+        else:
+            P.c(f"ec_in{k}", "ec_calc", 1, k)
+        P.c(f"ec_in{k}", "ec_s0", 0, 0)
+    P.c("ec_walk1", "ec_in3"); P.c("ec_walk0", "ec_in3")
+    P.c("ec_calc", "pk_echo_time")
     P.c("pk_echo_time", "ln_echo_time")
     P.c("smooth_x3", "pk_echo_time", 0, 1)
     P.obj("delread", "delread4~ echo_buf", 560, 110)

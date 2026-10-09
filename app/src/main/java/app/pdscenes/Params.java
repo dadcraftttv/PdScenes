@@ -141,6 +141,9 @@ final class Params {
                     .inSection("echo").toggle(),
             new Param("echo_time", "Echo time", 50f, 1500f, 350f, " ms", Param.Curve.LOG)
                     .inSection("echo").rand(80f, 1200f),
+            new Param("echo_sync", "Echo follows your steps (while walking)", 0f, 3f, 2f, "", Param.Curve.LINEAR)
+                    .choices("Off", "1 step", "Half a step", "Quarter step")
+                    .inSection("echo").resetWhenAbsent(),
             new Param("feedback", "Echo feedback", 0f, 0.85f, 0.4f, "", Param.Curve.LINEAR)
                     .inSection("echo").rand(0f, 0.7f),
             new Param("wet", "Echo level (wet)", 0f, 1f, 0.5f, "", Param.Curve.LINEAR)

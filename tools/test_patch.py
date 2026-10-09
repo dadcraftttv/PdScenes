@@ -959,6 +959,23 @@ check(None not in off and any(abs(t - 2.75) < 0.006 for t in walk_t) and 4.5 in 
       "music: walking, chimes fall on steps or half-steps (%d notes; clap at 2.58 s chimed at %s, clap at 4.35 s waited for the 4.5 s step)"
       % (len(walk_t), [round(t, 3) for t in walk_t if 2.5 < t < 3.0]))
 
+# echo follows the steps while walking: half a step at 0.5 s steps = 250 ms; the slider's 350 ms otherwise
+def echo_delay(sync, walk, after=0.0):
+    e = fresh(echo_time=350, feedback=0, wet=1, dry=0, echo_sync=sync, beat_level=0)
+    if walk:
+        for _ in range(6):
+            e.send("step", 0.5); e.run(e.silence(0.5))
+    e.run(e.silence(after + 0.6))   # let the echo time glide there
+    x = np.zeros(SR, np.float32); x[0] = 0.5
+    y = np.abs(e.run(x)[:, 0])
+    return 1000 * int(np.argmax(y)) / SR
+d_half, d_quarter, d_off, d_still, d_after = (echo_delay(2, True), echo_delay(3, True), echo_delay(0, True),
+                                              echo_delay(2, False), echo_delay(2, True, after=3.0))
+check(abs(d_half - 250) < 6 and abs(d_quarter - 125) < 6 and abs(d_off - 350) < 6 and abs(d_still - 350) < 6
+      and abs(d_after - 350) < 6,
+      "echo follows the steps: half %.0f ms, quarter %.0f, off %.0f, standing %.0f, 3 s after stopping %.0f"
+      % (d_half, d_quarter, d_off, d_still, d_after))
+
 # switchable blocks: a block whose level is 0 stops its DSP (after its fade), comes back at once when needed,
 # and switching it on doesn't click
 SWITCHED = {"reverb": ("reverb_mix", 0.5), "pitch": ("pitch_mix", 0.5), "chorus": ("chorus_mix", 0.5),
@@ -972,7 +989,7 @@ for g, (k, v) in SWITCHED.items():
     off_at_rest = e.heard["sw_" + g][-1:] in ([], [0])   # it may have switched off before listening began
     e.send(k, v); y = e.run(sine(440, 0.1, 0.5))[:, 0]
     on_now = e.heard["sw_" + g][-1:] == [1]
-    jump = np.max(np.abs(np.diff(y)))
+    jump = np.max(np.abs(np.diff(y[:int(0.12 * SR)])))   # a switching click comes right after switch-on
     e.send(k, 0); e.run(sine(440, 0.1, 4.0))
     off_again = e.heard["sw_" + g][-1:] == [0]
     if not (off_at_rest and on_now and off_again and jump < 0.08):
