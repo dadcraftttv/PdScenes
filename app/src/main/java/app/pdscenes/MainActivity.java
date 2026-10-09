@@ -196,6 +196,7 @@ public class MainActivity extends Activity {
         // The settings scroll; the bar with Start/Stop stays at the bottom, in reach of a thumb while walking.
         android.widget.FrameLayout screen = new android.widget.FrameLayout(this);
         ScrollView scroll = new ScrollView(this);
+        mainScroll = scroll;
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         int pad = dp(16);
@@ -496,6 +497,41 @@ public class MainActivity extends Activity {
         } catch (IOException e) {
             toast(R.string.toast_save_failed, e.getMessage());
         }
+    }
+
+    /** Where the settings were scrolled to, so a theme change (which rebuilds the screen) keeps the place. */
+    private static final String STATE_SCROLL = "scrollY";
+    private ScrollView mainScroll;
+
+    @Override
+    protected void onSaveInstanceState(Bundle out) {
+        super.onSaveInstanceState(out);
+        if (mainScroll != null) {
+            out.putInt(STATE_SCROLL, mainScroll.getScrollY());
+        }
+    }
+
+    @Override
+    protected void onRestoreInstanceState(Bundle saved) {
+        super.onRestoreInstanceState(saved);
+        int y = saved.getInt(STATE_SCROLL, 0);
+        if (y <= 0 || mainScroll == null) {
+            return;
+        }
+        // The list reaches its full height over a couple of layout passes (the card's height pads its end),
+        // so keep trying until the position fits.
+        ScrollView scroll = mainScroll;
+        scroll.getViewTreeObserver().addOnGlobalLayoutListener(new android.view.ViewTreeObserver.OnGlobalLayoutListener() {
+            int tries;
+
+            @Override
+            public void onGlobalLayout() {
+                scroll.scrollTo(0, y);
+                if (scroll.getScrollY() == y || ++tries >= 5) {
+                    scroll.getViewTreeObserver().removeOnGlobalLayoutListener(this);
+                }
+            }
+        });
     }
 
     @Override
