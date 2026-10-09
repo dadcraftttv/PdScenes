@@ -51,7 +51,7 @@ def fresh(**over):
                 phaser_on=1, phaser_mix=0, phaser_rate=0.4, phaser_depth=0.7, phaser_fb=0.4,
                 beat_on=1, beat_level=0, beat_hats=0.5, beat_snare=0.6, beat_pitch=55,
                 music_on=0, music_key=0, music_scale=0, music_pad=0.33, music_arp=0.4,
-                music_tone=0.5, music_react=0.8, music_res=0.8, pocket_hush=0.5)
+                music_tone=0.5, music_react=0.8, music_res=0.8, music_pad_reg=2, pocket_hush=0.5, pocket_guard=0.6)
     base.update(over)
     for k, v in base.items():
         e.send(k, v)
@@ -77,7 +77,7 @@ check(not bad, "patch loads with no Pd errors" + (": %s" % bad if bad else ""))
 
 jp = java_params()
 patch_text = open(PATCH).read()
-receivers = set(re.findall(r"#X obj \d+ \d+ r (\w+);", patch_text)) - {"step", "scale_n", "pad_glide", "mic_level", "pad_slot", "pool_n", "pool_x", "pocket"}   # events and internal links, not settings
+receivers = set(re.findall(r"#X obj \d+ \d+ r (\w+);", patch_text)) - {"step", "scale_n", "pad_glide", "mic_level", "pad_slot", "pool_n", "pool_x", "pocket", "pocket_down"}   # events and internal links, not settings
 pd_ids = {i for i, _, nopd in jp if not nopd}
 check(len(jp) >= 10, "parsed %d params from Params.java" % len(jp))
 check(pd_ids == receivers, "Params.java ids == patch receivers (java-only %s, patch-only %s)"
@@ -791,12 +791,45 @@ e = fresh(music_on=0, music_pad=1, music_arp=1, wet=0)
 check(rms(e.run(e.silence(3))) < 1e-6, "music: silent while switched off, even with the levels up")
 
 for key, scale, name in ((0, 0, "C major"), (2, 1, "D minor"), (9, 3, "A minor pentatonic"), (7, 4, "G dorian"), (5, 7, "F whole tone")):
-    e = fresh(music_on=1, music_pad=1, music_arp=0, music_key=key, music_scale=scale, wet=0)
+    e = fresh(music_on=1, music_pad=1, music_arp=0, music_key=key, music_scale=scale, wet=0, music_pad_reg=1)
     y = e.run(e.silence(6.5))[:, 0]     # before the first chord change at 7 s, when the notes glide
     pk = spec_peaks(y[SR * 2:])
     check(rms(y[SR * 2:]) > 0.01 and len(pk) >= 3 and not off_key(pk, key, scale),
           "music: the pad plays only notes of %s (peaks %s, off-key %s)" % (name, [round(f) for f in pk[:8]], off_key(pk, key, scale)))
 
+# pad register: Low is a bass voice on a scale note between 65 and 131 Hz, Mid the chords as before, Both the two
+def pad_reg(reg, secs=6.5, **over):
+    e = fresh(**dict(dict(music_on=1, music_pad=1, music_arp=0, music_res=0, wet=0, music_pad_reg=reg), **over))
+    return e, e.run(e.silence(secs))[:, 0]
+def band(y, lo, hi):
+    S = np.fft.rfft(y); f = np.fft.rfftfreq(len(y), 1 / SR); S[(f < lo) | (f >= hi)] = 0
+    return rms(np.fft.irfft(S, len(y)))
+for key, scale, name in ((0, 0, "C major"), (11, 1, "B minor"), (5, 7, "F whole tone")):
+    _, y = pad_reg(0, music_key=key, music_scale=scale)
+    tail = y[SR * 3:]
+    f0 = [f for f in spec_peaks(tail, 0.3) if f < 140]
+    check(len(f0) >= 1 and all(64 <= f <= 132 for f in f0) and not off_key(f0, key, scale) and band(tail, 0, 140) > 2 * band(tail, 400, 20000),
+          "pad register low: a bass note of %s at %s Hz, little above it" % (name, [round(f) for f in f0]))
+_, ymid = pad_reg(1)
+check(band(ymid[SR * 3:], 0, 120) < 0.05 * rms(ymid[SR * 3:]), "pad register mid: no bass (%.5f of %.4f)" % (band(ymid[SR * 3:], 0, 120), rms(ymid[SR * 3:])))
+_, yboth = pad_reg(2)
+check(band(yboth[SR * 3:], 0, 140) > 0.2 * rms(yboth[SR * 3:]) and band(yboth[SR * 3:], 140, 2000) > 0.2 * rms(yboth[SR * 3:]),
+      "pad register both: bass and chords together")
+def after_step(beat_level):
+    e, y = pad_reg(0, secs=5.0, beat_level=beat_level, beat_hats=0, beat_snare=0)   # well before the chord change at 7 s
+    f0 = min((f for f in spec_peaks(y[SR * 3:], 0.3) if f < 140), default=65.4)   # the fundamental
+    e.send("step", 0.5); z = e.run(e.silence(0.12))[:, 0]
+    return tone_level(z[int(0.03 * SR):int(0.11 * SR)], f0), tone_level(y[-int(0.08 * SR):], f0)
+ducked, steady = after_step(0.05)
+undisturbed, steady0 = after_step(0)
+check(ducked < 0.7 * steady and undisturbed > 0.9 * steady0,
+      "pad register low: a footstep ducks the bass while the beat plays (%.4f vs %.4f), not when it is off (%.4f vs %.4f)" % (ducked, steady, undisturbed, steady0))
+e = fresh(music_on=1, music_pad=1, music_arp=1, music_res=1, wet=1, reverb_mix=1, music_pad_reg=2, beat_level=1, gain=10)
+rng = np.random.default_rng(4); ys = []
+for _ in range(20):
+    e.send("step", 0.4); ys.append(e.run((rng.standard_normal(int(0.4 * SR)) * 0.3).astype(np.float32)))
+ym = np.concatenate(ys)
+check(float(np.abs(ym).max()) <= 1.0 + 1e-6, "pad register both, everything loud: stays within +-1 (max %.2f)" % float(np.abs(ym).max()))
 e = fresh(music_on=1, music_pad=1, music_arp=0, wet=0)
 e.send("music_key", 1); y = e.run(e.silence(6.0))[:, 0]   # the crossfade to the new key takes 3.5 s
 pk = spec_peaks(y[SR * 4:])
@@ -902,6 +935,19 @@ check(inp < 0.1 * out and abs(off - out) < 0.02 * out,
 e = fresh(wet=0, dry=1); e.run(sine(440, 0.05, 0.5))
 e.send("pocket", 1); yy = e.run(sine(440, 0.05, 1.0))[:, 0]
 check(max_jump(yy) < 0.03, "pocket hush: fades in without a click (max step %.4f)" % max_jump(yy))
+# mic-down protection: only with the phone pocketed mic end first; it cuts the low cloth thump hardest, and at 0 changes nothing
+def guarded(down, guard, freq):
+    e = fresh(wet=0, dry=1, pocket_guard=guard)
+    e.send("pocket", 1); e.send("pocket_down", down); e.run(e.silence(1.0))
+    return rms(e.run(sine(freq, 0.05, 1.0))[:, 0])
+up_lo, dn_lo, dn_hi, dn0_lo = guarded(0, 0.6, 100), guarded(1, 0.6, 100), guarded(1, 0.6, 2000), guarded(1, 0, 100)
+up_hi = guarded(0, 0.6, 2000)
+check(dn_lo < 0.2 * up_lo and 0.3 * up_hi < dn_hi < 0.6 * up_hi and abs(dn0_lo - up_lo) < 0.02 * up_lo,
+      "mic-down protection: 100 Hz thump %.0f dB, 2 kHz %.0f dB, nothing at 0 (%.1f dB)"
+      % (20 * np.log10(dn_lo / up_lo), 20 * np.log10(dn_hi / up_hi), 20 * np.log10(dn0_lo / up_lo)))
+e = fresh(wet=0, dry=1, pocket_guard=1); e.send("pocket", 1); e.run(sine(100, 0.05, 1.0))
+e.send("pocket_down", 1); yy = e.run(sine(100, 0.05, 1.0))[:, 0]
+check(max_jump(yy) < 0.03, "mic-down protection: fades in without a click (max step %.4f)" % max_jump(yy))
 def pocket_room(pocket):
     e = fresh(music_on=1, music_pad=0, music_arp=1, wet=0, gain=1); e.send("pocket", pocket)
     return band_rms(e.run(sine(50, 0.3, 30))[:, 0])

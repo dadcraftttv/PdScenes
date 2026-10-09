@@ -71,6 +71,7 @@ public class AudioService extends Service {
     private boolean autoWorlds;
     /** Last pocket state sent to the patch (it hushes the mic while pocketed) and last world logged. */
     private boolean pocketSent;
+    private boolean micDownSent;
     private String worldLogged;
     private static final long HEARING_LOG_MS = 30_000;
     private long lastHearingLog;
@@ -88,12 +89,18 @@ public class AudioService extends Service {
                     PdBase.sendFloat("pocket", pocket ? 1f : 0f);
                     logEvent(pocket ? "Phone went into a pocket" : "Phone came out of the pocket");
                 }
+                boolean down = pocket && PhoneContext.micDown();
+                if (down != micDownSent) {
+                    micDownSent = down;
+                    PdBase.sendFloat("pocket_down", down ? 1f : 0f);
+                    logEvent(down ? "In the pocket mic end down" : "Mic end no longer down in the pocket");
+                }
                 String world = Worlds.currentWorld();
                 if (world != null ? !world.equals(worldLogged) : worldLogged != null) {
                     worldLogged = world;
                     logEvent("World: " + (world == null ? "own settings" : world) + " (" + Worlds.hearing() + ")");
                 }
-                if (now - lastHearingLog >= HEARING_LOG_MS) {   // a trace of the room, to tune the thresholds by
+                if (Worlds.isEnabled() && now - lastHearingLog >= HEARING_LOG_MS) {   // a trace of the room, to tune the thresholds by
                     lastHearingLog = now;
                     logEvent("Hearing: " + Worlds.hearing());
                 }
@@ -374,6 +381,7 @@ public class AudioService extends Service {
         Worlds.reset();
         autoWorlds = scene == null;
         pocketSent = false;   // a freshly opened patch starts out of the pocket
+        micDownSent = false;
         lastClockCheck = -CLOCK_CHECK_MS;
         lastMoverTick = SystemClock.uptimeMillis();
         handler.postDelayed(moverTick, MOVER_INTERVAL_MS);

@@ -144,7 +144,9 @@ final class SensorInput implements SensorEventListener {
                     PdBase.sendList(ACCELERATE_RECEIVER, g[0], g[1], g[2]);
                 }
                 Modulation.onAcceleration(x, y, z);
-                StepDetector.onAcceleration(x, y, z, SystemClock.elapsedRealtimeNanos() / 1e9);
+                double at = SystemClock.elapsedRealtimeNanos() / 1e9;
+                StepDetector.onAcceleration(x, y, z, at);
+                PhoneContext.onAcceleration(x, y, z, at);
                 gravity[0] = x;
                 gravity[1] = y;
                 gravity[2] = z;

@@ -59,6 +59,16 @@ public class X {
     PhoneContext.reset(); for(int i=0;i<300;i++){ t+=0.2; PhoneContext.onPressure(1013f+(i%2==0?0.03f:-0.03f),t); }
     check(Math.abs(PhoneContext.climb())<0.15f,"sensor noise alone stays small: "+PhoneContext.climb());
     PhoneContext.onPressure(900f,t+100); check(PhoneContext.climb()==0f,"a long gap restarts the averages");
+    // ---- which end is down (the mic is on the bottom edge) ----
+    PhoneContext.reset(); double ta=0;
+    for(int i=0;i<400;i++){ ta+=0.005; PhoneContext.onAcceleration(0.5f,9.7f,0.8f,ta); }
+    check(PhoneContext.micDown(),"top edge up: mic end down");
+    for(int i=0;i<400;i++){ ta+=0.005; PhoneContext.onAcceleration(0.3f,-9.7f,0.5f,ta); }
+    check(!PhoneContext.micDown(),"turned over, top edge down: mic end up");
+    for(int i=0;i<400;i++){ ta+=0.005; float bump=(i%100<10)?25f:0f; PhoneContext.onAcceleration(0.3f+bump,-9.7f+bump,0.5f,ta); }
+    check(!PhoneContext.micDown(),"footstep jolts don't flip it");
+    for(int i=0;i<400;i++){ ta+=0.005; PhoneContext.onAcceleration(0f,0.3f,9.8f,ta); }
+    check(!PhoneContext.micDown(),"lying flat: not mic down");
     // ---- selector with pocket ----
     WorldSelector s=new WorldSelector(); Set<String> all=new HashSet<>(Arrays.asList(WorldSelector.PRIORITY));
     check(Arrays.asList(WorldSelector.PRIORITY).indexOf("pocket")==WorldSelector.PRIORITY.length-1,"pocket is the fallback: every other world outranks it");

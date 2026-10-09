@@ -45,8 +45,45 @@ final class PhoneContext {
     private static volatile float climb;
     private static double fastP, slowP, lastPressureAt;
     private static boolean havePressure;
+    /**
+     * Which end of the phone points down. The main mic sits on the bottom edge, so "mic down" means the top edge
+     * points up (gravity along +y in Android's axes). Averaged over about a second so walking doesn't flip it,
+     * with two thresholds so it doesn't flicker when the phone lies flat-ish.
+     */
+    static final double TILT_TAU_S = 1.0;
+    static final float MIC_DOWN_ENTER = 0.5f;
+    static final float MIC_DOWN_LEAVE = 0.3f;
+    private static double upY, lastTiltAt;
+    private static boolean haveTilt;
+    private static volatile boolean micDown;
 
     private PhoneContext() { }
+
+    /** An accelerometer reading (m/s&sup2;, Android axes) at time {@code at} (seconds). */
+    static synchronized void onAcceleration(float x, float y, float z, double at) {
+        double g = Math.sqrt(x * x + y * y + z * z);
+        if (g < 1e-3) {
+            return;
+        }
+        double ny = y / g;
+        if (!haveTilt || at - lastTiltAt > 5.0) {
+            upY = ny;
+            haveTilt = true;
+        } else {
+            upY += (ny - upY) * (1 - Math.exp(-(at - lastTiltAt) / TILT_TAU_S));
+        }
+        lastTiltAt = at;
+        if (!micDown && upY > MIC_DOWN_ENTER) {
+            micDown = true;
+        } else if (micDown && upY < MIC_DOWN_LEAVE) {
+            micDown = false;
+        }
+    }
+
+    /** True while the bottom edge (where the main mic is) points down, as when the phone goes into a pocket mic first. */
+    static boolean micDown() {
+        return micDown;
+    }
 
     static double now() {
         return System.nanoTime() / 1e9;
@@ -54,6 +91,8 @@ final class PhoneContext {
 
     /** Forget everything (engine start or stop). */
     static synchronized void reset() {
+        haveTilt = false;
+        micDown = false;
         haveLight = false;
         lux = 0;
         haveProximity = false;

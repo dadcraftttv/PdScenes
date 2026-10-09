@@ -92,6 +92,9 @@ final class Params {
             // Samuel found 0.9 too much: a finger snap next to the pocket got lost.
             new Param("pocket_hush", "Pocket hush (mic quieter while in a pocket)", 0f, 1f, 0.5f, "",
                     Param.Curve.LINEAR).inSection("main").noRandom().noPreset().resetWhenAbsent(),
+            // Extra help only while the phone is pocketed mic end first (more cloth on the mic). 0 = exactly as without it.
+            new Param("pocket_guard", "Mic-down protection (pocket, mic end first)", 0f, 1f, 0.6f, "",
+                    Param.Curve.LINEAR).inSection("main").noRandom().noPreset().resetWhenAbsent(),
             new Param("dry", "Dry level (direct sound)", 0f, 1.5f, 1f, "", Param.Curve.LINEAR)
                     .inSection("main").rand(0.3f, 1.2f),
 
@@ -119,6 +122,10 @@ final class Params {
                     .inSection("music").noPreset().resetWhenAbsent(),
             new Param("music_pad", "Pad level (soft chords that drift)", 0f, 1f, 0.33f, "",
                     Param.Curve.LINEAR).inSection("music").rand(0f, 0.6f).resetWhenAbsent(),
+            // Low = a bass voice on the root under everything, Mid = the chords as before, Both (default) = the two together.
+            new Param("music_pad_reg", "Pad register", 0f, 2f, 2f, "", Param.Curve.LINEAR)
+                    .choices("Low (bass)", "Mid", "Both")
+                    .inSection("music").noPreset().resetWhenAbsent(),
             new Param("music_arp", "Notes and chimes level", 0f, 1f, 0.4f, "", Param.Curve.LINEAR)
                     .inSection("music").rand(0f, 0.8f).resetWhenAbsent(),
             new Param("music_tone", "Tone (dark to bright)", 0f, 1f, 0.5f, "", Param.Curve.LINEAR)

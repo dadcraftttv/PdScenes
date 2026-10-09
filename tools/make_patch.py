@@ -33,7 +33,7 @@ DEFAULTS = [
     ("phaser_on", 1), ("phaser_mix", 0), ("phaser_rate", 0.4), ("phaser_depth", 0.7), ("phaser_fb", 0.4),
     ("beat_on", 1), ("beat_level", 0), ("beat_hats", 0.5), ("beat_snare", 0.6), ("beat_pitch", 55),
     ("music_on", 0), ("music_key", 0), ("music_scale", 0), ("music_pad", 0.33), ("music_arp", 0.4),
-    ("music_tone", 0.5), ("music_react", 0.8), ("music_res", 0.8), ("pocket_hush", 0.5),
+    ("music_tone", 0.5), ("music_react", 0.8), ("music_res", 0.8), ("music_pad_reg", 2), ("pocket_hush", 0.5), ("pocket_guard", 0.6),
 ]
 
 # Scales as semitone steps above the key note. The patch snaps every note it plays to these.
@@ -74,6 +74,12 @@ ARP_REST_PCT = 12            # chance (in 100) that a footstep plays no note
 CHIME_SPAN = 4               # chime melodies wander this many scale steps either side of the brightness note
 CHIME_DECAY_MS = (900, 2600)     # each chime's fade, picked at random
 CHIME_OVERTONE = (0.12, 0.45)    # each chime's 2nd-harmonic level (3rd is a third of it): mellow to bright
+BASS_FOLLOW_PCT = 40    # chance (in 100) that a chord change moves the bass to the chord's root; else the key's root
+BASS_DIP_MS = 600       # a bass note change fades out over this...
+BASS_RISE_MS = 1500     # ...and the new note fades in over this
+BASS_GAIN = 0.11
+BASS_DUCK = 0.6         # a footstep takes the bass down this share while the walking beat plays...
+BASS_DUCK_MS = 220      # ...and it comes back over this
 PAD_GLIDE_MS = 3500     # the pad crossfades from one chord to the next over this time (no pitch slides)
 
 # Room notes: resonators that make the mic's own sound ring the current chord: root, third and fifth (scale steps
@@ -98,6 +104,8 @@ RES_OPEN_DB = 10    # the input opens fully this many dB above the room's quiet
 RES_LOOKAHEAD_MS = 20
 POCKET_HUSH_DB = 24         # pocket hush at 1 turns the mic down this far (0.5, the default: 12 dB)
 POCKET_HUSH_MS = 400        # how fast the hush fades in and out
+POCKET_GUARD_DB = 12        # mic-down protection at 1 turns the mic down this much more...
+POCKET_GUARD_HP_HZ = 300    # ...and filters out the cloth thump below about this (12 dB/octave)
 
 # Flanger: the delay sweeps from this minimum up to minimum + depth (ms). [delread4~] cannot go
 # below one audio block (1.35 ms at 48 kHz) and the feedback loop needs at least that, so 2 ms.
@@ -671,6 +679,81 @@ def add_music(P):
     P.sig2("mu_pad_a", "*~", "mu_pad_lp", "mu_pad_fac_lp", px, 830)
     P.sig2("mu_pad_b", "*~", "mu_pad_a", "mu_breath_o", px, 860)
 
+    # ---- bass: one low voice under the pad (Samuel's idea), so the chimes keep the upper register ----
+    # It sits on the key's root and only sometimes moves to the chord's root, folded into 65-131 Hz, with a little
+    # 2nd and 3rd harmonic so earbuds can play it. A note change dips out and back in (no slides). Each footstep
+    # ducks it briefly while the walking beat plays, so it doesn't fight the kick.
+    bx = px + 900
+    P.obj("ba_in", "t f b", bx, 230)
+    P.c("mu_pad_root_v", "ba_in", 1, 0)
+    P.obj("ba_roll", "random 100", bx + 80, 250)
+    P.c("ba_in", "ba_roll", 1, 0)
+    ex("ba_pick", f"if($f2<{BASS_FOLLOW_PCT},$f1,0)", bx, 270)
+    P.c("ba_in", "ba_pick", 0, 0); P.c("ba_roll", "ba_pick", 0, 1)
+    ba_deg, ba_hz = degree_to_hz("bad", bx, 290)
+    P.c("ba_pick", ba_deg)
+    ex("ba_fold", "if($f1/2>131,$f1/4,$f1/2)", bx, 460)
+    P.c(ba_hz, "ba_fold")
+    P.obj("ba_chg", "change", bx, 480)
+    P.c("ba_fold", "ba_chg")
+    P.obj("ba_ct", "t f b", bx, 500)
+    P.c("ba_chg", "ba_ct")
+    P.msg("ba_dip", f"0 {BASS_DIP_MS}", bx + 80, 520)
+    P.c("ba_ct", "ba_dip", 1, 0)
+    P.obj("ba_wait", f"pipe {BASS_DIP_MS}", bx, 520)
+    P.c("ba_ct", "ba_wait", 0, 0)
+    P.obj("ba_ft", "t b f", bx, 540)
+    P.c("ba_wait", "ba_ft")
+    P.msg("ba_rise", f"1 {BASS_RISE_MS}", bx + 80, 560)
+    P.c("ba_ft", "ba_rise", 0, 0)
+    P.obj("ba_env", "line~", bx + 80, 580)
+    P.c("ba_dip", "ba_env"); P.c("ba_rise", "ba_env")
+    P.obj("ba_f2", "* 2", bx + 60, 560); P.obj("ba_f3", "* 3", bx + 120, 560)
+    P.c("ba_ft", "ba_f2", 1, 0); P.c("ba_ft", "ba_f3", 1, 0)
+    P.obj("ba_o1", "osc~", bx, 600); P.obj("ba_o2", "osc~", bx + 60, 600); P.obj("ba_o3", "osc~", bx + 120, 600)
+    P.c("ba_ft", "ba_o1", 1, 0); P.c("ba_f2", "ba_o2"); P.c("ba_f3", "ba_o3")
+    P.obj("ba_g2", "*~ 0.35", bx + 60, 620); P.obj("ba_g3", "*~ 0.15", bx + 120, 620)
+    P.c("ba_o2", "ba_g2"); P.c("ba_o3", "ba_g3")
+    P.sig2("ba_s12", "+~", "ba_o1", "ba_g2", bx, 640)
+    P.sig2("ba_s", "+~", "ba_s12", "ba_g3", bx, 655)
+    P.sig2("ba_e", "*~", "ba_s", "ba_env", bx, 670)
+    # footstep duck, only while the walking beat is switched on and audible
+    P.obj("ba_r_step", "r step", bx + 200, 600)
+    P.obj("ba_r_bl", "r beat_level", bx + 280, 600)
+    P.obj("ba_r_bo", "r beat_on", bx + 360, 600)
+    P.obj("ba_bl", "f", bx + 200, 630)
+    ex("ba_duck", f"1-{BASS_DUCK}*($f1>0.02)*$f2", bx + 200, 660)
+    P.obj("ba_step_b", "t b", bx + 200, 615)                    # the step brings its interval: only the bang matters
+    P.c("ba_r_step", "ba_step_b"); P.c("ba_step_b", "ba_bl"); P.c("ba_r_bl", "ba_bl", 0, 1); P.c("ba_r_bo", "ba_duck", 0, 1)
+    P.c("ba_bl", "ba_duck")
+    P.msg("ba_duck_msg", ("$1 10, 1 " + str(BASS_DUCK_MS) + " 30").replace("$", BS + "$").replace(",", comma), bx + 200, 690)
+    P.obj("ba_duck_env", "vline~", bx + 200, 720)
+    P.c("ba_duck", "ba_duck_msg"); P.c("ba_duck_msg", "ba_duck_env")
+    P.obj("ba_duck_init", "loadbang", bx + 300, 690); P.msg("ba_duck_one", "1", bx + 300, 705)
+    P.c("ba_duck_init", "ba_duck_one"); P.c("ba_duck_one", "ba_duck_env")
+    P.sig2("ba_d", "*~", "ba_e", "ba_duck_env", bx, 740)
+    P.obj("ba_lp", "lop~ 700", bx, 760)
+    P.c("ba_d", "ba_lp")
+    P.obj("ba_g", f"*~ {BASS_GAIN}", bx, 780)
+    P.c("ba_lp", "ba_g")
+    P.sig2("ba_a", "*~", "ba_g", "mu_pad_fac_lp", bx, 800)        # swells with the room like the pad
+    P.sig2("ba_b", "*~", "ba_a", "mu_breath_o", bx, 820)
+    # register: 0 = low (bass only), 1 = mid (the pad as before), 2 = both
+    P.obj("ba_r_reg", "r music_pad_reg", bx + 400, 760)
+    P.obj("ba_reg_t", "t f f", bx + 400, 780)
+    P.c("ba_r_reg", "ba_reg_t")
+    P.obj("ba_mid_on", "!= 0", bx + 400, 800); P.obj("ba_low_on", "!= 1", bx + 480, 800)
+    P.c("ba_reg_t", "ba_mid_on", 1, 0); P.c("ba_reg_t", "ba_low_on", 0, 0)
+    for nm in ("mid", "low"):
+        P.obj(f"ba_{nm}_pk", "pack f 300", bx + 400 + (80 if nm == "low" else 0), 820)
+        P.obj(f"ba_{nm}_ln", "line~", bx + 400 + (80 if nm == "low" else 0), 840)
+        P.c(f"ba_{nm}_on", f"ba_{nm}_pk"); P.c(f"ba_{nm}_pk", f"ba_{nm}_ln")
+    P.obj("ba_reg_init", "loadbang", bx + 560, 760); P.msg("ba_reg_both", "1", bx + 560, 780)
+    P.c("ba_reg_init", "ba_reg_both"); P.c("ba_reg_both", "ba_mid_ln"); P.c("ba_reg_both", "ba_low_ln")
+    P.sig2("mu_pad_mid", "*~", "mu_pad_b", "ba_mid_ln", px, 870)
+    P.sig2("ba_out", "*~", "ba_b", "ba_low_ln", bx, 860)
+    P.sig2("mu_pad_c", "+~", "mu_pad_mid", "ba_out", px, 880)
+
     # ---- tone, levels, on/off ----
     P.obj("mu_r_tone", "r music_tone", x + 800, 300)
     ex("mu_cut", "400*pow(2,$f1*4)", x + 800, 330)
@@ -681,7 +764,7 @@ def add_music(P):
     pad_lvl = smoothed(P, "music_pad", "music_pad", px + 500, 20)
     arp_lvl = smoothed(P, "music_arp", "music_arp", px + 600, 20)
     mon = smoothed(P, "music_on", "music_on", px + 700, 20)
-    P.sig2("mu_pad_out", "*~", "mu_pad_b", pad_lvl, px, 900)
+    P.sig2("mu_pad_out", "*~", "mu_pad_c", pad_lvl, px, 900)
     P.sig2("mu_chime_out", "*~", "mu_chime_lp", arp_lvl, px + 200, 900)
     P.sig2("mu_mix0", "+~", "mu_pad_out", "mu_chime_out", px, 930)
     P.sig2("mu_mix", "+~", "mu_mix0", add_room_notes(P, x + 2500, ex, degree_to_hz), px, 945)
@@ -817,24 +900,41 @@ def build():
     P.c("comp_calc", "comp_lin"); P.c("comp_lin", "pk_comp"); P.c("pk_comp", "ln_comp")
     P.sig2("mic_comp0", "*~", "mic_gated", "ln_comp", 20, 380)
 
-    # --- pocket hush: in a pocket the mic hears only cloth and rustle, so turn it down after the compressor
-    # (which would otherwise lift the rustle back up). "pocket" (0/1) comes from the app. ---
-    P.obj("r_pocket", "r pocket", 800, 170)
-    P.obj("ph_pocket", "f", 800, 230)
-    P.obj("r_pocket_hush", "r pocket_hush", 880, 170)
-    P.obj("ph_amt_t", "t b f", 880, 200)
+    # --- pocket hush: in a pocket the mic hears cloth and rustle, so turn it down after the compressor
+    # (which would otherwise lift the rustle back up). "pocket" (0/1) comes from the app. Mic-down protection adds
+    # more, only while the phone sits mic end first ("pocket_down" 0/1): a further cut, and the low cloth thump
+    # filtered out. At protection 0 the sound is exactly as without it. ---
     ex = lambda name, text, xx, yy: P.obj(name, "expr " + text.replace(",", BS + ",").replace("$", BS + "$"), xx, yy)
-    ex("ph_calc", f"pow(10,-$f1*$f2*{POCKET_HUSH_DB}/20)", 800, 260)
-    P.c("r_pocket", "ph_pocket"); P.c("ph_pocket", "ph_calc")
-    P.c("r_pocket_hush", "ph_amt_t"); P.c("ph_amt_t", "ph_calc", 1, 1); P.c("ph_amt_t", "ph_pocket", 0, 0)
+    ex("ph_calc", f"pow(10,-($f1*$f2*{POCKET_HUSH_DB}+$f3*$f4*{POCKET_GUARD_DB})/20)", 800, 260)
+    for k, recv in enumerate(("pocket", "pocket_hush", "pocket_down", "pocket_guard")):
+        P.obj(f"ph_r{k}", f"r {recv}", 800 + 80 * k, 170)
+        if k == 0:
+            P.c("ph_r0", "ph_calc")
+        else:
+            P.obj(f"ph_t{k}", "t b f", 800 + 80 * k, 200)
+            P.c(f"ph_r{k}", f"ph_t{k}"); P.c(f"ph_t{k}", "ph_calc", 1, k); P.c(f"ph_t{k}", "ph_calc", 0, 0)
     P.obj("ph_t", "t f f", 800, 290)
     P.obj("ph_v", "value phush", 880, 320)                        # the music reads it too (chimes from rustle)
     P.obj("ph_pk", f"pack f {POCKET_HUSH_MS}", 800, 320)
     P.obj("ph_ln", "line~", 800, 350)
     P.c("ph_calc", "ph_t"); P.c("ph_t", "ph_v", 1, 0); P.c("ph_t", "ph_pk", 0, 0); P.c("ph_pk", "ph_ln")
-    P.obj("ph_init", "loadbang", 960, 230); P.msg("ph_init_msg", "1", 960, 260)
+    P.obj("ph_init", "loadbang", 1160, 230); P.msg("ph_init_msg", "1", 1160, 260)
     P.c("ph_init", "ph_init_msg"); P.c("ph_init_msg", "ph_v"); P.c("ph_init_msg", "ph_ln")
-    P.sig2("mic_comp", "*~", "mic_comp0", "ph_ln", 20, 395)
+    # the thump filter, crossfaded in by (mic down) x (protection)
+    ex("pg_amt", "$f1*$f2", 1100, 290)
+    P.obj("pg_down", "f", 1040, 260)
+    P.c("ph_t2", "pg_down", 1, 1); P.c("ph_t3", "pg_amt", 1, 1)       # values first, then the bangs below
+    P.c("ph_t2", "pg_down", 0, 0); P.c("ph_t3", "pg_down", 0, 0); P.c("pg_down", "pg_amt")
+    P.obj("pg_pk", f"pack f {POCKET_HUSH_MS}", 1100, 320)
+    P.obj("pg_ln", "line~", 1100, 350)
+    P.c("pg_amt", "pg_pk"); P.c("pg_pk", "pg_ln")
+    P.obj("pg_hp1", f"hip~ {POCKET_GUARD_HP_HZ}", 120, 380)
+    P.obj("pg_hp2", f"hip~ {POCKET_GUARD_HP_HZ}", 120, 395)
+    P.c("mic_comp0", "pg_hp1"); P.c("pg_hp1", "pg_hp2")
+    P.sig2("pg_diff", "-~", "pg_hp2", "mic_comp0", 120, 410)       # filtered minus plain, times the amount, plus plain
+    P.sig2("pg_part", "*~", "pg_diff", "pg_ln", 120, 425)
+    P.sig2("mic_comp1", "+~", "mic_comp0", "pg_part", 20, 390)
+    P.sig2("mic_comp", "*~", "mic_comp1", "ph_ln", 20, 395)
 
     # --- ring modulator with bypass ---
     P.obj("r_ring_freq", "r ring_freq", 250, 20)

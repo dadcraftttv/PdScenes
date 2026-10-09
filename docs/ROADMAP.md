@@ -15,7 +15,7 @@ Suggested order is the numbering. Each one needs a test in `tools/test_patch.py`
    with reverse reverb; optionally a very short randomized mic delay for atonal pitched noise. Extends the Ghost world
    (which today only has reverse echo).
 4. **Kinetic pattern tiers.** Dimensions switches among five patterns by accelerometer level, with random variation. Ours
-   has one walking arpeggio pattern; add pace tiers and variation. Stopping must still drop the drums immediately.
+   now has five 8-step patterns picked at random each bar, with rests (2026-10-08); still to do: tie the pattern to pace tiers. Stopping must still drop the drums immediately.
 5. **Unstable world.** Jolt-triggered stack of many ordinary effects on the mic at once (glitch, pitch shift, ring mod,
    crush, delay), glitchy by design. We have all the effects; it needs a trigger and a preset.
 6. **Collective world.** Capture a buffer and "scratch" it back and forth like a turntablist. A new scratch effect.
@@ -31,6 +31,17 @@ Suggested order is the numbering. Each one needs a test in `tools/test_patch.py`
 11. **Other small items:** location (`#loc`) scene input, unported scene objects, on-screen route/clipping diagnostics,
     beat-offset slider if drift returns, music independent of the Dry level, `rj_zcr~` port if a scene needs it,
     check other rjlib abstractions for the same `[list split]` output-order problem fixed in `s_fplaytable`.
+
+12. **Music ideas from Samuel's Oct 8 test notes** (after the bass pad, built 2026-10-08 as "Pad register"):
+    - Lock chimes to the walking pulse: quantize onset chimes to the step rhythm (half-steps) while walking. Small; next.
+    - Motif memory: remember a short phrase of recent chime notes and bring it back later with variation.
+    - Slow key-centre drift every few minutes (keeps the chosen key's notes, moves the home chord).
+    - Register from sensors: brighter = higher octave, dark/pocket = lower and warmer; climbing raises notes;
+      compass heading picks the bass root.
+    - Call-and-response: answer a clearly pitched sound a beat later with a harmony note (= item 2).
+13. **Pocket rustle, other options** (mic-down protection was built 2026-10-08): footstep-synchronised ducking (the step is
+    detected after the strike, and walking rustle is continuous, so likely weak alone) and a rustle detector (spectral
+    flatness / zero crossings) that tightens a high-pass only while the sound looks like cloth.
 
 Release prep (separate list): final name + applicationId (not "RjDj"), `source_url`, privacy policy, Play foreground-service
 and microphone declarations, icon, store listing, numbered pd-core release.

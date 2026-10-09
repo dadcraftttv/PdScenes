@@ -72,6 +72,9 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   world alone never quieted the rustle (Samuel heard all the cloth noise at the store). Pocket and world changes, plus a
   "Hearing:" line every 30 s (level, floor, swing), go to `files/events.log` (64 KB, one rollover):
   `adb shell run-as app.pdscenes cat files/events.log`. Phone logcat only holds ~10 minutes.
+- **Mic-down protection** (`pocket_guard`, main, noPreset, default 0.6; 0 = no change): Samuel found mic-end-down pockets
+  rustly but mic-up pockets fine. `PhoneContext.micDown()` (gravity along +y averaged ~1 s, hysteresis 0.5/0.3) and
+  AudioService sends `pocket_down` = pocket && micDown. The patch adds guard*12 dB more cut and crossfades in a 2x `hip~ 300`.
 - **Flux needs a lively room:** loud AND the level swinging >3 dB around its average (leave <2). Running water hit Flux and
   became pure fuzz; a steady roar now leaves the user's own settings. Flux preset was softened (dist 0.2 soft, crush 0.15,
   ring 0.15, freeze mover depth 0.4) so the room still comes through.
@@ -89,6 +92,9 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   Variety (Samuel found the chimes repetitive): chimes walk a melody (+-1/2 scale steps, never the same note twice, within 4 steps
   of the brightness note), each chime gets a random fade (0.9-2.6 s) and overtone colour, footsteps switch among 5 eight-step
   `ARP_PATTERNS` every bar with ~12% rests, and the pad's chord pick wanders more (jitter 0.9). Notes played go to `s chime_deg`.
+  **Pad register** (`music_pad_reg` Low/Mid/Both, default Both, noPreset; Samuel's idea): a bass voice (sine + 0.35 2nd + 0.15
+  3rd harmonic, folded to 65-131 Hz) on the key root, moving to the chord root on 40% of chord changes; note changes dip out
+  and back in (no slides); each footstep ducks it 60% while the walking beat is audible. It rides the pad level/swell.
   Music joins after the filter, so chorus/flanger/phaser/tremolo/reverse/glitch/echo/reverb/spatial shape it; pitch/ring/crush/dist/filter do not.
   It follows the Dry level. Only the real room tells us if the tuning is right — expect further tweaks from Samuel's reports.
 - **Reset everything button:** `ParamStore.resetAll` + `Worlds.resetSettings` + `AudioSettings.reset` + `SceneSettings.resetAll`, only after confirmation.
