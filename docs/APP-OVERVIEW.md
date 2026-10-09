@@ -211,6 +211,10 @@ Movers run in Java at about 30 Hz, and Pd glides between the values it receives.
 
 ## 5. Known gaps and the ideas queue
 
+The full plan, with details and what is already built, is in `docs/ROADMAP.md` (sent as its own file, `3-ROADMAP.md`).
+In short:
+
+
 - **Release prep:** final name and applicationId, privacy policy, Play foreground-service and microphone declarations,
   icon, store listing, and a numbered `pd-core` release instead of the snapshot.
 - **Untuned on a real phone:** the Pocket world preset and the climbing scale.
@@ -230,7 +234,11 @@ Movers run in Java at about 30 Hz, and Pd glides between the values it receives.
 
 ## What we would like from you
 
-Please be specific, refer to files and line numbers, and say how sure you are. If something depends on code you could not
+Please be specific, refer to files and line numbers, and say how sure you are.
+
+**Read the roadmap first.** If a suggestion is already on it, don't repeat it as new. Mention it only if you can add
+something: a better way to build it, a risk we missed, or a reason to do it sooner or later. Ideas the roadmap marks
+as skipped (weather, GPS) were dropped on purpose. If something depends on code you could not
 see (for example libpd internals or the generated `.pd` file), say so instead of guessing.
 
 1. **Code audit and optimizations**
