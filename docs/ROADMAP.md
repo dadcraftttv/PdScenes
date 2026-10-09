@@ -41,6 +41,7 @@ Suggested order is the numbering. Each one needs a test in `tools/test_patch.py`
    (the room plays the sequencer), random timing by density, phone gestures (twist = tape stop, shake = stutter), and
    later maybe the tempo of music heard nearby. Walking locks it to steps; stopping hands over to the other clocks,
    as the chime queue already does.
+   Samuel's pick (Oct 9): sudden sounds as the trigger first, then the free clock (walking still locks to steps).
 6. **Collective world.** Capture a buffer and "scratch" it back and forth like a turntablist. A new scratch effect.
 7. **Optional: "calm builds" mode.** Dimensions' Tranquil adds layers the longer you stay quiet and lets noise make the music
    shrink away. Opposite of the current behavior (quiet room = quiet notes), so only as an option, if Samuel wants it.
