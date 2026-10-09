@@ -43,6 +43,33 @@ Suggested order is the numbering. Each one needs a test in `tools/test_patch.py`
     detected after the strike, and walking rustle is continuous, so likely weak alone) and a rustle detector (spectral
     flatness / zero crossings) that tightens a high-pass only while the sound looks like cloth.
 
+14. **Outside reviews (Gemini and Grok, 2026-10-09), checked against the code.** Accepted, not built yet:
+    - *Hardening pass* (Samuel: yes, after the reviews): audio focus (other audio -> duck the app only slightly so its
+      effects still come through; a phone call -> always pause/stop), event log on a background thread with one date
+      format, `PhoneContext.inPocket()` under the lock, no per-event `float[3]` in `SensorInput.toScene`, no per-tick
+      HashMap in `Modulation.tick`, Bluetooth-mic wait (up to ~3.3 s of `Thread.sleep`) off the main thread, copy
+      `patches`/`scene_lib` assets only when a version stamp changes (393 files on every Start today), a step-detector
+      test for shaking the phone while sitting.
+    - *CPU*: measured on the phone (built-in patch, music on): ~50% of one core, the audio thread ~44% (desktop 2.4%).
+      Effects at 0 or off cost the same as on. Wrap effects and music voices in `switch~` subpatches (reverb and pitch
+      shifter first) via a helper in make_patch.py, with tests that an off effect is unchanged and toggling doesn't click.
+      Try the accelerometer at 100 Hz instead of 200 Hz if the beat still lands.
+    - *UI*: a "why this world" status line (`Worlds.hearing()`), Start/Stop and status pinned (sticky), effect sections
+      collapsed by default, a mover indicator on moving sliders, a "hold this world" control, a one-tap snapshot preset
+      (time-stamped, name later), an optional quiet earcon on world change, SeekBar content descriptions, the Bluetooth
+      hint on the input picker, a short first-run flow, later a simple "walk mode" screen.
+    - *Sound*: echo time synced to steps, dice morph (Randomize glides over 5-10 s), shake-to-scatter while still
+      (overlaps item 5), cadence groove reward, an Intensity macro, step strength (harder step opens the hat), a
+      2-3 s thin-out of pad and chimes when you stop, a wind/handling detector that ducks only the reactive voices
+      (overlaps item 13).
+    - *Release*: R8 keep rules for the `PdAudio.setDevicesId` and `audioRuntimeInfo` reflection when minify is on,
+      a real notification icon, Data safety form (mic used on-device, not collected), mention `events.log` in the privacy policy.
+    - Rejected: pocket hush before the compressor (the compressor would undo it), head tracking from the phone's
+      rotation (the phone isn't on the head), GPS/weather. Already done: low cut in a pocket (mic-down protection),
+      16 KB page alignment (all 64-bit .so files are 0x4000), world hysteresis test.
+    - Not now (Samuel): anything that records audio ("sound capsule", "remember this minute"). Only if it would unlock a
+      lot; he isn't ready to make that concession.
+
 Release prep (separate list): final name + applicationId (not "RjDj"), `source_url`, privacy policy, Play foreground-service
 and microphone declarations, icon, store listing, numbered pd-core release.
 

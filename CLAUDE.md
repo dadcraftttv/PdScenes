@@ -93,7 +93,7 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   of the brightness note), each chime gets a random fade (0.9-2.6 s) and overtone colour, footsteps switch among 5 eight-step
   `ARP_PATTERNS` every bar with ~12% rests, and the pad's chord pick wanders more (jitter 0.9). Notes played go to `s chime_deg`.
   While walking (a step in the last 2.5 s), a sudden-sound chime waits for the next footstep or half-step so it falls
-  in with the arpeggio (latest one wins); standing still it plays at once.
+  in with the arpeggio (latest one wins); standing still it plays at once. Samuel liked it on a walk (Oct 9).
   **Pad register** (`music_pad_reg` Low/Mid/Both, default Both, noPreset; Samuel's idea, he likes it: deep without overpowering): a bass voice (sine + 0.35 2nd + 0.15
   3rd harmonic, folded to 65-131 Hz) on the key root, moving to the chord root on 40% of chord changes; note changes dip out
   and back in (no slides); each footstep ducks it 60% while the walking beat is audible. It rides the pad level/swell.
@@ -101,6 +101,9 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   It follows the Dry level. Only the real room tells us if the tuning is right — expect further tweaks from Samuel's reports.
 - **Reset everything button:** `ParamStore.resetAll` + `Worlds.resetSettings` + `AudioSettings.reset` + `SceneSettings.resetAll`, only after confirmation.
   Keeps saved presets, imported scenes and appearance (and brings back any deleted built-in scene). Nothing may ever reset settings except that button.
+- **Audio focus (decided, not built yet):** when another app plays, duck the app only slightly (its effects must still be
+  heard); a phone call always pauses/stops the output.
+- **No recording audio** to files (Samuel, Oct 9): the mic never touches disk. Revisit only for a feature that unlocks a lot.
 - Presets store: sliders, movers, music pad/notes/tone/follow, beat, dry. A slider kept out of presets keeps its mover out too
   (`Params.withMovers`), or loading a preset or world switched it off. Not stored: gain/gate/compressor, smoothing/nudge,
   music on/key/scale, locks, worlds choices, audio device, scenes, appearance.
