@@ -6,9 +6,7 @@
         <item name="android:windowLightNavigationBar">true</item>
     </style>
 
-    <style name="Theme.PdScenes.Dark" parent="android:Theme.Material.NoActionBar">
-        <item name="android:spotShadowAlpha">0.45</item>
-    </style>
+    <style name="Theme.PdScenes.Dark" parent="android:Theme.Material.NoActionBar" />
 
     <!-- Dark theme with true black surfaces, so OLED pixels switch off. -->
     <style name="Theme.PdScenes.Amoled" parent="android:Theme.Material.NoActionBar">

@@ -206,6 +206,7 @@ public class MainActivity extends Activity {
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         barParams.setMargins(dp(10), dp(4), dp(10), dp(10));   // room for the shadow all round
         screen.addView(buildBottomBar(), barParams);
+        screen.setClipToPadding(false);   // the card's shadow may spill into the navigation bar area, not stop at it
         setContentView(screen);
 
         // Targeting Android 15+ draws edge-to-edge; keep content clear of the system bars.
@@ -366,7 +367,8 @@ public class MainActivity extends Activity {
             card.setColor(blend(bg.data, 0xFFFFFFFF, 0.09f));   // dark: a step lighter than the page
         }
         bar.setBackground(card);
-        bar.setElevation(dp(10));
+        // A gentle lift on Light and Dark; AMOLED needs more so the accent glow shows.
+        bar.setElevation(theme == UiSettings.THEME_AMOLED ? dp(10) : dp(4));
     }
 
     /** The wallpaper accent on Android 12+, otherwise the theme's accent. */
