@@ -924,6 +924,41 @@ bars = {tuple(ad[i:i + 6]) for i in range(0, len(ad) - 6, 3)}
 check(40 <= len(ad) < 64 and len(bars) >= 6,
       "music: 64 footsteps play %d notes (some rest) in %d different phrases" % (len(ad), len(bars)))
 
+# walking locks the chimes to the footsteps: a sudden sound waits for the next step or half-step
+def note_times(e, mic, chunk=64):
+    """Run `mic` in small chunks and return the time (s) of each note sent to chime_deg."""
+    t = []
+    for i in range(0, len(mic), chunk):
+        n = len(e.heard["chime_deg"])
+        e.run(mic[i:i + chunk])
+        t += [(i + chunk) / SR] * (len(e.heard["chime_deg"]) - n)
+    return t
+def clap_at(total, at, seed=5):
+    rng = np.random.default_rng(seed)
+    x = rng.standard_normal(int(total * SR)) * 0.0005
+    if at is None:
+        return x.astype(np.float32)
+    k = np.arange(int(0.03 * SR)); a = int(at * SR)
+    x[a:a + len(k)] += rng.standard_normal(len(k)) * 0.5 * np.exp(-k / (0.008 * SR))
+    return x.astype(np.float32)
+e = fresh(music_on=1, music_pad=0, music_arp=1, wet=0, gain=1); e.listen("chime_deg")
+e.run(clap_at(3.0, None))                       # settle the room floor
+still = note_times(e, clap_at(1.0, 0.3))
+e = fresh(music_on=1, music_pad=0, music_arp=1, wet=0, gain=1); e.listen("chime_deg")
+e.run(clap_at(3.0, None))
+walk_t = []
+claps = {5: 0.08, 8: 0.35}                              # steps every 0.5 s; claps just after step 5 and late in step 8
+for k in range(10):
+    n = len(e.heard["chime_deg"]); e.send("step", 0.5)
+    walk_t += [k * 0.5] * (len(e.heard["chime_deg"]) - n)
+    walk_t += [k * 0.5 + t for t in note_times(e, clap_at(0.5, claps.get(k), seed=k))]
+off = [round((t % 0.5) / 0.5 * 2) % 2 if min(t % 0.5, 0.5 - t % 0.5, abs(t % 0.5 - 0.25)) < 0.006 else None for t in walk_t]
+check(still and 0.3 < still[0] < 0.36,
+      "music: standing still, a clap's chime plays at once (%.0f ms after)" % ((still[0] - 0.3) * 1000 if still else -1))
+check(None not in off and any(abs(t - 2.75) < 0.006 for t in walk_t) and 4.5 in walk_t and not any(4.35 < t < 4.5 for t in walk_t),
+      "music: walking, chimes fall on steps or half-steps (%d notes; clap at 2.58 s chimed at %s, clap at 4.35 s waited for the 4.5 s step)"
+      % (len(walk_t), [round(t, 3) for t in walk_t if 2.5 < t < 3.0]))
+
 # pocket hush: in a pocket the mic is turned down before the effects and the chimes
 def pocket_level(pocket, hush, **over):
     e = fresh(wet=0, dry=1, **dict(dict(pocket_hush=hush), **over))

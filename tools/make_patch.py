@@ -487,7 +487,21 @@ def add_music(P):
     P.obj("mu_ons_rt", "t b b", x + 240, 610)
     P.obj("mu_ons_hush", "value phush", x + 240, 640)
     P.c("mu_ons_t", "mu_ons_rt", 0, 0); P.c("mu_ons_rt", "mu_ons_hush", 1, 0); P.c("mu_ons_hush", "mu_ons_vel", 0, 1)
-    P.c("mu_ons_rt", "mu_rd_ons", 0, 0); P.c("mu_rd_ons", "mu_ons_vel"); P.c("mu_ons_vel", "mu_deg")
+    P.c("mu_ons_rt", "mu_rd_ons", 0, 0); P.c("mu_rd_ons", "mu_ons_vel")
+    # While you walk, a sudden-sound chime waits for the next footstep or half-step, so it falls in with the
+    # arpeggio instead of landing anywhere (Samuel). Standing still it plays at once.
+    P.obj("mu_q_now", "spigot 1", x + 200, 690)                      # not walking: straight through
+    P.obj("mu_q_hold", "spigot 0", x + 300, 690)                     # walking: keep the latest one for the next slot
+    P.c("mu_ons_vel", "mu_q_now"); P.c("mu_ons_vel", "mu_q_hold")
+    P.c("mu_q_now", "mu_deg")
+    P.obj("mu_q_store", "f", x + 300, 720)
+    P.c("mu_q_hold", "mu_q_store", 0, 1)
+    P.obj("mu_q_has", "moses 0.000001", x + 300, 750)
+    P.obj("mu_q_go", "t f b", x + 300, 780)                          # clear the store, then play
+    P.msg("mu_q_clear", "0", x + 380, 750)
+    P.c("mu_q_store", "mu_q_has"); P.c("mu_q_has", "mu_q_go", 1, 0)
+    P.c("mu_q_go", "mu_q_clear", 1, 0); P.c("mu_q_clear", "mu_q_store", 0, 1)
+    P.c("mu_q_go", "mu_deg", 0, 0)
 
     # Path 2, a slow pattern while you are still: now and then a chime, more often in a livelier room.
     P.obj("mu_still_tick", "metro 250", x + 800, 600)
@@ -572,6 +586,21 @@ def add_music(P):
     P.obj("mu_walk_del", "del 2500", x + 1160, 930)
     P.c("mu_walk_t", "mu_still_off", 1, 0); P.c("mu_walk_t", "mu_walk_del", 0, 0)
     P.c("mu_walk_del", "mu_still_back")
+    # Chime slots: every footstep, and halfway to the next one. Walking ends -> anything waiting plays.
+    P.msg("mu_q_walk", "0", x + 200, 660); P.msg("mu_q_walk_h", "1", x + 260, 660)
+    P.msg("mu_q_stop", "1", x + 200, 630); P.msg("mu_q_stop_h", "0", x + 260, 630)
+    P.c("mu_walk_t", "mu_q_walk", 1, 0); P.c("mu_walk_t", "mu_q_walk_h", 1, 0)
+    P.c("mu_q_walk", "mu_q_now", 0, 1); P.c("mu_q_walk_h", "mu_q_hold", 0, 1)
+    P.c("mu_walk_del", "mu_q_stop"); P.c("mu_walk_del", "mu_q_stop_h")
+    P.c("mu_q_stop", "mu_q_now", 0, 1); P.c("mu_q_stop_h", "mu_q_hold", 0, 1)
+    P.c("mu_walk_del", "mu_q_store")
+    P.obj("mu_q_half_clip", "clip 0.25 1.2", x + 1250, 930)
+    P.obj("mu_q_half_ms", "* 500", x + 1250, 960)
+    P.obj("mu_q_half", "del 250", x + 1160, 990)
+    P.c("mu_step_t", "mu_q_half_clip", 1, 0); P.c("mu_q_half_clip", "mu_q_half_ms"); P.c("mu_q_half_ms", "mu_q_half", 0, 1)
+    P.c("mu_walk_t", "mu_q_half", 0, 0)                                  # restarts the half-step timer
+    P.c("mu_walk_t", "mu_q_store", 0, 0)                                 # on the step itself
+    P.c("mu_q_half", "mu_q_store")
     # Gates follow the on/off switch.
     for g in ("mu_ons_gate_on", "mu_still_on", "mu_arp_gate"):
         P.c("mu_r_on", g, 0, 1)

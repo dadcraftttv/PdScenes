@@ -33,7 +33,7 @@ Suggested order is the numbering. Each one needs a test in `tools/test_patch.py`
     check other rjlib abstractions for the same `[list split]` output-order problem fixed in `s_fplaytable`.
 
 12. **Music ideas from Samuel's Oct 8 test notes** (after the bass pad, built 2026-10-08 as "Pad register"):
-    - Lock chimes to the walking pulse: quantize onset chimes to the step rhythm (half-steps) while walking. Small; next.
+    - (BUILT 2026-10-09) Lock chimes to the walking pulse: while walking, onset chimes wait for the next step or half-step.
     - Motif memory: remember a short phrase of recent chime notes and bring it back later with variation.
     - Slow key-centre drift every few minutes (keeps the chosen key's notes, moves the home chord).
     - Register from sensors: brighter = higher octave, dark/pocket = lower and warmer; climbing raises notes;

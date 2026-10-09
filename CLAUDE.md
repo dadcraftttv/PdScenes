@@ -92,7 +92,9 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   Variety (Samuel found the chimes repetitive): chimes walk a melody (+-1/2 scale steps, never the same note twice, within 4 steps
   of the brightness note), each chime gets a random fade (0.9-2.6 s) and overtone colour, footsteps switch among 5 eight-step
   `ARP_PATTERNS` every bar with ~12% rests, and the pad's chord pick wanders more (jitter 0.9). Notes played go to `s chime_deg`.
-  **Pad register** (`music_pad_reg` Low/Mid/Both, default Both, noPreset; Samuel's idea): a bass voice (sine + 0.35 2nd + 0.15
+  While walking (a step in the last 2.5 s), a sudden-sound chime waits for the next footstep or half-step so it falls
+  in with the arpeggio (latest one wins); standing still it plays at once.
+  **Pad register** (`music_pad_reg` Low/Mid/Both, default Both, noPreset; Samuel's idea, he likes it: deep without overpowering): a bass voice (sine + 0.35 2nd + 0.15
   3rd harmonic, folded to 65-131 Hz) on the key root, moving to the chord root on 40% of chord changes; note changes dip out
   and back in (no slides); each footstep ducks it 60% while the walking beat is audible. It rides the pad level/swell.
   Music joins after the filter, so chorus/flanger/phaser/tremolo/reverse/glitch/echo/reverb/spatial shape it; pitch/ring/crush/dist/filter do not.
