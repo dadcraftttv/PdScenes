@@ -202,8 +202,10 @@ public class MainActivity extends Activity {
         root.setPadding(pad, pad, pad, pad);
         scroll.addView(root);
         screen.addView(scroll, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
-        screen.addView(buildBottomBar(), new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        LinearLayout.LayoutParams barParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        barParams.setMargins(dp(10), dp(4), dp(10), dp(10));   // room for the shadow all round
+        screen.addView(buildBottomBar(), barParams);
         setContentView(screen);
 
         // Targeting Android 15+ draws edge-to-edge; keep content clear of the system bars.
@@ -316,11 +318,8 @@ public class MainActivity extends Activity {
     private View buildBottomBar() {
         LinearLayout bar = new LinearLayout(this);
         bar.setOrientation(LinearLayout.VERTICAL);
-        bar.setPadding(dp(16), dp(6), dp(16), dp(6));
-        TypedValue bg = new TypedValue();
-        getTheme().resolveAttribute(android.R.attr.colorBackground, bg, true);
-        bar.setBackgroundColor(bg.data);
-        bar.setElevation(dp(8));
+        bar.setPadding(dp(14), dp(8), dp(14), dp(8));
+        styleBarCard(bar);
 
         status = new TextView(this);
         status.setTextSize(14);
@@ -342,6 +341,49 @@ public class MainActivity extends Activity {
         });
         snapButton = addButton(row, R.string.snapshot, this::saveSnapshot);
         return bar;
+    }
+
+    /**
+     * The bar is a card lifted above the page: rounded like the scene pad, a slightly lighter surface and a
+     * shadow. On AMOLED black a dark shadow can't show, so the card gets a thin outline and a glow in the
+     * system accent colour (Material You, from the wallpaper, on Android 12+).
+     */
+    private void styleBarCard(View bar) {
+        int theme = UiSettings.theme(this);
+        TypedValue bg = new TypedValue();
+        getTheme().resolveAttribute(android.R.attr.colorBackground, bg, true);
+        android.graphics.drawable.GradientDrawable card = new android.graphics.drawable.GradientDrawable();
+        card.setCornerRadius(ScenePad.CORNER_DP * getResources().getDisplayMetrics().density);
+        if (theme == UiSettings.THEME_AMOLED) {
+            int accent = accentColor();
+            card.setColor(0xFF000000);
+            card.setStroke(Math.max(1, dp(1)), (accent & 0x00FFFFFF) | 0xAA000000);
+            bar.setOutlineSpotShadowColor(accent);
+            bar.setOutlineAmbientShadowColor(accent);
+        } else if (UiSettings.isLight(theme)) {
+            card.setColor(0xFFFFFFFF);
+        } else {
+            card.setColor(blend(bg.data, 0xFFFFFFFF, 0.09f));   // dark: a step lighter than the page
+        }
+        bar.setBackground(card);
+        bar.setElevation(dp(10));
+    }
+
+    /** The wallpaper accent on Android 12+, otherwise the theme's accent. */
+    private int accentColor() {
+        if (Build.VERSION.SDK_INT >= 31) {
+            return getColor(android.R.color.system_accent1_300);
+        }
+        TypedValue a = new TypedValue();
+        getTheme().resolveAttribute(android.R.attr.colorAccent, a, true);
+        return a.data;
+    }
+
+    private static int blend(int from, int to, float k) {
+        int r = Math.round(((from >> 16) & 0xFF) * (1 - k) + ((to >> 16) & 0xFF) * k);
+        int g = Math.round(((from >> 8) & 0xFF) * (1 - k) + ((to >> 8) & 0xFF) * k);
+        int b = Math.round((from & 0xFF) * (1 - k) + (to & 0xFF) * k);
+        return 0xFF000000 | (r << 16) | (g << 8) | b;
     }
 
     /** One line: the world playing now and, in a few words, why. Refreshed once a second while visible. */

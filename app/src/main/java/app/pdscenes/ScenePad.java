@@ -35,7 +35,7 @@ final class ScenePad extends View {
     private static final float MAX_ASPECT = 1.2f;
     private static final int MAX_IMAGE_PX = 1024;
     private static final int MAX_FINGERS = 10;
-    private static final float CORNER_DP = 8f;
+    static final float CORNER_DP = 8f;   // the bottom bar card uses the same corners
 
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final RectF imageRect = new RectF();
