@@ -4,6 +4,11 @@ Gathered from research (Designing Sound "RjDj: crafting Dimensions", CDM's Dimen
 episode). The sources give ideas, not thresholds or timings; tune everything by ear on the phone. Samuel decides the order.
 Suggested order is the numbering. Each one needs a test in `tools/test_patch.py` (or a new test file) and a tester-guide update.
 
+**Agreed order (Samuel, 2026-10-09):** (1) tester guide catch-up (done Oct 9), (2) glitch engine part 1 (item 5b),
+(3) Ghost capture/stretch (3), (4) Unstable world (5), (5) Collective scratch (6), (6) music: density memory, motif
+memory, key drift, register from sensors (8, 12), (7) screen polish + accel 100 Hz trial (14), (8) release prep.
+The glitch engine must stay cheap: off at Amount 0 (switch~), measured on the phone.
+
 1. **(BUILT 2026-10-08 as "Room notes", `music_res`; needs tuning by ear) The room plays the notes (Dimensions "Flux").** Run the mic through resonators/filterbank tuned to the chosen
    key and scale; filter frequencies move with pitch changes and onsets, so sounds around you ring notes in key.
    Likely a new voice in the Music section (level slider + on/off) or part of the Flux world. Joins the output after
