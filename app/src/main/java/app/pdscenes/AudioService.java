@@ -168,6 +168,7 @@ public class AudioService extends Service {
     private long lastCallCheck;
     private static volatile boolean pausedForCall;
     private int otherPlayers;
+    private String lastPlayersReport = "";
 
     /** True while a phone call has silenced the output. */
     static boolean isPausedForCall() {
@@ -201,24 +202,30 @@ public class AudioService extends Service {
     };
 
     /**
-     * Counts the players that are really playing (only those have an output device) with an audible kind of
-     * sound. The app's own output is one of them; key clicks and calls don't count (calls are handled above).
-     * Android 12+ only: older versions don't say which players are playing, so there is no ducking there.
+     * Counts the players with an audible kind of sound. Android lists only players that are playing (paused ones
+     * drop out) and hides their details from other apps (no uid, no device), so the app's own output is simply
+     * one of them. Key clicks and calls don't count (calls are handled above). Seen on the Moto G: 1 player with
+     * the app alone, 2 while Musicolet plays, 1 again when it pauses. Android 12+ only, as tested.
      */
-    @SuppressWarnings("deprecation")
     private void updateOtherAudio(List<android.media.AudioPlaybackConfiguration> configs) {
         if (!running || Build.VERSION.SDK_INT < 31) {
             return;
         }
         int playing = 0;
+        StringBuilder seen = new StringBuilder();   // what Android reports, for tuning this on real phones
         for (android.media.AudioPlaybackConfiguration c : configs) {
             int usage = c.getAudioAttributes().getUsage();
-            if (c.getAudioDeviceInfo() != null
-                    && usage != android.media.AudioAttributes.USAGE_ASSISTANCE_SONIFICATION
+            seen.append(" u").append(usage);
+            if (usage != android.media.AudioAttributes.USAGE_ASSISTANCE_SONIFICATION
                     && usage != android.media.AudioAttributes.USAGE_VOICE_COMMUNICATION
                     && usage != android.media.AudioAttributes.USAGE_VOICE_COMMUNICATION_SIGNALLING) {
                 playing++;
             }
+        }
+        String report = configs.size() + " players:" + seen;
+        if (!report.equals(lastPlayersReport)) {
+            lastPlayersReport = report;
+            logEvent("Playback changed, " + report);
         }
         int others = Math.max(0, playing - 1);
         if ((others > 0) != (otherPlayers > 0)) {

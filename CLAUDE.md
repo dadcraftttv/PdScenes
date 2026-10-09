@@ -103,8 +103,8 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   Keeps saved presets, imported scenes and appearance (and brings back any deleted built-in scene). Nothing may ever reset settings except that button.
 - **Calls and other audio** (Samuel's rule): the app never requests audio focus (Start must not pause the user's music).
   `AudioService.checkForCall` reads the audio mode every 0.5 s: call/ringing/VoIP -> `computeAudio(false)` until it ends
-  (MODE_IN_COMMUNICATION is ignored while our own Bluetooth mic set it). An `AudioPlaybackCallback` counts players that
-  have an output device (Android 12+); more than our own -> `duck 0.3` (~3 dB, 600 ms ramp, after the limiter; scenes
+  (MODE_IN_COMMUNICATION is ignored while our own Bluetooth mic set it). An `AudioPlaybackCallback` counts the listed players
+  (Android lists only playing ones and hides uid/device from other apps; Moto G: 1 alone, 2 with Musicolet); more than our own -> `duck 0.3` (~3 dB, 600 ms ramp, after the limiter; scenes
   get `#volume` scaled instead). Only slight: the app's effects must still be heard.
 - **Start path:** the Bluetooth-mic link wait runs on a background thread (`starting`, `startGeneration` cancels it on
   stop). `patches` and `scene_lib` are copied only when the install changes (`.copied` stamp = lastUpdateTime).
