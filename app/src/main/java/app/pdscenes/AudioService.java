@@ -493,6 +493,16 @@ public class AudioService extends Service {
         }
         activeOutputId = out.id;
         selectDevices(AudioDevices.idOrDefault(in), out.id);
+        // Which devices were asked for, and every mic Android lists: a tester's mic problem can be read back later.
+        StringBuilder mics = new StringBuilder();
+        for (android.media.AudioDeviceInfo d : getSystemService(AudioManager.class)
+                .getDevices(AudioManager.GET_DEVICES_INPUTS)) {
+            mics.append(mics.length() == 0 ? "" : "; ").append("type ").append(d.getType()).append(" id ").append(d.getId())
+                    .append(" ").append(d.getProductName()).append(" rates ").append(java.util.Arrays.toString(d.getSampleRates()))
+                    .append(" ch ").append(java.util.Arrays.toString(d.getChannelCounts()));
+        }
+        logEvent("Devices: input " + (in == null ? "Automatic" : in.label + " (type " + in.type + ", id " + in.id + ")")
+                + ", output " + out.label + " (type " + out.type + ", id " + out.id + "). Mics: " + mics);
 
         // 1 input channel (mic), 2 output channels. The ticks-per-buffer argument is
         // ignored by the Oboe backend; Oboe picks the device's low-latency burst size.

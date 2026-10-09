@@ -115,6 +115,10 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   get `#volume` scaled instead). Only slight: the app's effects must still be heard.
 - **Start path:** the Bluetooth-mic link wait runs on a background thread (`starting`, `startGeneration` cancels it on
   stop). `patches` and `scene_lib` are copied only when the install changes (`.copied` stamp = lastUpdateTime).
+- **Input gain/gate stay one setting for all mics** (Samuel, Oct 9): per-device values were rejected because Android names
+  USB/Bluetooth mics generically ("USB-C HEADSET"), so two headsets could be confused. Earbud mics read ~15-20 dB quieter
+  than the phone mic (USB-C earbuds: -65 vs -45 dB) and need more gain and a lower gate. The event log records the devices
+  asked for and every listed mic with its rates/channels at each start.
 - **No recording audio** to files (Samuel, Oct 9): the mic never touches disk. Revisit only for a feature that unlocks a lot.
 - **Echo follows your steps** (`echo_sync` Off/1/half/quarter step, default half, in presets): while walking the echo
   time is the averaged step interval (20 ms grid, so step wobble doesn't warble it); 2.5 s after the last step the
