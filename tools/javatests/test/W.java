@@ -18,7 +18,7 @@ public class W {
     StepDetector.reset(); walk(0,6,8,6f);
     check(!StepDetector.walking(6)||StepDetector.stepsPerSecond(6)<=3.6f,"step rate is capped near 3.5/s");
     // fidgeting or shaking the phone while sitting: jolts at irregular times, no steady rhythm
-    { Random r=new Random(7); List<Double> g2=new ArrayList<>(); StepDetector.setListener(g2::add); StepDetector.reset();
+    { Random r=new Random(7); List<Double> g2=new ArrayList<>(); StepDetector.setListener((i,st)->g2.add(i)); StepDetector.reset();
       double last=-1, next=0.3, amp=0; for(double t=0;t<10;t+=0.005){
         if(t>=next){ last=t; amp=(r.nextDouble()-0.5)*16; next=t+0.08+r.nextDouble()*0.9; }   // a jolt, then a random gap
         float bump=(float)(amp*Math.exp(-(t-last)*12));
@@ -26,12 +26,18 @@ public class W {
       StepDetector.setListener(null);
       check(!StepDetector.walking(10)&&g2.size()<=3,"shaking the phone while sitting is not walking ("+g2.size()+" steps sent)"); }
     // listener gets one call per step with the gap to the previous one
-    List<Double> gaps=new ArrayList<>(); StepDetector.setListener(gaps::add);
+    List<Double> gaps=new ArrayList<>(); StepDetector.setListener((i,st)->gaps.add(i));
     StepDetector.reset(); walk(0,5,2.0,4f); StepDetector.setListener(null);
     double avg=0; for(int i=1;i<gaps.size();i++) avg+=gaps.get(i); avg/=Math.max(1,gaps.size()-1);
     check(gaps.size()>=7&&gaps.size()<=10&&Math.abs(avg-0.5)<0.05&&Math.abs(gaps.get(0)-0.5)<0.05,"step listener: "+gaps.size()+" calls (the first two steps of a walk are held back), gaps about 0.5 s (avg "+avg+")");
-    gaps.clear(); StepDetector.setListener(gaps::add); StepDetector.reset(); walk(0,0.9,1.8,4f); StepDetector.setListener(null);
+    gaps.clear(); StepDetector.setListener((i,st)->gaps.add(i)); StepDetector.reset(); walk(0,0.9,1.8,4f); StepDetector.setListener(null);
     check(gaps.isEmpty(),"two stray bumps do not play drums: "+gaps.size());
+    // step strength: harder steps than usual read above 0.5, softer below, ordinary ones near 0.5
+    { List<Float> st=new ArrayList<>(); StepDetector.setListener((i,x)->st.add(x)); StepDetector.reset();
+      walk(0,6,1.8,4f); float usual=st.get(st.size()-1); st.clear();
+      walk(6,8,1.8,7f); float hard=st.get(st.size()-1); st.clear();
+      walk(8,14,1.8,4f); walk(14,16,1.8,2.4f); float soft=st.get(st.size()-1); StepDetector.setListener(null);
+      check(Math.abs(usual-0.5f)<0.08f&&hard>0.75f&&soft<0.3f,"step strength: usual "+usual+", stomping "+hard+", soft "+soft); }
     // ---- selector ----
     WorldSelector s=new WorldSelector(); Set<String> all=new HashSet<>(Arrays.asList(WorldSelector.PRIORITY));
     String w=null; for(int i=0;i<300;i++) w=s.update(0.1,-40f,false,12*60,all);

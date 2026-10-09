@@ -539,7 +539,10 @@ public class AudioService extends Service {
         Modulation.reset();
         StepDetector.reset();
         // Footsteps drive the built-in patch's drums; scenes have their own business with the sensors.
-        StepDetector.setListener(scene == null ? interval -> PdBase.sendFloat("step", (float) interval) : null);
+        StepDetector.setListener(scene == null ? (interval, strength) -> {
+            PdBase.sendFloat("step_strength", strength);   // first, so the step's sounds can use it
+            PdBase.sendFloat("step", (float) interval);
+        } : null);
         Worlds.load(this);
         Worlds.reset();
         autoWorlds = scene == null;

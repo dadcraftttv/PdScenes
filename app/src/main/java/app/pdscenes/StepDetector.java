@@ -23,12 +23,21 @@ final class StepDetector {
     private static double lastSample = -1;
     private static float smoothed;
     private static boolean above;
+    // Step strength: each bump's peak, against the walk's running average. A step fires on the way up (so the beat
+    // stays tight), before its peak is known, so a step carries the strength of the one before it.
+    private static final float STRENGTH_SPREAD = 1.2f;   // 30% harder than usual -> strength about 0.86
+    private static float peak;
+    private static float lastPeak;
+    private static float avgPeak;
 
     private StepDetector() { }
 
-    /** Told about every footstep of a walk (not the first two), with the time since the one before it in seconds. */
+    /**
+     * Told about every footstep of a walk (not the first two), with the time since the one before it in seconds and
+     * how hard the steps are landing: 0.5 = as usual for this walk, towards 1 harder, towards 0 softer.
+     */
     interface Listener {
-        void onStep(double intervalS);
+        void onStep(double intervalS, float strength);
     }
 
     private static final double STALE_GAP_S = 1.5;       // after a pause the first step has no usable interval...
@@ -45,7 +54,7 @@ final class StepDetector {
         double interval = detect(x, y, z, nowS);
         Listener l = listener;
         if (interval > 0 && l != null) {
-            l.onStep(interval);   // outside the lock: the listener talks to the audio engine
+            l.onStep(interval, strength());   // outside the lock: the listener talks to the audio engine
         }
     }
 
@@ -68,8 +77,22 @@ final class StepDetector {
             }
         } else if (above && smoothed < STEP_LOW) {
             above = false;
+            lastPeak = peak;
+            avgPeak = avgPeak == 0 ? peak : avgPeak * 0.85f + peak * 0.15f;
+            peak = 0;
+        }
+        if (above) {
+            peak = Math.max(peak, smoothed);
         }
         return 0;
+    }
+
+    /** How hard the last step landed compared with this walk's usual: 0.5 = usual, 0..1. */
+    static synchronized float strength() {
+        if (avgPeak <= 0 || lastPeak <= 0) {
+            return 0.5f;
+        }
+        return Math.max(0f, Math.min(1f, 0.5f + STRENGTH_SPREAD * (lastPeak / avgPeak - 1f)));
     }
 
     private static double latestStep() {
@@ -101,5 +124,6 @@ final class StepDetector {
         lastSample = -1;
         smoothed = 0;
         above = false;
+        peak = lastPeak = avgPeak = 0;
     }
 }

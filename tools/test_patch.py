@@ -77,7 +77,7 @@ check(not bad, "patch loads with no Pd errors" + (": %s" % bad if bad else ""))
 
 jp = java_params()
 patch_text = open(PATCH).read()
-receivers = set(re.findall(r"#X obj \d+ \d+ r (\w+);", patch_text)) - {"step", "scale_n", "pad_glide", "mic_level", "pad_slot", "pool_n", "pool_x", "pocket", "pocket_down", "duck"} - {r for r in re.findall(r"#X obj \d+ \d+ r (sw_\w+);", open(PATCH).read())}   # events and internal links, not settings
+receivers = set(re.findall(r"#X obj \d+ \d+ r (\w+);", patch_text)) - {"step", "scale_n", "pad_glide", "mic_level", "pad_slot", "pool_n", "pool_x", "pocket", "pocket_down", "duck", "step_strength"} - {r for r in re.findall(r"#X obj \d+ \d+ r (sw_\w+);", open(PATCH).read())}   # events and internal links, not settings
 pd_ids = {i for i, _, nopd in jp if not nopd}
 check(len(jp) >= 10, "parsed %d params from Params.java" % len(jp))
 check(pd_ids == receivers, "Params.java ids == patch receivers (java-only %s, patch-only %s)"
@@ -989,6 +989,34 @@ check(abs(walking) < 1.5 and -6.5 < dipped < -2.5 and abs(back) < 1.5,
       "music: stopping after a walk, the pad breathes %.1f dB down and comes back (%.1f dB at 12-14 s; 1 s after %.1f dB)"
       % (dipped, back, walking))
 
+# pace tiers: a stroll plays the calm patterns and rests more; a brisk walk plays the busy, leaping ones
+def arp_run(interval, n=64):
+    e = fresh(music_on=1, music_pad=0, music_arp=1, wet=0); e.listen("chime_deg")
+    per_step = []                                              # the note each step played, None for a rest
+    for _ in range(n):
+        k = len(e.heard["chime_deg"])
+        e.send("step", interval); e.run(e.silence(interval))
+        new = e.heard["chime_deg"][k:]
+        per_step.append(int(new[0]) if new else None)
+    jumps = [abs(b - a) for a, b in zip(per_step, per_step[1:]) if a is not None and b is not None]
+    return sum(v is not None for v in per_step) / n, float(np.mean(jumps))
+stroll_rate, stroll_jump = arp_run(1.0)
+brisk_rate, brisk_jump = arp_run(0.38)
+check(brisk_jump > 1.15 * stroll_jump and brisk_rate > stroll_rate + 0.1,   # chord changes blur the jump measure
+      "music: pace tiers: strolling moves %.1f steps a note and plays %.0f%% of steps, brisk %.1f and %.0f%%"
+      % (stroll_jump, 100 * stroll_rate, brisk_jump, 100 * brisk_rate))
+
+# step strength: a hard step opens the hi-hat (louder, longer); a soft one leaves it faint
+def hat_energy(strength):
+    e = fresh(beat_level=1, beat_hats=1, beat_snare=0, wet=0, dry=0)
+    for _ in range(4):
+        e.send("step_strength", strength); e.send("step", 0.5); y = e.run(e.silence(0.5))[:, 0]
+    seg = y[int(0.24 * SR):int(0.45 * SR)]                    # the hat half a step after the last step
+    return rms(np.diff(seg))                                   # high frequencies: the hat, not the kick
+hard, usual, soft = hat_energy(1.0), hat_energy(0.5), hat_energy(0.1)
+check(hard > 1.8 * usual and usual > 1.8 * soft,
+      "beat: step strength opens the hi-hat (hard %.4f, usual %.4f, soft %.4f)" % (hard, usual, soft))
+
 # switchable blocks: a block whose level is 0 stops its DSP (after its fade), comes back at once when needed,
 # and switching it on doesn't click
 SWITCHED = {"reverb": ("reverb_mix", 0.5), "pitch": ("pitch_mix", 0.5), "chorus": ("chorus_mix", 0.5),
@@ -1121,7 +1149,7 @@ def tail(**over):
     return rms(e.run(e.silence(3.0))[int(1.9 * SR):int(2.4 * SR), 0])   # after the chime has faded, before the still pattern resumes
 t_dry, t_rev = tail(wet=0, reverb_mix=0), tail(wet=0, reverb_mix=1, reverb_size=0.95)
 check(t_rev > 5 * t_dry + 1e-5, "music: the reverb gives the notes a tail (%.5f vs %.5f)" % (t_rev, t_dry))
-t_echo = tail(wet=1, feedback=0.5, echo_time=700, reverb_mix=0)
+t_echo = tail(wet=1, feedback=0.5, echo_time=700, reverb_mix=0, echo_sync=0)   # the slider's time, not the steps'
 check(t_echo > 5 * t_dry + 1e-5, "music: the echo repeats the notes (%.5f vs %.5f)" % (t_echo, t_dry))
 e = fresh(music_on=1, music_pad=1, music_arp=1, wet=0, space_pan=0.8)
 y2 = e.run(e.silence(4))

@@ -64,14 +64,17 @@ CHORD_POOLS = [
 CONTRAST_PCT = 20             # chance (in 100) that a chord change picks the contrast chord
 # Footstep arpeggios: scale steps above the current chord root, one per footstep. Every bar (8 steps) a new
 # pattern is picked at random, and now and then a step rests.
+# Ordered calm -> busy: each bar picks one near the walking pace (a stroll stays near the top, a brisk walk near
+# the bottom), with a little randomness and never the same one twice.
 ARP_PATTERNS = (
+    (0, 2, 4, 5, 4, 2, 1, 2),        # a little melody around the root (small steps)
     (0, 2, 4, 7, 4, 2, 0, 2),        # up and back
     (0, 4, 2, 4, 7, 4, 2, 4),        # broken chord
     (7, 4, 2, 0, 2, 4, 6, 4),        # down and up, with a passing note
-    (0, 2, 4, 5, 4, 2, 1, 2),        # a little melody around the root
     (4, 2, 7, 4, 9, 7, 4, 2),        # high and leaping
 )
-ARP_REST_PCT = 12            # chance (in 100) that a footstep plays no note
+ARP_REST_SLOW_PCT = 25       # chance (in 100) that a footstep plays no note when strolling...
+ARP_REST_FAST_PCT = 5        # ...and when walking briskly
 CHIME_SPAN = 4               # chime melodies wander this many scale steps either side of the brightness note
 CHIME_DECAY_MS = (900, 2600)     # each chime's fade, picked at random
 CHIME_OVERTONE = (0.12, 0.45)    # each chime's 2nd-harmonic level (3rd is a third of it): mellow to bright
@@ -388,7 +391,20 @@ def add_beat(P):
     P.sig2("snare", "*~", "snare_raw", snl, x + 300, 440)
 
     # Hi-hat: bright noise, very short.
-    h_amp = env("h_amp", "0, 1 1, 0 45 1", "hat_del", 0, x + 750, 220)
+    # A harder step (step_strength, 0.5 = as usual) opens the hat: louder and longer. A soft step leaves it faint.
+    P.obj("st_init", "loadbang", x + 1200, 20)
+    P.msg("st_init_msg", BS + "; step_strength 0.5", x + 1200, 50)
+    P.c("st_init", "st_init_msg")
+    P.obj("h_r_str", "r step_strength", x + 900, 140)
+    P.obj("h_str", "f 0.5", x + 750, 170)
+    P.c("hat_del", "h_str"); P.c("h_r_str", "h_str", 0, 1)
+    P.obj("h_calc", ("expr 0.15+0.95*$f1" + " " + BS + "; 25+70*$f1").replace("$", BS + "$"), x + 750, 190)
+    P.obj("h_pack", "pack f f", x + 750, 205)
+    P.c("h_str", "h_calc"); P.c("h_calc", "h_pack", 1, 1); P.c("h_calc", "h_pack", 0, 0)
+    P.msg("h_amp_msg", ("0, " + BS + "$1 1, 0 " + BS + "$2 1").replace(",", comma), x + 750, 220)
+    P.obj("h_amp", "vline~", x + 750, 250)
+    P.c("h_pack", "h_amp_msg"); P.c("h_amp_msg", "h_amp")
+    h_amp = "h_amp"
     P.obj("h_hp", "hip~ 7000", x + 750, 250)
     P.c("noise", "h_hp")
     P.sig2("hat_raw", "*~", "h_hp", h_amp, x + 750, 350)
@@ -396,7 +412,13 @@ def add_beat(P):
     P.sig2("hat", "*~", "hat_raw", hats, x + 750, 380)
 
     # Mix, master level and on/off switch (a little headroom so the drums never clip the output).
-    P.sig2("beat_kick_snare", "+~", "kick", "snare", x, 500)
+    P.sig2("beat_ks0", "+~", "kick", "snare", x, 480)
+    P.obj("ks_r_str", "r step_strength", x + 1200, 140)
+    P.obj("ks_calc", ("expr 0.8+0.4*$f1").replace("$", BS + "$"), x + 1200, 170)
+    P.obj("ks_pk", "pack f 5", x + 1200, 200)
+    P.obj("ks_gain", "line~", x + 1200, 230)
+    P.c("ks_r_str", "ks_calc"); P.c("ks_calc", "ks_pk"); P.c("ks_pk", "ks_gain")
+    P.sig2("beat_kick_snare", "*~", "beat_ks0", "ks_gain", x, 500)   # a harder step lifts kick and snare a little
     P.sig2("beat_sum", "+~", "beat_kick_snare", "hat", x, 530)
     lvl = smoothed(P, "beat_level", "beat_level", x + 1050, 20)
     bon = smoothed(P, "beat_on", "beat_on", x + 1150, 20)
@@ -687,7 +709,9 @@ def add_music(P):
     P.c("mu_r_step", "mu_step_t")
     ex("mu_pace", "1/max($f1,0.25)", x + 1200, 660)
     ex("mu_pace_f", "min(max(($f1-1)/1.6,0),1)", x + 1200, 690)       # 0 = ambling (1 step/s), 1 = brisk (2.6+)
-    ex("mu_pace_vel", "0.18+0.82*$f1", x + 1200, 720)
+    ex("mu_pace_vel", "(0.18+0.82*$f1)*(0.8+0.4*$f2)", x + 1200, 720)    # a harder step pushes the note
+    P.obj("mu_r_strength", "r step_strength", x + 1350, 660)
+    P.c("mu_r_strength", "mu_pace_vel", 0, 1)
     P.c("mu_step_t", "mu_pace", 1, 0); P.c("mu_pace", "mu_pace_f"); P.c("mu_pace_f", "mu_pace_vel")
     P.c("mu_pace_vel", "mu_v_vel")
     P.obj("mu_arp_gate", "spigot", x + 1100, 660)
@@ -707,8 +731,12 @@ def add_music(P):
     P.obj("mu_pat_it", "t f f", x + 1020, 780)
     P.c("mu_pat_i", "mu_pat_it")
     P.obj("mu_pat_bar", "sel 0", x + 960, 810)
-    P.obj("mu_pat_rnd", f"random {n_pat - 1}", x + 960, 840)
-    ex("mu_pat_new", f"($f1+1+$f2)%{n_pat}", x + 960, 870)               # never the same pattern twice
+    P.obj("mu_pat_rnd", "random 3", x + 960, 840)
+    # the pace's pattern or a neighbour ($f1 0..2), never the one just played ($f2), pace 0..1 ($f3)
+    top = n_pat - 1
+    ex("mu_pat_new", f"if(min(max(int($f3*{top}+0.5)+$f1-1, 0), {top})==$f2, "
+                     f"if($f2<{top}, $f2+1, $f2-1), min(max(int($f3*{top}+0.5)+$f1-1, 0), {top}))", x + 960, 870)
+    P.c("mu_pace_f", "mu_pat_new", 0, 2)
     P.obj("mu_pat_cur", "t f f", x + 960, 900)
     P.c("mu_pat_it", "mu_pat_bar", 1, 0); P.c("mu_pat_bar", "mu_pat_rnd"); P.c("mu_pat_rnd", "mu_pat_new")
     P.c("mu_pat_new", "mu_pat_cur"); P.c("mu_pat_cur", "mu_pat_new", 1, 1)
@@ -725,7 +753,8 @@ def add_music(P):
     P.c("mu_pat_tab", "mu_arp_deg")
     # now and then a step rests (the bar still moves on)
     P.obj("mu_rest_rnd", "random 100", x + 1300, 690)
-    P.obj("mu_rest_play", f">= {ARP_REST_PCT}", x + 1300, 720)
+    ex("mu_rest_play", f"$f1>=({ARP_REST_SLOW_PCT}-{ARP_REST_SLOW_PCT - ARP_REST_FAST_PCT}*$f2)", x + 1300, 720)
+    P.c("mu_pace_f", "mu_rest_play", 0, 1)        # strolling rests more than walking briskly
     P.obj("mu_rest_gate", "spigot 1", x + 1100, 885)
     P.c("mu_arp_t", "mu_rest_rnd", 3, 0); P.c("mu_rest_rnd", "mu_rest_play"); P.c("mu_rest_play", "mu_rest_gate", 0, 1)
     P.c("mu_arp_deg", "mu_rest_gate")
