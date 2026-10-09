@@ -77,7 +77,7 @@ check(not bad, "patch loads with no Pd errors" + (": %s" % bad if bad else ""))
 
 jp = java_params()
 patch_text = open(PATCH).read()
-receivers = set(re.findall(r"#X obj \d+ \d+ r (\w+);", patch_text)) - {"step", "scale_n", "pad_glide", "mic_level", "pad_slot", "pool_n", "pool_x", "pocket", "pocket_down", "duck"}   # events and internal links, not settings
+receivers = set(re.findall(r"#X obj \d+ \d+ r (\w+);", patch_text)) - {"step", "scale_n", "pad_glide", "mic_level", "pad_slot", "pool_n", "pool_x", "pocket", "pocket_down", "duck"} - {r for r in re.findall(r"#X obj \d+ \d+ r (sw_\w+);", open(PATCH).read())}   # events and internal links, not settings
 pd_ids = {i for i, _, nopd in jp if not nopd}
 check(len(jp) >= 10, "parsed %d params from Params.java" % len(jp))
 check(pd_ids == receivers, "Params.java ids == patch receivers (java-only %s, patch-only %s)"
@@ -958,6 +958,27 @@ check(still and 0.3 < still[0] < 0.36,
 check(None not in off and any(abs(t - 2.75) < 0.006 for t in walk_t) and 4.5 in walk_t and not any(4.35 < t < 4.5 for t in walk_t),
       "music: walking, chimes fall on steps or half-steps (%d notes; clap at 2.58 s chimed at %s, clap at 4.35 s waited for the 4.5 s step)"
       % (len(walk_t), [round(t, 3) for t in walk_t if 2.5 < t < 3.0]))
+
+# switchable blocks: a block whose level is 0 stops its DSP (after its fade), comes back at once when needed,
+# and switching it on doesn't click
+SWITCHED = {"reverb": ("reverb_mix", 0.5), "pitch": ("pitch_mix", 0.5), "chorus": ("chorus_mix", 0.5),
+            "flanger": ("flange_mix", 0.5), "phaser": ("phaser_mix", 0.5), "reverse": ("rvs_mix", 0.5),
+            "roomnotes": ("music_res", 0.8), "music": ("music_on", 1)}
+bad_sw = []
+for g, (k, v) in SWITCHED.items():
+    over = {"music_on": 1, "music_res": 0} if g == "roomnotes" else {}
+    e = fresh(**over); e.listen("sw_" + g)
+    e.run(sine(440, 0.1, 4.0))
+    off_at_rest = e.heard["sw_" + g][-1:] in ([], [0])   # it may have switched off before listening began
+    e.send(k, v); y = e.run(sine(440, 0.1, 0.5))[:, 0]
+    on_now = e.heard["sw_" + g][-1:] == [1]
+    jump = np.max(np.abs(np.diff(y)))
+    e.send(k, 0); e.run(sine(440, 0.1, 4.0))
+    off_again = e.heard["sw_" + g][-1:] == [0]
+    if not (off_at_rest and on_now and off_again and jump < 0.08):
+        bad_sw.append((g, off_at_rest, on_now, off_again, round(float(jump), 3)))
+check(not bad_sw, "switchable blocks: off at level 0, on at once, off again after the fade, no click (%s)"
+      % (bad_sw or ", ".join(SWITCHED)))
 
 # duck: while another app plays, the app's whole output dips a little, smoothly, and comes back
 e = fresh(wet=0, dry=1); e.run(sine(440, 0.1, 0.5))

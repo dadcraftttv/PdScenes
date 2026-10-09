@@ -8,6 +8,7 @@ graph from named nodes instead, so adding an effect is a few lines. Run from any
     python3 tools/make_patch.py
 """
 import os
+import re
 
 BS = chr(92)  # a literal backslash; Pd writes escaped semicolons as "\;"
 OUT = os.path.join(os.path.dirname(__file__), "..", "app", "src", "main", "assets",
@@ -139,6 +140,7 @@ EAR_BASE_MS = 1.5
 class Patch:
     def __init__(self):
         self.lines, self.index, self.conns = [], {}, []
+        self.groups = []
 
     def _add(self, name, line):
         assert name not in self.index, "duplicate node " + name
@@ -162,11 +164,152 @@ class Patch:
         self.c(b, name, 0, 1)
         return name
 
+    # ---- switchable blocks ----
+    # A block's objects go into a subpatch with [switch~], so its DSP costs nothing while it can't be heard
+    # (Pd runs every signal object all the time otherwise: measured on the phone, the patch took about half
+    # a core). Membership is by node name; connections that cross the boundary get inlets/outlets added
+    # automatically, signal or control after the source object. A switched-off subpatch outputs silence and
+    # its delay lines come back empty, so nothing stale is heard when it switches on again.
+    # self.groups: (group name, compiled regex); first match wins
+
+    # objects whose name ends in ~ but whose outlets carry messages
+    CONTROL_TILDE = {"snapshot~", "env~", "samplerate~", "threshold~", "bonk~", "fiddle~", "sigmund~"}
+
+    def group(self, gname, pattern):
+        self.groups.append((gname, re.compile(pattern)))
+
+    def _group_of(self, name):
+        if name.startswith("grp_"):
+            return name.split("_")[1]
+        for g, rx in self.groups:
+            if rx.match(name):
+                return g
+        return None
+
+    def _is_signal(self, name, outlet):
+        words = self.lines[self.index[name]].rstrip(";").split()
+        if words[1] != "obj" or len(words) < 5:
+            return False
+        cls = words[4]
+        return cls.endswith("~") and cls not in self.CONTROL_TILDE
+
     def text(self):
-        out = ["#N canvas 0 0 900 900 12;"] + self.lines
+        names = sorted(self.index, key=self.index.get)
+        member = {n: self._group_of(n) for n in names}
+        used = sorted({g for g in member.values() if g}, key=lambda g: min(self.index[n] for n in names if member[n] == g))
+        # inlets/outlets per group: one per (source node, outlet)
+        ins = {g: [] for g in used}
+        outs = {g: [] for g in used}
         for a, o, b, i in self.conns:
-            out.append(f"#X connect {self.index[a]} {o} {self.index[b]} {i};")
+            ga, gb = member[a], member[b]
+            if ga != gb:
+                if ga and (a, o) not in outs[ga]:
+                    outs[ga].append((a, o))
+                if gb and (a, o) not in ins[gb]:
+                    ins[gb].append((a, o))
+        # parent indices: top-level objects in order, each group at its first member's position
+        parent, local, seen = {}, {}, set()
+        order = []
+        for n in names:
+            g = member[n]
+            if g is None:
+                parent[n] = len(order); order.append(("obj", n))
+            elif g not in seen:
+                seen.add(g); parent["grp:" + g] = len(order); order.append(("grp", g))
+        out = ["#N canvas 0 0 900 900 12;"]
+        for kind, x in order:
+            if kind == "obj":
+                out.append(self.lines[self.index[x]])
+                continue
+            g = x
+            mem = [n for n in names if member[n] == g]
+            body = [self.lines[self.index[n]] for n in mem]
+            for k, n in enumerate(mem):
+                local[(g, n)] = k
+            for k, (a, o) in enumerate(ins[g]):
+                local[(g, "in", a, o)] = len(body)
+                body.append(f"#X obj {10 + 80 * k} 0 {'inlet~' if self._is_signal(a, o) else 'inlet'};")
+            for k, (a, o) in enumerate(outs[g]):
+                local[(g, "out", a, o)] = len(body)
+                body.append(f"#X obj {10 + 80 * k} 2000 {'outlet~' if self._is_signal(a, o) else 'outlet'};")
+            conns = []
+            for a, o, b, i in self.conns:
+                ga, gb = member[a], member[b]
+                src = local[(g, a)] if ga == g else (local[(g, "in", a, o)] if gb == g else None)
+                if ga == g and gb == g:
+                    conns.append(f"#X connect {local[(g, a)]} {o} {local[(g, b)]} {i};")
+                elif gb == g:
+                    conns.append(f"#X connect {local[(g, 'in', a, o)]} 0 {local[(g, b)]} {i};")
+                elif ga == g:
+                    key = (g, "out", a, o)
+                    line = f"#X connect {local[(g, a)]} {o} {local[key]} 0;"
+                    if line not in conns:
+                        conns.append(line)
+            out.append(f"#N canvas 0 0 900 900 {g} 0;")
+            out += body + conns
+            out.append(f"#X restore {200 + 100 * used.index(g)} 2200 pd {g};")
+        made = set()
+        for a, o, b, i in self.conns:
+            ga, gb = member[a], member[b]
+            if ga == gb is None:
+                out.append(f"#X connect {parent[a]} {o} {parent[b]} {i};")
+                continue
+            if ga == gb:
+                continue
+            if ga:   # leaves group ga through its outlet for (a, o)
+                src, so = parent["grp:" + ga], outs[ga].index((a, o))
+            else:
+                src, so = parent[a], o
+            if gb:
+                dst, di = parent["grp:" + gb], ins[gb].index((a, o))
+            else:
+                dst, di = parent[b], i
+            line = f"#X connect {src} {so} {dst} {di};"
+            if line not in made:   # one cable per inlet; the subpatch fans out inside
+                made.add(line)
+                out.append(line)
         return "\n".join(out) + "\n"
+
+
+def add_switch(P, g, factors, tail_ms, also=()):
+    """Switches block g's DSP on while the product of the receivers `factors` is above 0, and off again
+    3 x smoothing + tail_ms after it drops to 0 (so fades and ring-outs finish first). `also` are nodes
+    that get the same 0/1 (e.g. a metro that only feeds the block)."""
+    x, y = 4600 + 160 * len(P.groups), 1600
+    n = f"gate_{g}"
+    terms = "*".join(f"$f{k + 1}" for k in range(len(factors)))
+    P.obj(f"{n}_calc", ("expr (" + terms + ")>0").replace("$", BS + "$"), x, y + 120)
+    P.obj(f"{n}_s0", "f", x, y + 90)
+    P.c(f"{n}_s0", f"{n}_calc")
+    for k, rcv in enumerate(factors):
+        P.obj(f"{n}_r{k}", f"r {rcv}", x + 40 * k, y)
+        P.obj(f"{n}_t{k}", "t b f", x + 40 * k, y + 30)
+        P.c(f"{n}_r{k}", f"{n}_t{k}")
+        if k == 0:
+            P.c(f"{n}_t{k}", f"{n}_s0", 1, 1)
+        else:
+            P.c(f"{n}_t{k}", f"{n}_calc", 1, k)
+        P.c(f"{n}_t{k}", f"{n}_s0", 0, 0)
+    P.obj(f"{n}_chg", "change -1", x, y + 150)                  # the first answer always goes out
+    P.obj(f"{n}_sel", "sel 0", x, y + 180)
+    P.obj(f"{n}_del", "del 1000", x, y + 240)
+    P.obj(f"{n}_on", "t b b", x + 60, y + 210)
+    P.msg(f"{n}_stop", "stop", x + 60, y + 240)
+    P.msg(f"{n}_one", "1", x + 110, y + 240)
+    P.msg(f"{n}_zero", "0", x, y + 270)
+    P.obj(f"{n}_s", f"s sw_{g}", x, y + 300)
+    P.c(f"{n}_calc", f"{n}_chg"); P.c(f"{n}_chg", f"{n}_sel")
+    P.c(f"{n}_sel", f"{n}_del", 0, 0); P.c(f"{n}_del", f"{n}_zero"); P.c(f"{n}_zero", f"{n}_s")
+    P.c(f"{n}_sel", f"{n}_on", 1, 0); P.c(f"{n}_on", f"{n}_stop", 1, 0); P.c(f"{n}_stop", f"{n}_del")
+    P.c(f"{n}_on", f"{n}_one", 0, 0); P.c(f"{n}_one", f"{n}_s")
+    P.obj(f"{n}_wait", ("expr 3*$f1+" + str(tail_ms)).replace("$", BS + "$"), x + 120, y + 180)
+    P.c("r_smooth", f"{n}_wait"); P.c(f"{n}_wait", f"{n}_del", 0, 1)
+    # inside the block
+    P.obj(f"grp_{g}_r", f"r sw_{g}", 10, 10)
+    P.obj(f"grp_{g}_sw", "switch~", 10, 40)
+    P.c(f"grp_{g}_r", f"grp_{g}_sw")
+    for node in also:
+        P.c(f"grp_{g}_r", node)
 
 
 def smoothed(P, key, recv, x, y, ramp=30, mult=None):
@@ -1511,6 +1654,24 @@ def build():
     P.obj("dac", "dac~ 1 2", 1400, 430)
     P.c("limit_l", "dac", 0, 0)
     P.c("limit_r", "dac", 0, 1)
+
+    # --- switchable blocks: each one's DSP stops while it can't be heard ---
+    P.group("reverb", r"^(c[lr]\d+_|c[lr]_acc\d|a[lr]\d_|rev_in$|rev_[lr]$|pk_rfb$|ln_rfb$|pk_rin$|ln_rin$)")
+    add_switch(P, "reverb", ("reverb_on", "reverb_mix"), 300)
+    P.group("pitch", r"^(rate_hz|ph1|ph2|ph2_off|delwrite_p|tap[12]_\w+|rd[12]|cos[12]|cos[12]_neg|win[12]|grain[12]|shifted)$")
+    add_switch(P, "pitch", ("pitch_on", "pitch_mix"), 300)
+    P.group("chorus", r"^(chorus_wr|chorus_ph|ch[01]_\w+|ch_sum|ch_wet)$")
+    add_switch(P, "chorus", ("chorus_on", "chorus_mix"), 300)
+    P.group("flanger", r"^(fl_wr|fl_ph|fl_cos|fl_half|fl_unit|fl_sweep|fl_ms|fl_rd|fl_fb_sig|fl_in|fl_wet)$")
+    add_switch(P, "flanger", ("flange_on", "flange_mix"), 300)
+    P.group("phaser", r"^(ph_start|ph_clock|ph_snap|ph_osc|ph_sweep|ph_sr_start|ph_sr|ph_fb_rd|ph_fb_sig|ph_coef\d|ph_pack\d|ph_ap\d|ph_in|ph_fb_wr)$")
+    add_switch(P, "phaser", ("phaser_on", "phaser_mix"), 300, also=("ph_clock",))   # the 4 ms clock stops too
+    P.group("reverse", r"^(rvs_ph1|rvs_ph2_off|rvs_ph2|rvs_wr|rvs_tap\d_\w+|rvs_rd\d|rvs_cos\d\w*|rvs_win\d|rvs_grain\d|rvs_sound)$")
+    add_switch(P, "reverse", ("rvs_on", "rvs_mix"), 300)
+    P.group("roomnotes", r"^rn\d*_")
+    add_switch(P, "roomnotes", ("music_on", "music_res"), 2500)       # rings run up to ~2 s
+    P.group("music", r"^(mu_|ba_)")
+    add_switch(P, "music", ("music_on",), 3000)                       # chimes fade over up to 2.6 s
 
     # --- defaults on load (desktop Pd / standalone) ---
     P.obj("loadbang", "loadbang", 20, 780)
