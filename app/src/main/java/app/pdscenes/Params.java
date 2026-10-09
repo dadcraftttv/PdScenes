@@ -28,24 +28,25 @@ final class Params {
         }
     }
 
+    /** Input & output and Music start open; the rest start folded so a first look isn't a wall of sliders. */
     static final List<Section> SECTIONS = Collections.unmodifiableList(Arrays.asList(
             new Section("main", "Input & output", true),
-            new Section("beat", "Walking beat", true),
+            new Section("beat", "Walking beat", false),
             new Section("music", "Music", true),
-            new Section("echo", "Echo", true),
-            new Section("ring", "Ring modulator", true),
-            new Section("pitch", "Pitch shifter", true),
-            new Section("crush", "Bit crusher", true),
-            new Section("dist", "Distortion", true),
-            new Section("filter", "Filter", true),
-            new Section("chorus", "Chorus", true),
-            new Section("flange", "Flanger", true),
-            new Section("phaser", "Phaser", true),
-            new Section("tremolo", "Tremolo", true),
-            new Section("reverse", "Reverse echo", true),
-            new Section("glitch", "Glitch / freeze", true),
-            new Section("reverb", "Reverb", true),
-            new Section("space", "Spatial", true),
+            new Section("echo", "Echo", false),
+            new Section("ring", "Ring modulator", false),
+            new Section("pitch", "Pitch shifter", false),
+            new Section("crush", "Bit crusher", false),
+            new Section("dist", "Distortion", false),
+            new Section("filter", "Filter", false),
+            new Section("chorus", "Chorus", false),
+            new Section("flange", "Flanger", false),
+            new Section("phaser", "Phaser", false),
+            new Section("tremolo", "Tremolo", false),
+            new Section("reverse", "Reverse echo", false),
+            new Section("glitch", "Glitch / freeze", false),
+            new Section("reverb", "Reverb", false),
+            new Section("space", "Spatial", false),
             new Section("behavior", "Behavior", false)
     ));
 

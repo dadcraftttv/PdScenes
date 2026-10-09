@@ -54,7 +54,7 @@ Suggested order is the numbering. Each one needs a test in `tools/test_patch.py`
       Effects at 0 or off cost the same as on. Wrap effects and music voices in `switch~` subpatches (reverb and pitch
       shifter first) via a helper in make_patch.py, with tests that an off effect is unchanged and toggling doesn't click.
       Try the accelerometer at 100 Hz instead of 200 Hz if the beat still lands.
-    - *UI*: a "why this world" status line (`Worlds.hearing()`), Start/Stop and status pinned (sticky), effect sections
+    - *UI* (BUILT 2026-10-09: why-line, pinned bar, folded sections, hold, snapshot): a "why this world" status line (`Worlds.hearing()`), Start/Stop and status pinned (sticky), effect sections
       collapsed by default, a mover indicator on moving sliders, a "hold this world" control, a one-tap snapshot preset
       (time-stamped, name later), an optional quiet earcon on world change, SeekBar content descriptions, the Bluetooth
       hint on the input picker, a short first-run flow, later a simple "walk mode" screen.

@@ -77,6 +77,13 @@ public class W {
     check(ParamStore.get("echo_movers")==ParamStore.get("echo_movers")&&ParamStore.get(Params.moversSwitchId("space"))==1f,"world's movers switched on");
     check(notes[0]>=2,"screen was told about the change and the fade: "+notes[0]);
     // fade is gradual
+    // hold: the world stays while the room changes, and follows the room again once let go
+    Worlds.setHeld(true); for(int i=0;i<400;i++) Worlds.tick(0.033,-60f,true,12*60);
+    check("tranquil".equals(Worlds.currentWorld())&&Worlds.isHeld(),"held: tranquil stays while walking ("+Worlds.currentWorld()+")");
+    Worlds.setHeld(false); for(int i=0;i<100;i++) Worlds.tick(0.033,-60f,true,12*60);
+    check("kinetic".equals(Worlds.currentWorld()),"let go: walking picks kinetic ("+Worlds.currentWorld()+")");
+    Worlds.setHeld(true); Worlds.reset(); check(!Worlds.isHeld(),"a stop lets go of the hold");
+    Worlds.setEnabled(true); for(int i=0;i<400;i++) Worlds.tick(0.033,-60f,false,12*60);
     Worlds.setEnabled(false); for(int i=0;i<200;i++) Worlds.tick(0.033,-60f,false,12*60);
     check(Math.abs(ParamStore.get("wet")-0.2f)<1e-3&&ParamStore.get("reverb_mix")==0f&&Worlds.currentWorld()==null,"switching auto worlds off fades the user's settings back");
     Worlds.setEnabled(true); Worlds.reset();

@@ -65,6 +65,8 @@ final class Worlds {
     private static double ramp = 1;                 // 0..1; 1 = not fading
     private static double sinceNotify;
     private static Runnable listener;
+    /** While held, the world playing now stays (doorways and shops flip light and loudness every few seconds). */
+    private static boolean held;
 
     private Worlds() { }
 
@@ -134,6 +136,33 @@ final class Worlds {
         return selector.describe();
     }
 
+    static boolean isHeld() {
+        return held;
+    }
+
+    /** Hold the current world (or the user's own settings) until released. Only for this run of the engine. */
+    static void setHeld(boolean on) {
+        held = on;
+        notifyListener();
+    }
+
+    /** The room as the automatic choice judges it: level (dB) and whether it counts as quiet, loud, lively. */
+    static float roomLevelDb() {
+        return selector.levelDb();
+    }
+
+    static boolean roomQuiet() {
+        return selector.isQuiet();
+    }
+
+    static boolean roomLoud() {
+        return selector.isLoud();
+    }
+
+    static boolean roomLively() {
+        return selector.isLively();
+    }
+
     /** The world playing now, or null. */
     static String currentWorld() {
         return current;
@@ -160,6 +189,7 @@ final class Worlds {
         from = null;
         to = null;
         current = null;
+        held = false;
         ramp = 1;
         selector.reset();
         notifyListener();
@@ -171,7 +201,9 @@ final class Worlds {
     }
 
     static void tick(double dt, float micLevelDb, boolean walking, boolean inPocket, int minuteOfDay) {
-        if (enabled) {
+        if (enabled && held) {
+            selector.update(dt, micLevelDb, walking, inPocket, minuteOfDay, allowed);   // keep listening, change nothing
+        } else if (enabled) {
             String next = selector.update(dt, micLevelDb, walking, inPocket, minuteOfDay, allowed);
             if (!equal(next, current)) {
                 switchTo(next);

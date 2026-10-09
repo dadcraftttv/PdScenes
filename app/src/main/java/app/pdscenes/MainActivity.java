@@ -61,6 +61,19 @@ public class MainActivity extends Activity {
     private AudioManager audioManager;
 
     private TextView status;
+    /** The bar pinned to the bottom: what is playing and why, Start/Stop, hold the world, save this sound. */
+    private TextView nowLine;
+    private Button holdButton;
+    private Button snapButton;
+    private final android.os.Handler uiHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private static final long NOW_LINE_MS = 1000;
+    private final Runnable nowLineTick = new Runnable() {
+        @Override
+        public void run() {
+            updateNowLine();
+            uiHandler.postDelayed(this, NOW_LINE_MS);
+        }
+    };
     private TextView warning;
     private Button startStop;
     private Button undoButton;
@@ -179,17 +192,23 @@ public class MainActivity extends Activity {
         SceneLibrary.installBuiltIns(this, SceneSettings.scenesDir(this));
         audioManager = getSystemService(AudioManager.class);
 
+        // The settings scroll; the bar with Start/Stop stays at the bottom, in reach of a thumb while walking.
+        LinearLayout screen = new LinearLayout(this);
+        screen.setOrientation(LinearLayout.VERTICAL);
         ScrollView scroll = new ScrollView(this);
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         int pad = dp(16);
         root.setPadding(pad, pad, pad, pad);
         scroll.addView(root);
-        setContentView(scroll);
+        screen.addView(scroll, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
+        screen.addView(buildBottomBar(), new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        setContentView(screen);
 
         // Targeting Android 15+ draws edge-to-edge; keep content clear of the system bars.
         if (Build.VERSION.SDK_INT >= 30) {
-            scroll.setOnApplyWindowInsetsListener((v, insets) -> {
+            screen.setOnApplyWindowInsetsListener((v, insets) -> {
                 android.graphics.Insets bars = insets.getInsets(WindowInsets.Type.systemBars());
                 v.setPadding(bars.left, bars.top, bars.right, bars.bottom);
                 return WindowInsets.CONSUMED;
@@ -202,21 +221,11 @@ public class MainActivity extends Activity {
         title.setTypeface(Typeface.DEFAULT_BOLD);
         root.addView(title);
 
-        status = new TextView(this);
-        status.setTextSize(16);
-        status.setPadding(0, dp(8), 0, dp(8));
-        root.addView(status);
-
         warning = new TextView(this);
         warning.setTextSize(14);
         warning.setTextColor(UiSettings.isLight(theme) ? 0xFFB00020 : 0xFFFF6E6E);
         warning.setText(R.string.no_headphones_warning);
         root.addView(warning);
-
-        startStop = new Button(this);
-        startStop.setOnClickListener(v -> onStartStop());
-        root.addView(startStop, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
 
         sceneLabel = new TextView(this);
         sceneLabel.setTextSize(16);
@@ -304,6 +313,95 @@ public class MainActivity extends Activity {
         updateSceneUi();
     }
 
+    private View buildBottomBar() {
+        LinearLayout bar = new LinearLayout(this);
+        bar.setOrientation(LinearLayout.VERTICAL);
+        bar.setPadding(dp(16), dp(6), dp(16), dp(6));
+        TypedValue bg = new TypedValue();
+        getTheme().resolveAttribute(android.R.attr.colorBackground, bg, true);
+        bar.setBackgroundColor(bg.data);
+        bar.setElevation(dp(8));
+
+        status = new TextView(this);
+        status.setTextSize(14);
+        bar.addView(status);
+        nowLine = new TextView(this);
+        nowLine.setTextSize(14);
+        nowLine.setTypeface(Typeface.DEFAULT_BOLD);
+        nowLine.setPadding(0, dp(2), 0, 0);
+        bar.addView(nowLine);
+
+        LinearLayout row = newButtonRow(bar);
+        startStop = new Button(this);
+        startStop.setAllCaps(false);
+        startStop.setOnClickListener(v -> onStartStop());
+        row.addView(startStop, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.4f));
+        holdButton = addButton(row, R.string.hold_world, () -> {
+            Worlds.setHeld(!Worlds.isHeld());
+            updateNowLine();
+        });
+        snapButton = addButton(row, R.string.snapshot, this::saveSnapshot);
+        return bar;
+    }
+
+    /** One line: the world playing now and, in a few words, why. Refreshed once a second while visible. */
+    private void updateNowLine() {
+        boolean builtIn = AudioService.isRunning() && SceneSettings.current(this) == null;
+        boolean worlds = builtIn && Worlds.isEnabled();
+        holdButton.setVisibility(worlds ? View.VISIBLE : View.GONE);
+        holdButton.setText(Worlds.isHeld() ? R.string.holding_world : R.string.hold_world);
+        snapButton.setVisibility(SceneSettings.current(this) == null ? View.VISIBLE : View.GONE);
+        if (!worlds) {
+            nowLine.setVisibility(View.GONE);
+            return;
+        }
+        nowLine.setVisibility(View.VISIBLE);
+        String id = Worlds.currentWorld();
+        String name = getString(R.string.worlds_yours);
+        for (Worlds.World w : Worlds.ALL) {
+            if (w.id.equals(id)) {
+                name = w.title;
+            }
+        }
+        List<String> why = new ArrayList<>();
+        int minute = Worlds.minuteOfDayNow();
+        if (minute >= WorldSelector.NIGHT_START_MINUTE && minute < WorldSelector.NIGHT_END_MINUTE) {
+            why.add(getString(R.string.why_night));
+        }
+        if (StepDetector.walking(android.os.SystemClock.elapsedRealtimeNanos() / 1e9)) {
+            why.add(getString(R.string.why_walking));
+        }
+        if (PhoneContext.inPocket()) {
+            why.add(getString(R.string.why_pocket));
+        }
+        int room = Worlds.roomQuiet() ? R.string.why_room_quiet
+                : Worlds.roomLoud() ? (Worlds.roomLively() ? R.string.why_room_lively : R.string.why_room_steady)
+                : R.string.why_room_middle;
+        why.add(getString(room, Math.round(Worlds.roomLevelDb())));
+        String line = getString(R.string.now_line, name, String.join(" \u00b7 ", why));
+        if (Worlds.isHeld()) {
+            line = getString(R.string.now_line_held, line);
+        }
+        nowLine.setText(line);
+    }
+
+    /** Saves the sound playing right now as a preset named after the time, to rename later if wanted. */
+    private void saveSnapshot() {
+        String base = new java.text.SimpleDateFormat("EEE H-mm", java.util.Locale.getDefault()).format(new java.util.Date());
+        List<String> taken = PresetManager.userNames(this);
+        String name = base;
+        for (int n = 2; taken.contains(name); n++) {
+            name = base + " " + n;
+        }
+        try {
+            String used = PresetManager.save(this, name, ParamStore.snapshot());
+            toast(R.string.toast_saved, used);
+            refreshWorldRows();
+        } catch (IOException e) {
+            toast(R.string.toast_save_failed, e.getMessage());
+        }
+    }
+
     @Override
     protected void onResume() {
         super.onResume();
@@ -316,6 +414,7 @@ public class MainActivity extends Activity {
         });
         refreshWorldRows();
         updateWorldStatus();
+        uiHandler.post(nowLineTick);
         audioManager.registerAudioDeviceCallback(deviceCallback, null);
         refreshDevicePickers();
         updateUi();
@@ -325,6 +424,7 @@ public class MainActivity extends Activity {
     protected void onPause() {
         AudioService.setStateListener(null);
         Worlds.setListener(null);
+        uiHandler.removeCallbacks(nowLineTick);
         audioManager.unregisterAudioDeviceCallback(deviceCallback);
         ParamStore.save(this);
         super.onPause();
@@ -392,6 +492,7 @@ public class MainActivity extends Activity {
             showSectionState(header, body, title, nowOpen);
             if (nowOpen) {
                 show.run();
+                refreshRows();   // rows skipped while folded catch up
             }
         });
 
@@ -816,6 +917,10 @@ public class MainActivity extends Activity {
     /** Pull current values from the store into every control. */
     private void refreshRows() {
         for (Row r : rows) {
+            View shown = r.slider != null ? r.slider : r.switchView != null ? r.switchView : r.spinner;
+            if (shown != null && !shown.isShown()) {
+                continue;   // folded away: refreshed when its section opens (saves work while worlds fade)
+            }
             float v = ParamStore.get(r.param.id);
             if (r.switchView != null) {
                 r.switchView.setChecked(v >= 0.5f);
@@ -1253,6 +1358,7 @@ public class MainActivity extends Activity {
                     : hz > 0 ? getString(R.string.status_running_rate, hz) : getString(R.string.status_running));
         }
         warning.setVisibility(headphonesConnected() ? View.GONE : View.VISIBLE);
+        updateNowLine();
     }
 
     private boolean headphonesConnected() {

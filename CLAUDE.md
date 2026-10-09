@@ -99,6 +99,11 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   and back in (no slides); each footstep ducks it 60% while the walking beat is audible. It rides the pad level/swell.
   Music joins after the filter, so chorus/flanger/phaser/tremolo/reverse/glitch/echo/reverb/spatial shape it; pitch/ring/crush/dist/filter do not.
   It follows the Dry level. Only the real room tells us if the tuning is right — expect further tweaks from Samuel's reports.
+- **Screen:** a bar pinned to the bottom (thumb reach while walking) holds the status, a "Now: <world> · why" line
+  (night/walking/pocket/room words from `Worlds.room*()`, refreshed 1/s while visible), Start/Stop, Hold world
+  (`Worlds.setHeld`: the selector keeps listening but nothing changes; a stop lets go) and Save sound (a preset named
+  like "Thu 8-12" from the live values). Only Input & output and Music start unfolded. `refreshRows` skips rows in
+  folded sections (they catch up when opened).
 - **Reset everything button:** `ParamStore.resetAll` + `Worlds.resetSettings` + `AudioSettings.reset` + `SceneSettings.resetAll`, only after confirmation.
   Keeps saved presets, imported scenes and appearance (and brings back any deleted built-in scene). Nothing may ever reset settings except that button.
 - **Calls and other audio** (Samuel's rule): the app never requests audio focus (Start must not pause the user's music).

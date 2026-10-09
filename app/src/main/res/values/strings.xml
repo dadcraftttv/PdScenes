@@ -7,6 +7,18 @@
     <string name="status_running">Running: speak, clap, walk around, do some stuff.</string>
     <string name="status_running_rate">Running at %1$d Hz: speak, clap, walk around, do some stuff.</string>
     <string name="status_stopped">Stopped.</string>
+    <string name="hold_world">Hold world</string>
+    <string name="holding_world">Let go</string>
+    <string name="snapshot">Save sound</string>
+    <string name="now_line">Now: %1$s \u00b7 %2$s</string>
+    <string name="now_line_held">%s (held)</string>
+    <string name="why_night">night</string>
+    <string name="why_walking">walking</string>
+    <string name="why_pocket">in a pocket</string>
+    <string name="why_room_quiet">quiet room (%d dB)</string>
+    <string name="why_room_lively">loud, lively room (%d dB)</string>
+    <string name="why_room_steady">loud but steady room (%d dB)</string>
+    <string name="why_room_middle">ordinary room (%d dB)</string>
     <string name="status_call">Paused during the phone call. It plays again when the call ends.</string>
     <string name="mic_permission_required">Microphone permission is required.</string>
     <string name="no_headphones_warning">No headphones detected. Using the speaker will cause feedback. Plug in or connect headphones first.</string>
@@ -86,6 +98,7 @@
     <string name="export_title">Name this preset</string>
     <string name="toast_exported">Exported</string>
     <string name="toast_read_failed">Could not read preset \"%s\"</string>
+    <string name="toast_save_failed">Could not save: %s</string>
     <string name="toast_export_failed">Export failed: %s</string>
     <string name="toast_import_failed">Import failed: %s</string>
     <string name="err_open_file">Could not open the file</string>

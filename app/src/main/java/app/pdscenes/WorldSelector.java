@@ -166,6 +166,22 @@ final class WorldSelector {
         }
     }
 
+    float levelDb() {
+        return level;
+    }
+
+    boolean isLoud() {
+        return loud;
+    }
+
+    boolean isQuiet() {
+        return quiet;
+    }
+
+    boolean isLively() {
+        return lively;
+    }
+
     /** What the selector is hearing, for the event log. */
     String describe() {
         return String.format(java.util.Locale.US, "level %.0f dB, floor %.0f dB, swing %.1f dB%s%s%s%s",
