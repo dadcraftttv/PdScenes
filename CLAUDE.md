@@ -108,12 +108,16 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   **Uneven walking** (Samuel: drums "get tripped up"): a bump sooner than 65% of the usual interval is skipped as extra
   (scuff, heel-toe, pocket knock), unless skipped bumps sat halfway (+-7%) between steps, which means the pace doubled.
   `beat_sure` (0.4..1, -0.3 per step >30% off, +0.15 per even step) softens the drums while the rhythm is uneven.
-  **Harmony** (`music_harm`, Music section, default 0.6, in presets; Pocket world 0): `sigmund~` tracks the (hushed) mic;
-  a pitch steady within 0.6 semitone for 12 frames (~130 ms) and 6 dB above the room's quiet (`mthr`) gets an answer:
-  folded into C4-C5, snapped to the scale (`pc_deg` table, written with the scale), 2 scale steps up, held while the
-  sound lasts (150 ms in, 1.8 s out), two voices taking turns. Only pitches C2-G#7 count (sigmund~ reads hiss as ~MIDI 123).
-  Notes go to `s harm_deg`; the "Hearing:" log line counts them. First phone try was too quiet: gain 0.22 -> 0.4.
-  Pd's console goes to logcat tag `Pd`. `HARM_DEBUG=1 python3 tools/make_patch.py` prints pitch/loudness 3x a second.
+  **Harmony** (`music_harm`, Music section, default 0.6, in presets; Pocket world 0; 0 = nothing answered): `sigmund~` tracks
+  the (hushed) mic; a pitch in C2-G#7 (sigmund~ reads hiss as ~MIDI 123), steady within 0.6 semitone for 12 frames (~130 ms;
+  up to 2 misread frames in a row are forgiven, only good frames set the pitch) and 6 dB above the room's quiet (`mthr`) gets
+  an answer from the pad's chord (`mchord`; chord notes = root, +2, +4 steps; heard pitch snapped via the `pc_deg` table):
+  the nearest chord note at least 2 steps above it plus an octave (below E5) or at least 2 steps below it minus an octave
+  (whistles, birds). Samuel asked for this so it never doubles his note (the first version folded into C4-C5 and blended).
+  Soft organ (1, 0.5, 0.3, 0.15 harmonics), held while the sound lasts (150 ms in, 1.8 s out), two voices taking turns.
+  Notes go to `s harm_deg`; the "Hearing:" log line counts them. Pd's console goes to logcat tag `Pd`;
+  `HARM_DEBUG=1 python3 tools/make_patch.py` prints pitch/loudness 3x a second (do not ship it).
+  Test harness: call `e.listen(...)` once with all names (a second call leaks the first binding into later engines).
   **Stop breath:** 1.2 s after the last step the pad+bass ease to 55% over 2.5 s, then return over 8 s (a step
   brings them back in 0.8 s); only steps start it.
   Music joins after the filter, so chorus/flanger/phaser/tremolo/reverse/glitch/echo/reverb/spatial shape it; pitch/ring/crush/dist/filter do not.

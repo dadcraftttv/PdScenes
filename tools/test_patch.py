@@ -1128,24 +1128,46 @@ def hum(freq, secs, amp=0.1, quiet=0.0005, seed=4):
     lead = rng.standard_normal(2 * SR) * quiet; tail = rng.standard_normal(3 * SR) * quiet
     return np.concatenate([lead, voice + rng.standard_normal(len(t)) * quiet, tail]).astype(np.float32)
 def harmony(x, **over):
-    """The harmony voice alone (the same input with it on, minus with it off; music follows the Dry level)."""
+    """The harmony voice alone (the same input with it on, minus with it off; music follows the Dry level), the
+    answered scale steps and the pad's chord root at the time."""
     base = dict(music_on=1, music_pad=0, music_arp=0, music_res=0, wet=0)
     base.update(over)
-    e = fresh(**dict(base, music_harm=1)); e.listen("harm_deg"); y = e.run(x)[:, 0]
-    return y - fresh(**dict(base, music_harm=0)).run(x)[:, 0], [int(v) for v in e.heard["harm_deg"]]
-y, degs = harmony(hum(220, 1.5))                               # A3, C major: the answer is C (a third above A)
-held = y[int(2.6 * SR):int(3.4 * SR)]
-check(degs == [14] and tone_level(held, 523.25) > 0.02 and tone_level(held, 523.25) > 4 * tone_level(held, 440),
-      "harmony: humming A in C major is answered with C above it (degrees %s, C %.4f, A %.4f)"
-      % (degs, tone_level(held, 523.25), tone_level(held, 440)))
+    e = fresh(**dict(base, music_harm=1)); e.listen("harm_deg", "pad_chord")
+    e.send("music_on", 1)                                        # (re)picks the chord, so the test hears which one
+    y = e.run(x)[:, 0]
+    chord = int(e.heard["pad_chord"][-1])
+    return y - fresh(**dict(base, music_harm=0)).run(x)[:, 0], [int(v) for v in e.heard["harm_deg"]], chord
+SCALE_IV = [(0, 2, 4, 5, 7, 9, 11), (0, 2, 3, 5, 7, 8, 10)]
+def step_hz(step, key=0, scale=0):
+    iv = SCALE_IV[scale]; n = len(iv)
+    return 440 * 2 ** ((48 + key + 12 * (step // n) + iv[step % n] - 69) / 12)
+def step_of(midi, key=0, scale=0):
+    iv = SCALE_IV[scale]; n = len(iv); rel = round(midi) - 48 - key
+    pc = rel % 12; best = min(range(n + 1), key=lambda i: (abs((list(iv) + [12])[i] - pc), i))
+    return (rel // 12) * n + best
+def is_chord_note(step, root, n=7):
+    return (step - root) % n in (0, 2, 4)
+y, degs, root = harmony(hum(220, 1.5))                         # A3 sung, C major
+d = step_of(57); held = y[int(2.6 * SR):int(3.4 * SR)]
+ok = len(degs) == 1 and is_chord_note(degs[0], root) and d + 7 + 2 <= degs[0] <= d + 7 + 4
+f = step_hz(degs[0]) if degs else 1
+check(ok and tone_level(held, f) > 0.05 and step_hz(degs[0]) > 2 * 220,
+      "harmony: a sung A gets a chord note (root step %d) a third or more above it, an octave up (step %s for %d, %.0f Hz, level %.4f)"
+      % (root, degs, d, f, tone_level(held, f)))
 check(rms(y[int(4.8 * SR):]) < 0.2 * rms(held), "harmony: the answer fades once the hum stops (%.4f)" % rms(y[int(4.8 * SR):]))
-_, degs_m = harmony(hum(220, 1.5), music_key=2, music_scale=1)   # D minor: A answered with C (third above, in key)
-check(degs_m == [13], "harmony: in D minor the answer to A is C (degree %s)" % degs_m)
+_, degs_w, root_w = harmony(hum(1568, 1.5, amp=0.05))         # a whistled G6: answered below
+dw = step_of(91)
+check(len(degs_w) == 1 and is_chord_note(degs_w[0], root_w) and dw - 7 - 4 <= degs_w[0] <= dw - 7 - 2,
+      "harmony: a whistle gets a chord note a third or more below it, an octave down (step %s for %d)" % (degs_w, dw))
+_, degs_m, root_m = harmony(hum(220, 1.5), music_key=2, music_scale=1)   # D minor
+dm = step_of(57, 2, 1)
+check(len(degs_m) == 1 and is_chord_note(degs_m[0], root_m) and dm + 9 <= degs_m[0] <= dm + 11,
+      "harmony: in D minor too (step %s for %d, chord root %d)" % (degs_m, dm, root_m))
 rng = np.random.default_rng(5)
 noise = np.concatenate([rng.standard_normal(2 * SR) * 0.0005, rng.standard_normal(2 * SR) * 0.1, rng.standard_normal(2 * SR) * 0.0005]).astype(np.float32)
-_, degs_n = harmony(noise)
-_, degs_b = harmony(hum(330, 0.08))
-_, degs_q = harmony(hum(220, 1.5, amp=0.0008))
+_, degs_n, _ = harmony(noise)
+_, degs_b, _ = harmony(hum(330, 0.08))
+_, degs_q, _ = harmony(hum(220, 1.5, amp=0.0008))
 check(not degs_n and not degs_b and not degs_q,
       "harmony: noise, a short blip and a hum lost in the room's quiet play nothing (%s %s %s)" % (degs_n, degs_b, degs_q))
 

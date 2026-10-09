@@ -120,8 +120,7 @@ GROOVE_FADE_IN_MS = 4000   # ...reached over this long
 HARM_STABLE_FRAMES = 12    # pitch frames (~11 ms each) the pitch must hold steady before it is answered
 HARM_STEADY_ST = 0.6       # frame to frame wobble allowed, in semitones (singing vibrato passes)
 HARM_ABOVE_DB = 6          # how far above the room's quiet the sound must be
-HARM_FOLD = (60, 72)       # what is heard is folded into this octave (C4-C5) before the answer is picked
-HARM_UP = 2                # the answer: this many scale steps above the heard note (a third in major/minor)
+HARM_HIGH = 76             # a pitch from E5 up (a whistle, a bird) is answered below it; lower ones (voices) above
 HARM_RANGE = (36, 104)     # heard pitches outside C2..G#7 are hiss or rumble, not a voice, whistle or bird
 HARM_ATTACK_MS = 150
 HARM_RELEASE_MS = 1800
@@ -1056,7 +1055,9 @@ def add_music(P):
 
 
 def add_harmony(P, hx, ex, degree_to_hz):
-    """Answers a held pitch with an in-key note a few scale steps above it, held as long as the sound is. Only a
+    """Answers a held pitch with a note of the pad's chord: the nearest chord note at least a third above it, an
+    octave up (a whistle or bird: the nearest a third below it, an octave down), so it is clearly a second voice and
+    never the note being sung. It is held as long as the sound is, in a soft organ tone. Only a
     pitch that stays steady for a moment, clearly above the room's quiet, counts, so noise and speech blips play
     nothing. Two voices take turns, so a new note never bends the one still fading. Returns the output signal."""
     P.sig2("mu_hm_src", "*~", "mic_gated", "ph_ln", hx, 20)          # quieter in a pocket, like the rest
@@ -1070,7 +1071,7 @@ def add_harmony(P, hx, ex, degree_to_hz):
     # Each pitch frame: steady (close to the frame before) and loud enough? Count the steady frames in a row.
     P.obj("mu_hm_p_t", "t f f", hx, 80)
     P.c("mu_hm_sig", "mu_hm_p_t", 0, 0)
-    ex("mu_hm_ok", f"($f1>{HARM_RANGE[0]})*($f1<{HARM_RANGE[1]})*(abs($f1-$f2)<{HARM_STEADY_ST})*($f3>{HARM_ABOVE_DB})", hx, 140)
+    ex("mu_hm_ok", f"($f1>{HARM_RANGE[0]})*($f1<{HARM_RANGE[1]})*(abs($f1-$f2)<{HARM_STEADY_ST})*($f3>{HARM_ABOVE_DB})*($f4>0)", hx, 140)
     P.c("mu_hm_p_t", "mu_hm_ok", 1, 0); P.c("mu_hm_p_t", "mu_hm_ok", 0, 1)   # right first: compare with the old pitch
     P.c("mu_hm_loud", "mu_hm_ok", 0, 2)
     if os.environ.get("HARM_DEBUG"):
@@ -1083,10 +1084,23 @@ def add_harmony(P, hx, ex, degree_to_hz):
         P.c("mu_hm_sig", "mu_hm_dbg_p", 0, 1); P.c("mu_hm_loud", "mu_hm_dbg_l", 0, 1); P.c("mu_hm_sig", "mu_hm_dbg_e", 1, 1)
         P.c("mu_hm_dbg_p", "mu_hm_dbg_pk", 0, 0); P.c("mu_hm_dbg_l", "mu_hm_dbg_pk", 0, 1); P.c("mu_hm_dbg_e", "mu_hm_dbg_pk", 0, 2)
         P.c("mu_hm_dbg_pk", "mu_hm_dbg_pr")
+        P.obj("mu_hm_dbg_s1", "s hm_cnt", hx + 700, 240); P.c("mu_hm_next", "mu_hm_dbg_s1")
+        P.obj("mu_hm_dbg_s2", "s hm_loud", hx + 700, 260); P.c("mu_hm_loud", "mu_hm_dbg_s2")
+        P.obj("mu_hm_dbg_s3", "s hm_p", hx + 700, 280); P.c("mu_hm_sig", "mu_hm_dbg_s3")
+    P.obj("mu_hm_r_lvl", "r music_harm", hx + 150, 110)                 # at 0 nothing is answered (the voice is silent)
+    P.c("mu_hm_r_lvl", "mu_hm_ok", 0, 3)
+    # The tracker misreads a frame now and then (an octave or a twelfth off): only three bad frames in a row end a note.
+    P.obj("mu_hm_okt", "t f b f", hx, 145)
+    ex("mu_hm_eff", "($f1+$f2+$f3)>0", hx + 60, 150)
+    P.obj("mu_hm_ok1", "f", hx + 120, 150)
+    P.c("mu_hm_ok", "mu_hm_okt"); P.c("mu_hm_okt", "mu_hm_eff", 2, 0); P.c("mu_hm_okt", "mu_hm_ok1", 1, 0)
+    P.c("mu_hm_ok1", "mu_hm_eff", 0, 2); P.c("mu_hm_okt", "mu_hm_ok1", 0, 1); P.c("mu_hm_okt", "mu_hm_eff", 0, 1)
+    P.obj("mu_hm_good", "spigot", hx + 100, 330)                        # only good frames set the pitch to answer
+    P.c("mu_hm_ok", "mu_hm_good", 0, 1)
     P.obj("mu_hm_ok_t", "t f b", hx, 155)                              # read the count, then add to it or clear it
     P.obj("mu_hm_cnt", "f", hx + 60, 170)
     ex("mu_hm_next", "$f1*($f2+1)", hx, 200)
-    P.c("mu_hm_ok", "mu_hm_ok_t"); P.c("mu_hm_ok_t", "mu_hm_cnt", 1, 0); P.c("mu_hm_cnt", "mu_hm_next", 0, 1)
+    P.c("mu_hm_eff", "mu_hm_ok_t"); P.c("mu_hm_ok_t", "mu_hm_cnt", 1, 0); P.c("mu_hm_cnt", "mu_hm_next", 0, 1)
     P.c("mu_hm_ok_t", "mu_hm_next", 0, 0)
     P.obj("mu_hm_cnt_t", "t f f", hx, 230)
     P.c("mu_hm_next", "mu_hm_cnt_t"); P.c("mu_hm_cnt_t", "mu_hm_cnt", 1, 1)
@@ -1095,25 +1109,37 @@ def add_harmony(P, hx, ex, degree_to_hz):
     P.obj("mu_hm_chg", "change", hx, 290)
     P.obj("mu_hm_sel", "sel 1 0", hx, 320)
     P.c("mu_hm_held", "mu_hm_chg"); P.c("mu_hm_chg", "mu_hm_sel")
-    # The answer: the heard pitch folded into one octave, snapped to the scale, a few steps up.
+    # The answer. First the heard pitch as a scale step (0 = the key note, n = an octave up), then the chord note.
     P.obj("mu_hm_pitch", "f", hx + 100, 350)
-    P.c("mu_hm_p_t", "mu_hm_pitch", 0, 1)
-    ex("mu_hm_fold", f"rint($f1-12*floor(($f1-{HARM_FOLD[0]})/12))", hx + 100, 380)
+    P.c("mu_hm_p_t", "mu_hm_good", 0, 0); P.c("mu_hm_good", "mu_hm_pitch", 0, 1)
     P.obj("mu_hm_root", "f 48", hx + 260, 350)
     P.c("mu_key_root", "mu_hm_root", 0, 1)
     P.obj("mu_hm_n", "value scale_n", hx + 360, 350)
-    P.obj("mu_hm_t", "t f b b", hx + 100, 400)
-    P.c("mu_hm_fold", "mu_hm_t"); P.c("mu_hm_t", "mu_hm_root", 2, 0); P.c("mu_hm_t", "mu_hm_n", 1, 0)
-    ex("mu_hm_deg", f"int(($f1-$f2)/12)*$f3+pc_deg[int($f1-$f2)%12]+{HARM_UP}", hx + 100, 430)
-    P.c("mu_hm_root", "mu_hm_deg", 0, 1); P.c("mu_hm_n", "mu_hm_deg", 0, 2); P.c("mu_hm_t", "mu_hm_deg", 0, 0)
-    deg_in, deg_hz = degree_to_hz("mu_hm_c", hx + 100, 460)
+    P.obj("mu_hm_n2", "value scale_n", hx + 420, 350)
+    P.obj("mu_hm_ch", "value mchord", hx + 480, 350)
+    P.obj("mu_hm_t", "t f f b b b b", hx + 100, 380)
+    P.c("mu_hm_pitch", "mu_hm_t")
+    P.c("mu_hm_t", "mu_hm_root", 5, 0); P.c("mu_hm_t", "mu_hm_n", 4, 0); P.c("mu_hm_t", "mu_hm_n2", 3, 0)
+    P.c("mu_hm_t", "mu_hm_ch", 2, 0)
+    rel = "(rint($f1)-$f2)"
+    ex("mu_hm_d", f"floor({rel}/12)*$f3+pc_deg[{rel}-12*floor({rel}/12)]", hx + 100, 410)
+    P.c("mu_hm_root", "mu_hm_d", 0, 1); P.c("mu_hm_n", "mu_hm_d", 0, 2); P.c("mu_hm_t", "mu_hm_d", 0, 0)
+    # chord notes are the chord root r and 2 and 4 steps up; $f1 = heard step d, $f2 = r, $f3 = n, $f4 = pitch
+    up = ("min(min($f2+$f3*ceil(($f1+2-$f2)/$f3),$f2+2+$f3*ceil(($f1-$f2)/$f3)),"
+          "$f2+4+$f3*ceil(($f1-2-$f2)/$f3))+$f3")
+    down = ("max(max($f2+$f3*floor(($f1-2-$f2)/$f3),$f2+2+$f3*floor(($f1-4-$f2)/$f3)),"
+            "$f2+4+$f3*floor(($f1-6-$f2)/$f3))-$f3")
+    ex("mu_hm_deg", f"if($f4<{HARM_HIGH},{up},{down})", hx + 100, 440)
+    P.c("mu_hm_ch", "mu_hm_deg", 0, 1); P.c("mu_hm_n2", "mu_hm_deg", 0, 2); P.c("mu_hm_t", "mu_hm_deg", 1, 3)
+    P.c("mu_hm_d", "mu_hm_deg", 0, 0)
+    deg_in, deg_hz = degree_to_hz("mu_hm_c", hx + 100, 470)
     P.c("mu_hm_deg", deg_in)
-    P.obj("mu_hm_degout", "s harm_deg", hx + 300, 470)
+    P.obj("mu_hm_degout", "s harm_deg", hx + 300, 480)
     P.c("mu_hm_deg", "mu_hm_degout")
     # Note on: frequency first, then pick the other voice and open it; note off closes the voice that is playing.
     P.obj("mu_hm_on", "t b b", hx, 350)
     P.c("mu_hm_sel", "mu_hm_on", 0, 0)
-    P.c("mu_hm_on", "mu_hm_pitch", 1, 0); P.c("mu_hm_pitch", "mu_hm_fold")
+    P.c("mu_hm_on", "mu_hm_pitch", 1, 0)
     P.obj("mu_hm_vc", "f", hx, 680)
     P.obj("mu_hm_flip", "== 0", hx + 60, 680)
     P.c("mu_hm_vc", "mu_hm_flip"); P.c("mu_hm_flip", "mu_hm_vc", 0, 1)
@@ -1140,13 +1166,18 @@ def add_harmony(P, hx, ex, degree_to_hz):
         P.obj(f"mu_hm{k}_t", "t b b", vx, 745)
         P.c("mu_hm_vsel", f"mu_hm{k}_t", k, 0)
         P.c(f"mu_hm{k}_t", f"mu_hm{k}_fr", 1, 0)
+        # A soft organ: the note plus its octave, twelfth and double octave, so it doesn't melt into a voice.
         P.obj(f"mu_hm{k}_o1", "osc~", vx, 790)
-        P.obj(f"mu_hm{k}_f2", "* 2", vx + 60, 775)
-        P.obj(f"mu_hm{k}_o2", "osc~", vx + 60, 790)
-        P.c(f"mu_hm{k}_fr", f"mu_hm{k}_o1"); P.c(f"mu_hm{k}_fr", f"mu_hm{k}_f2"); P.c(f"mu_hm{k}_f2", f"mu_hm{k}_o2")
-        P.obj(f"mu_hm{k}_g2", "*~ 0.35", vx + 60, 810)   # a little reedy, so it stands apart from the pad
-        P.c(f"mu_hm{k}_o2", f"mu_hm{k}_g2")
-        P.sig2(f"mu_hm{k}_s", "+~", f"mu_hm{k}_o1", f"mu_hm{k}_g2", vx, 830)
+        P.c(f"mu_hm{k}_fr", f"mu_hm{k}_o1")
+        acc_v = f"mu_hm{k}_o1"
+        for h, g in ((2, 0.5), (3, 0.3), (4, 0.15)):
+            P.obj(f"mu_hm{k}_f{h}", f"* {h}", vx + 40 * h, 775)
+            P.obj(f"mu_hm{k}_o{h}", "osc~", vx + 40 * h, 790)
+            P.obj(f"mu_hm{k}_g{h}", f"*~ {g}", vx + 40 * h, 810)
+            P.c(f"mu_hm{k}_fr", f"mu_hm{k}_f{h}"); P.c(f"mu_hm{k}_f{h}", f"mu_hm{k}_o{h}"); P.c(f"mu_hm{k}_o{h}", f"mu_hm{k}_g{h}")
+            acc_v = P.sig2(f"mu_hm{k}_a{h}", "+~", acc_v, f"mu_hm{k}_g{h}", vx, 815 + h)
+        P.obj(f"mu_hm{k}_s", "*~ 0.6", vx, 830)
+        P.c(acc_v, f"mu_hm{k}_s")
         P.msg(f"mu_hm{k}_atk", f"1 {HARM_ATTACK_MS}", vx, 850)
         P.msg(f"mu_hm{k}_rel", f"0 {HARM_RELEASE_MS}", vx + 80, 850)
         P.obj(f"mu_hm{k}_env", "vline~", vx, 870)
@@ -1157,7 +1188,7 @@ def add_harmony(P, hx, ex, degree_to_hz):
         P.c(f"mu_hm{k}_env", f"mu_hm{k}_sq", 0, 0); P.c(f"mu_hm{k}_env", f"mu_hm{k}_sq", 0, 1)   # eased in and out
         P.sig2(f"mu_hm{k}_out", "*~", f"mu_hm{k}_s", f"mu_hm{k}_sq", vx, 910)
         acc = f"mu_hm{k}_out" if acc is None else P.sig2("mu_hm_sum", "+~", acc, f"mu_hm{k}_out", vx, 930)
-    P.obj("mu_hm_lp", "lop~ 2500", hx, 950)
+    P.obj("mu_hm_lp", "lop~ 3500", hx, 950)
     P.c(acc, "mu_hm_lp")
     lvl = smoothed(P, "music_harm", "music_harm", hx + 300, 950)
     P.obj("mu_hm_gain", "*~ 0.4", hx, 970)
