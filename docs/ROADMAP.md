@@ -18,6 +18,13 @@ Suggested order is the numbering. Each one needs a test in `tools/test_patch.py`
    now has five 8-step patterns picked at random each bar, with rests (2026-10-08); still to do: tie the pattern to pace tiers. Stopping must still drop the drums immediately.
 5. **Unstable world.** Jolt-triggered stack of many ordinary effects on the mic at once (glitch, pitch shift, ring mod,
    crush, delay), glitchy by design. We have all the effects; it needs a trigger and a preset.
+5b. **Samuel's idea (Oct 9): "glitch cloud" — Ableton warp + the Glitch VST (v1.3).** Random bits of what the mic hears
+   are grabbed into a RAM-only ring buffer (never to disk) and played back around the listener: extreme time-stretch
+   (granular, like Ableton's warp pushed very far), tape stop (playback rate falling to 0), stutter/retrigger (a
+   slice repeated at step-synced divisions, getting shorter), reverse slices, pitch drops, scattered across the
+   stereo field so "the stuttering glitched sound echoes all around". Could tie to steps (stutters on the beat) and to
+   jolts (Unstable world, item 5) and share code with Ghost capture (3) and the Collective scratch (6). Today's
+   `glitch_hold`/`glitch_len` freeze is the only piece that exists.
 6. **Collective world.** Capture a buffer and "scratch" it back and forth like a turntablist. A new scratch effect.
 7. **Optional: "calm builds" mode.** Dimensions' Tranquil adds layers the longer you stay quiet and lets noise make the music
    shrink away. Opposite of the current behavior (quiet room = quiet notes), so only as an option, if Samuel wants it.
