@@ -394,13 +394,16 @@ def add_beat(P):
 
     # Hi-hat: bright noise, very short.
     # A harder step (step_strength, 0.5 = as usual) opens the hat: louder and longer. A soft step leaves it faint.
+    # step_strength comes with the step (it is the step before's); step_hit follows once this step's bump is over,
+    # before the hat plays, so the hat answers the stomp itself.
     P.obj("st_init", "loadbang", x + 1200, 20)
-    P.msg("st_init_msg", BS + "; step_strength 0.5", x + 1200, 50)
+    P.msg("st_init_msg", BS + "; step_strength 0.5 " + BS + "; beat_sure 1", x + 1200, 50)
     P.c("st_init", "st_init_msg")
     P.obj("h_r_str", "r step_strength", x + 900, 140)
     P.obj("h_str", "f 0.5", x + 750, 170)
-    P.c("hat_del", "h_str"); P.c("h_r_str", "h_str", 0, 1)
-    P.obj("h_calc", ("expr 0.15+0.95*$f1" + " " + BS + "; 25+70*$f1").replace("$", BS + "$"), x + 750, 190)
+    P.obj("h_r_hit", "r step_hit", x + 1000, 140)
+    P.c("hat_del", "h_str"); P.c("h_r_str", "h_str", 0, 1); P.c("h_r_hit", "h_str", 0, 1)
+    P.obj("h_calc", ("expr 0.1+1.2*$f1*$f1" + " " + BS + "; 20+200*$f1*$f1").replace("$", BS + "$"), x + 750, 190)
     P.obj("h_pack", "pack f f", x + 750, 205)
     P.c("h_str", "h_calc"); P.c("h_calc", "h_pack", 1, 1); P.c("h_calc", "h_pack", 0, 0)
     P.msg("h_amp_msg", ("0, " + BS + "$1 1, 0 " + BS + "$2 1").replace(",", comma), x + 750, 220)
@@ -424,7 +427,13 @@ def add_beat(P):
     P.sig2("beat_sum", "+~", "beat_kick_snare", "hat", x, 530)
     lvl = smoothed(P, "beat_level", "beat_level", x + 1050, 20)
     bon = smoothed(P, "beat_on", "beat_on", x + 1150, 20)
-    P.sig2("beat_gain", "*~", lvl, bon, x + 1050, 120)
+    P.sig2("beat_gain0", "*~", lvl, bon, x + 1050, 120)
+    # Uneven steps (beat_sure 0.4..1 from StepDetector) play the drums softer until the rhythm settles again.
+    P.obj("bs_r", "r beat_sure", x + 1350, 140)
+    P.obj("bs_pk", "pack f 300", x + 1350, 170)
+    P.obj("bs_ln", "line~", x + 1350, 200)
+    P.c("bs_r", "bs_pk"); P.c("bs_pk", "bs_ln")
+    P.sig2("beat_gain", "*~", "beat_gain0", "bs_ln", x + 1050, 150)
     P.sig2("beat_lvl", "*~", "beat_sum", "beat_gain", x, 560)
     P.obj("beat_out", "*~ 0.6", x, 590)
     P.c("beat_lvl", "beat_out")
@@ -711,7 +720,7 @@ def add_music(P):
     P.c("mu_r_step", "mu_step_t")
     ex("mu_pace", "1/max($f1,0.25)", x + 1200, 660)
     ex("mu_pace_f", "min(max(($f1-1)/1.6,0),1)", x + 1200, 690)       # 0 = ambling (1 step/s), 1 = brisk (2.6+)
-    ex("mu_pace_vel", "(0.18+0.82*$f1)*(0.8+0.4*$f2)", x + 1200, 720)    # a harder step pushes the note
+    ex("mu_pace_vel", "(0.4+0.6*$f1)*(0.8+0.4*$f2)", x + 1200, 720)    # a harder step pushes the note
     P.obj("mu_r_strength", "r step_strength", x + 1350, 660)
     P.c("mu_r_strength", "mu_pace_vel", 0, 1)
     P.c("mu_step_t", "mu_pace", 1, 0); P.c("mu_pace", "mu_pace_f"); P.c("mu_pace_f", "mu_pace_vel")

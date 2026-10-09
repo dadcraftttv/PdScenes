@@ -77,7 +77,7 @@ check(not bad, "patch loads with no Pd errors" + (": %s" % bad if bad else ""))
 
 jp = java_params()
 patch_text = open(PATCH).read()
-receivers = set(re.findall(r"#X obj \d+ \d+ r (\w+);", patch_text)) - {"step", "scale_n", "pad_glide", "mic_level", "pad_slot", "pool_n", "pool_x", "pocket", "pocket_down", "duck", "step_strength", "groove"} - {r for r in re.findall(r"#X obj \d+ \d+ r (sw_\w+);", open(PATCH).read())}   # events and internal links, not settings
+receivers = set(re.findall(r"#X obj \d+ \d+ r (\w+);", patch_text)) - {"step", "scale_n", "pad_glide", "mic_level", "pad_slot", "pool_n", "pool_x", "pocket", "pocket_down", "duck", "step_strength", "step_hit", "beat_sure", "groove"} - {r for r in re.findall(r"#X obj \d+ \d+ r (sw_\w+);", open(PATCH).read())}   # events and internal links, not settings
 pd_ids = {i for i, _, nopd in jp if not nopd}
 check(len(jp) >= 10, "parsed %d params from Params.java" % len(jp))
 check(pd_ids == receivers, "Params.java ids == patch receivers (java-only %s, patch-only %s)"
@@ -1016,6 +1016,26 @@ def hat_energy(strength):
 hard, usual, soft = hat_energy(1.0), hat_energy(0.5), hat_energy(0.1)
 check(hard > 1.8 * usual and usual > 1.8 * soft,
       "beat: step strength opens the hi-hat (hard %.4f, usual %.4f, soft %.4f)" % (hard, usual, soft))
+
+# the landing of the step itself (step_hit, sent once its bump is over) sets the hat that follows it
+def hat_after_hit(hit):
+    e = fresh(beat_level=1, beat_hats=1, beat_snare=0, wet=0, dry=0)
+    for _ in range(4):
+        e.send("step_strength", 0.5); e.send("step", 0.5); e.run(e.silence(0.1))
+        e.send("step_hit", hit); y = e.run(e.silence(0.4))[:, 0]
+    return rms(np.diff(y[int(0.14 * SR):int(0.35 * SR)]))
+stomp, plain = hat_after_hit(1.0), hat_after_hit(0.5)
+check(stomp > 1.8 * plain, "beat: a stomp opens the hat that follows it (%.4f vs %.4f)" % (stomp, plain))
+
+# uneven steps (beat_sure low) play the drums softer
+def beat_level_at(sure):
+    e = fresh(beat_level=1, wet=0, dry=0)
+    out = []
+    for _ in range(4):
+        e.send("beat_sure", sure); e.send("step", 0.5); out.append(e.run(e.silence(0.5))[:, 0])
+    return rms(out[-1])
+sure_full, sure_low = beat_level_at(1.0), beat_level_at(0.4)
+check(0.3 < sure_low / sure_full < 0.5, "beat: uneven steps soften the drums (%.2f of full)" % (sure_low / sure_full))
 
 # groove: with "groove 1" a soft note joins on every half-step; without it (or once you stop) only the steps play
 def groove_notes(groove, stop_after=False):

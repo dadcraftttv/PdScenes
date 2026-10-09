@@ -45,6 +45,27 @@ public class W {
       walk(36.6,40,1.8,4f); boolean afterStumble=StepDetector.grooving();
       walk(45,52,1.8,4f); boolean afterPause=StepDetector.grooving();
       check(!early&&on&&!afterStumble&&!afterPause,"groove: off at 20 s, on after 36 s of steady steps, off after a stumble and after a pause ("+early+" "+on+" "+afterStumble+" "+afterPause+")"); }
+    // extra bumps: a scuff a third of a step after each step is skipped, so the drums keep the walk's rhythm
+    { List<Double> g3=new ArrayList<>(); StepDetector.setListener((i,x)->g3.add(i)); StepDetector.reset();
+      for(double t=0;t<10;t+=0.005){ double ph=(t%0.6)/0.6; float bump=(ph<0.12?4f:0f)+(t>3&&ph>0.6&&ph<0.67?4f:0f);
+        StepDetector.onAcceleration(0,0,9.80665f+bump,t); }
+      StepDetector.setListener(null); int late=0; boolean even=true; for(int i=0;i<g3.size();i++){ if(Math.abs(g3.get(i)-0.6)>0.05) even=false; }
+      check(even&&g3.size()>=13,"extra bumps between steps are skipped: "+g3.size()+" steps, gaps "+g3); }
+    // speeding up to a jog (bumps exactly between the old steps) is followed after a step or two
+    { List<Double> g4=new ArrayList<>(); StepDetector.setListener((i,x)->g4.add(i)); StepDetector.reset();
+      walk(0,5,1.6,4f); walk(5,9,3.2,4f); StepDetector.setListener(null);
+      int quick=0; for(int i=g4.size()-6;i<g4.size();i++) if(Math.abs(g4.get(i)-0.3125)<0.05) quick++;
+      check(quick==6,"doubling the pace is followed: last gaps "+g4.subList(g4.size()-6,g4.size())); }
+    // landing strength: once a stomp's bump is over, its own strength is told (before the hi-hat plays)
+    { List<Float> land=new ArrayList<>(); StepDetector.setLandingListener(land::add); StepDetector.reset();
+      walk(0,6,1.8,4f); float usual=land.get(land.size()-1); land.clear();
+      double t0=6; walk(t0,t0+0.56,1.8,7f); float stomp=land.get(0); StepDetector.setLandingListener(null);
+      check(Math.abs(usual-0.5f)<0.08f&&stomp>0.8f,"landing strength: usual "+usual+", the stomp itself "+stomp); }
+    // sureness: uneven steps lower it, even ones bring it back
+    { StepDetector.setListener(null); StepDetector.reset(); walk(0,6,1.8,4f); float even=StepDetector.sureness();
+      double t=6; double[] gaps2={0.9,0.5,1.0,0.45}; for(double g:gaps2){ for(double u=0;u<g;u+=0.005) StepDetector.onAcceleration(0,0,9.80665f+(u<0.06?4f:0f),t+u); t+=g; }
+      float uneven=StepDetector.sureness(); walk(t,t+5,1.8,4f); float back=StepDetector.sureness();
+      check(even==1f&&uneven<0.6f&&back==1f,"rhythm sureness: even "+even+", uneven "+uneven+", settled again "+back); }
     // ---- selector ----
     WorldSelector s=new WorldSelector(); Set<String> all=new HashSet<>(Arrays.asList(WorldSelector.PRIORITY));
     String w=null; for(int i=0;i<300;i++) w=s.update(0.1,-40f,false,12*60,all);

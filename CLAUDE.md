@@ -103,6 +103,11 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   25-95 ms), lifts kick/snare (0.8-1.2x) and the arpeggio note. **Groove:** after 30 s of steady steps (within 15% of
   the usual interval; >30% off or a pause starts over) the app sends `groove 1`: a soft note (45% of the arpeggio,
   fading in over 4 s) joins on every half-step, a third above the last arpeggio note.
+  The arpeggio's pace swell starts at 40% (was 18%; Samuel found strolling too quiet). The hat uses `step_hit`, sent
+  once the step's own bump is over (before the hat plays), so a stomp opens its own hat (amp 0.1+1.2s^2, decay 20-220 ms).
+  **Uneven walking** (Samuel: drums "get tripped up"): a bump sooner than 65% of the usual interval is skipped as extra
+  (scuff, heel-toe, pocket knock), unless skipped bumps sat halfway (+-7%) between steps, which means the pace doubled.
+  `beat_sure` (0.4..1, -0.3 per step >30% off, +0.15 per even step) softens the drums while the rhythm is uneven.
   **Stop breath:** 1.2 s after the last step the pad+bass ease to 55% over 2.5 s, then return over 8 s (a step
   brings them back in 0.8 s); only steps start it.
   Music joins after the filter, so chorus/flanger/phaser/tremolo/reverse/glitch/echo/reverb/spatial shape it; pitch/ring/crush/dist/filter do not.

@@ -542,8 +542,11 @@ public class AudioService extends Service {
         StepDetector.setListener(scene == null ? (interval, strength) -> {
             PdBase.sendFloat("step_strength", strength);   // first, so the step's sounds can use it
             PdBase.sendFloat("groove", StepDetector.grooving() ? 1f : 0f);
+            PdBase.sendFloat("beat_sure", StepDetector.sureness());
             PdBase.sendFloat("step", (float) interval);
         } : null);
+        // The hi-hat falls half a step later, by when this step's own landing is known.
+        StepDetector.setLandingListener(scene == null ? strength -> PdBase.sendFloat("step_hit", strength) : null);
         Worlds.load(this);
         Worlds.reset();
         autoWorlds = scene == null;
@@ -642,6 +645,7 @@ public class AudioService extends Service {
         handler.removeCallbacks(moverTick);
         Modulation.reset();
         StepDetector.setListener(null);
+        StepDetector.setLandingListener(null);
         Worlds.reset();   // the user's own settings come back
         autoWorlds = false;
         if (sensors != null) {
