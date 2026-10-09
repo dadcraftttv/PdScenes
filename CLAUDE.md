@@ -101,8 +101,13 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   It follows the Dry level. Only the real room tells us if the tuning is right — expect further tweaks from Samuel's reports.
 - **Reset everything button:** `ParamStore.resetAll` + `Worlds.resetSettings` + `AudioSettings.reset` + `SceneSettings.resetAll`, only after confirmation.
   Keeps saved presets, imported scenes and appearance (and brings back any deleted built-in scene). Nothing may ever reset settings except that button.
-- **Audio focus (decided, not built yet):** when another app plays, duck the app only slightly (its effects must still be
-  heard); a phone call always pauses/stops the output.
+- **Calls and other audio** (Samuel's rule): the app never requests audio focus (Start must not pause the user's music).
+  `AudioService.checkForCall` reads the audio mode every 0.5 s: call/ringing/VoIP -> `computeAudio(false)` until it ends
+  (MODE_IN_COMMUNICATION is ignored while our own Bluetooth mic set it). An `AudioPlaybackCallback` counts players that
+  have an output device (Android 12+); more than our own -> `duck 0.3` (~3 dB, 600 ms ramp, after the limiter; scenes
+  get `#volume` scaled instead). Only slight: the app's effects must still be heard.
+- **Start path:** the Bluetooth-mic link wait runs on a background thread (`starting`, `startGeneration` cancels it on
+  stop). `patches` and `scene_lib` are copied only when the install changes (`.copied` stamp = lastUpdateTime).
 - **No recording audio** to files (Samuel, Oct 9): the mic never touches disk. Revisit only for a feature that unlocks a lot.
 - Presets store: sliders, movers, music pad/notes/tone/follow, beat, dry. A slider kept out of presets keeps its mover out too
   (`Params.withMovers`), or loading a preset or world switched it off. Not stored: gain/gate/compressor, smoothing/nudge,

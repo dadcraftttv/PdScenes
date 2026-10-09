@@ -44,7 +44,7 @@ Suggested order is the numbering. Each one needs a test in `tools/test_patch.py`
     flatness / zero crossings) that tightens a high-pass only while the sound looks like cloth.
 
 14. **Outside reviews (Gemini and Grok, 2026-10-09), checked against the code.** Accepted, not built yet:
-    - *Hardening pass* (Samuel: yes, after the reviews): audio focus (other audio -> duck the app only slightly so its
+    - *Hardening pass* (BUILT 2026-10-09, needs a phone check of call pause and ducking): audio focus (other audio -> duck the app only slightly so its
       effects still come through; a phone call -> always pause/stop), event log on a background thread with one date
       format, `PhoneContext.inPocket()` under the lock, no per-event `float[3]` in `SensorInput.toScene`, no per-tick
       HashMap in `Modulation.tick`, Bluetooth-mic wait (up to ~3.3 s of `Thread.sleep`) off the main thread, copy
