@@ -541,6 +541,7 @@ public class AudioService extends Service {
         // Footsteps drive the built-in patch's drums; scenes have their own business with the sensors.
         StepDetector.setListener(scene == null ? (interval, strength) -> {
             PdBase.sendFloat("step_strength", strength);   // first, so the step's sounds can use it
+            PdBase.sendFloat("groove", StepDetector.grooving() ? 1f : 0f);
             PdBase.sendFloat("step", (float) interval);
         } : null);
         Worlds.load(this);

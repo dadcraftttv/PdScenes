@@ -14,7 +14,7 @@ Suggested order is the numbering. Each one needs a test in `tools/test_patch.py`
 3. **Ghost: capture and stretch.** On a detected onset, record the moment and replay it granularly stretched in time,
    with reverse reverb; optionally a very short randomized mic delay for atonal pitched noise. Extends the Ghost world
    (which today only has reverse echo).
-4. **Kinetic pattern tiers.** Dimensions switches among five patterns by accelerometer level, with random variation. Ours
+4. **(BUILT 2026-10-09 with step strength and the cadence groove) Kinetic pattern tiers.** Dimensions switches among five patterns by accelerometer level, with random variation. Ours
    now has five 8-step patterns picked at random each bar, with rests (2026-10-08); still to do: tie the pattern to pace tiers. Stopping must still drop the drums immediately.
 5. **Unstable world.** Jolt-triggered stack of many ordinary effects on the mic at once (glitch, pitch shift, ring mod,
    crush, delay), glitchy by design. We have all the effects; it needs a trigger and a preset.

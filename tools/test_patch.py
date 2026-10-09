@@ -77,7 +77,7 @@ check(not bad, "patch loads with no Pd errors" + (": %s" % bad if bad else ""))
 
 jp = java_params()
 patch_text = open(PATCH).read()
-receivers = set(re.findall(r"#X obj \d+ \d+ r (\w+);", patch_text)) - {"step", "scale_n", "pad_glide", "mic_level", "pad_slot", "pool_n", "pool_x", "pocket", "pocket_down", "duck", "step_strength"} - {r for r in re.findall(r"#X obj \d+ \d+ r (sw_\w+);", open(PATCH).read())}   # events and internal links, not settings
+receivers = set(re.findall(r"#X obj \d+ \d+ r (\w+);", patch_text)) - {"step", "scale_n", "pad_glide", "mic_level", "pad_slot", "pool_n", "pool_x", "pocket", "pocket_down", "duck", "step_strength", "groove"} - {r for r in re.findall(r"#X obj \d+ \d+ r (sw_\w+);", open(PATCH).read())}   # events and internal links, not settings
 pd_ids = {i for i, _, nopd in jp if not nopd}
 check(len(jp) >= 10, "parsed %d params from Params.java" % len(jp))
 check(pd_ids == receivers, "Params.java ids == patch receivers (java-only %s, patch-only %s)"
@@ -1016,6 +1016,21 @@ def hat_energy(strength):
 hard, usual, soft = hat_energy(1.0), hat_energy(0.5), hat_energy(0.1)
 check(hard > 1.8 * usual and usual > 1.8 * soft,
       "beat: step strength opens the hi-hat (hard %.4f, usual %.4f, soft %.4f)" % (hard, usual, soft))
+
+# groove: with "groove 1" a soft note joins on every half-step; without it (or once you stop) only the steps play
+def groove_notes(groove, stop_after=False):
+    e = fresh(music_on=1, music_pad=0, music_arp=1, wet=0); e.listen("chime_deg")
+    for _ in range(20):
+        e.send("groove", groove); e.send("step", 0.5); e.run(e.silence(0.5))
+    n = len(e.heard["chime_deg"])
+    if stop_after:
+        e.run(e.silence(4.0))
+        return len(e.heard["chime_deg"]) - n
+    return n / 20
+with_g, without_g, after_stop = groove_notes(1), groove_notes(0), groove_notes(1, stop_after=True)
+check(with_g > without_g + 0.7 and after_stop <= 1,
+      "music: groove adds half-step notes (%.2f notes a step, %.2f without) and stops when you do (%d after)"
+      % (with_g, without_g, after_stop))
 
 # switchable blocks: a block whose level is 0 stops its DSP (after its fade), comes back at once when needed,
 # and switching it on doesn't click

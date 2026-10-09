@@ -97,6 +97,12 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   **Pad register** (`music_pad_reg` Low/Mid/Both, default Both, noPreset; Samuel's idea, he likes it: deep without overpowering): a bass voice (sine + 0.35 2nd + 0.15
   3rd harmonic, folded to 65-131 Hz) on the key root, moving to the chord root on 40% of chord changes; note changes dip out
   and back in (no slides); each footstep ducks it 60% while the walking beat is audible. It rides the pad level/swell.
+  **Pace tiers:** `ARP_PATTERNS` run calm -> busy; each bar picks one near the pace (`mu_pace_f`) or a neighbour, never
+  the same twice; rests 25% strolling -> 5% brisk. **Step strength:** StepDetector compares each bump's peak with the
+  walk's average and sends `step_strength` (0.5 usual, one step of lag) before `step`: it opens the hi-hat (louder,
+  25-95 ms), lifts kick/snare (0.8-1.2x) and the arpeggio note. **Groove:** after 30 s of steady steps (within 15% of
+  the usual interval; >30% off or a pause starts over) the app sends `groove 1`: a soft note (45% of the arpeggio,
+  fading in over 4 s) joins on every half-step, a third above the last arpeggio note.
   **Stop breath:** 1.2 s after the last step the pad+bass ease to 55% over 2.5 s, then return over 8 s (a step
   brings them back in 0.8 s); only steps start it.
   Music joins after the filter, so chorus/flanger/phaser/tremolo/reverse/glitch/echo/reverb/spatial shape it; pitch/ring/crush/dist/filter do not.

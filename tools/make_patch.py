@@ -114,6 +114,8 @@ STOP_DIP = 0.55            # the pad and bass breathe down to this share...
 STOP_DIP_MS = 2500         # ...over this long...
 STOP_RECOVER_MS = 8000     # ...then drift back to full over this long
 STOP_RETURN_MS = 800       # walking again brings them straight back
+GROOVE_VEL = 0.45           # groove notes are this share of the arpeggio's loudness...
+GROOVE_FADE_IN_MS = 4000   # ...reached over this long
 DUCK_MS = 600           # how quickly the output dips (and comes back) when other audio plays
 POCKET_HUSH_MS = 400        # how fast the hush fades in and out
 POCKET_GUARD_DB = 12        # mic-down protection at 1 turns the mic down this much more...
@@ -781,6 +783,37 @@ def add_music(P):
     P.c("mu_walk_t", "mu_q_half", 0, 0)                                  # restarts the half-step timer
     P.c("mu_walk_t", "mu_q_store", 0, 0)                                 # on the step itself
     P.c("mu_q_half", "mu_q_store")
+    # Groove: after half a minute of steady steps (the app sends "groove 1"), a soft note joins on every
+    # half-step, a third above the last arpeggio note, fading in over a few seconds. It stops with the groove
+    # or when you stop walking.
+    P.obj("mu_gr_r", "r groove", x + 1400, 900)
+    P.obj("mu_gr_chg", "change", x + 1400, 920)
+    P.c("mu_gr_r", "mu_gr_chg")
+    P.obj("mu_gr_gate", "spigot", x + 1250, 1010)
+    P.c("mu_q_half", "mu_gr_gate"); P.c("mu_gr_chg", "mu_gr_gate", 0, 1)
+    P.msg("mu_gr_off", "0", x + 1400, 960)
+    P.c("mu_walk_del", "mu_gr_off"); P.c("mu_gr_off", "mu_gr_gate", 0, 1); P.c("mu_gr_off", "mu_gr_chg", 0, 0)
+    P.obj("mu_gr_sel", "sel 0 1", x + 1400, 990)
+    P.msg("mu_gr_down", "0 300", x + 1400, 1010)
+    P.msg("mu_gr_up", f"0, 1 {GROOVE_FADE_IN_MS}".replace(",", " " + BS + ","), x + 1460, 1010)
+    P.obj("mu_gr_ln", "line 0 50", x + 1400, 1030)
+    P.c("mu_gr_chg", "mu_gr_sel"); P.c("mu_gr_sel", "mu_gr_down", 0, 0); P.c("mu_gr_sel", "mu_gr_up", 1, 0)
+    P.c("mu_gr_down", "mu_gr_ln"); P.c("mu_gr_up", "mu_gr_ln")
+    P.obj("mu_gr_t", "t b b", x + 1250, 1040)
+    P.c("mu_gr_gate", "mu_gr_t")
+    P.obj("mu_gr_pv", "value apvel", x + 1300, 1060)                   # this step's arpeggio loudness
+    ex("mu_gr_vel", f"$f1*{GROOVE_VEL}*$f2", x + 1300, 1080)
+    P.c("mu_gr_ln", "mu_gr_vel", 0, 1)
+    P.obj("mu_gr_cv", "value cvel", x + 1300, 1100)
+    P.c("mu_gr_t", "mu_gr_pv", 1, 0); P.c("mu_gr_pv", "mu_gr_vel"); P.c("mu_gr_vel", "mu_gr_cv")
+    P.obj("mu_gr_last", "value alast", x + 1250, 1080)
+    ex("mu_gr_deg", "$f1+2", x + 1250, 1110)
+    P.c("mu_gr_t", "mu_gr_last", 0, 0); P.c("mu_gr_last", "mu_gr_deg")
+    P.c("mu_gr_deg", degree_in); P.c("mu_gr_deg", "mu_note_s")
+    P.obj("mu_ap_store", "value apvel", x + 1350, 740)
+    P.c("mu_pace_vel", "mu_ap_store")
+    P.obj("mu_al_store", "value alast", x + 1150, 900)
+    P.c("mu_rest_gate", "mu_al_store")
     # Gates follow the on/off switch.
     for g in ("mu_ons_gate_on", "mu_still_on", "mu_arp_gate"):
         P.c("mu_r_on", g, 0, 1)

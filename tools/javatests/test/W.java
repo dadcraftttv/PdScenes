@@ -38,6 +38,13 @@ public class W {
       walk(6,8,1.8,7f); float hard=st.get(st.size()-1); st.clear();
       walk(8,14,1.8,4f); walk(14,16,1.8,2.4f); float soft=st.get(st.size()-1); StepDetector.setListener(null);
       check(Math.abs(usual-0.5f)<0.08f&&hard>0.75f&&soft<0.3f,"step strength: usual "+usual+", stomping "+hard+", soft "+soft); }
+    // groove: half a minute of steady steps turns it on; a stumble starts the count over; a pause ends it
+    { StepDetector.setListener(null); StepDetector.reset(); walk(0,20,1.8,4f); boolean early=StepDetector.grooving();
+      walk(20,36,1.8,4f); boolean on=StepDetector.grooving();
+      for(double t=36;t<36.6;t+=0.02) StepDetector.onAcceleration(0,0,9.80665f+(t<36.05?6f:0f),t);   // an odd extra bump
+      walk(36.6,40,1.8,4f); boolean afterStumble=StepDetector.grooving();
+      walk(45,52,1.8,4f); boolean afterPause=StepDetector.grooving();
+      check(!early&&on&&!afterStumble&&!afterPause,"groove: off at 20 s, on after 36 s of steady steps, off after a stumble and after a pause ("+early+" "+on+" "+afterStumble+" "+afterPause+")"); }
     // ---- selector ----
     WorldSelector s=new WorldSelector(); Set<String> all=new HashSet<>(Arrays.asList(WorldSelector.PRIORITY));
     String w=null; for(int i=0;i<300;i++) w=s.update(0.1,-40f,false,12*60,all);

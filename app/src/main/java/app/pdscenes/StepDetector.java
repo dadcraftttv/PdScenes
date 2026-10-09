@@ -29,6 +29,12 @@ final class StepDetector {
     private static float peak;
     private static float lastPeak;
     private static float avgPeak;
+    // Groove: how long the step rhythm has stayed steady. Half a minute of it and extra notes join the music.
+    static final double GROOVE_AFTER_S = 30;
+    private static final double STEADY_DEV = 0.15;   // within 15% of the usual interval counts as steady...
+    private static final double BREAK_DEV = 0.30;    // ...more than 30% off (a stumble, a new pace) starts over
+    private static double avgInterval;
+    private static double steadyS;
 
     private StepDetector() { }
 
@@ -73,7 +79,13 @@ final class StepDetector {
                 if (stepsInWindow(nowS) < STEPS_TO_PLAY) {
                     return 0;   // fiddling with the phone makes bumps too: wait for a real walk
                 }
-                return gap > STALE_GAP_S ? FIRST_INTERVAL_S : gap;
+                if (gap > STALE_GAP_S) {
+                    avgInterval = 0;
+                    steadyS = 0;
+                    return FIRST_INTERVAL_S;
+                }
+                trackSteadiness(gap);
+                return gap;
             }
         } else if (above && smoothed < STEP_LOW) {
             above = false;
@@ -85,6 +97,25 @@ final class StepDetector {
             peak = Math.max(peak, smoothed);
         }
         return 0;
+    }
+
+    private static void trackSteadiness(double gap) {
+        if (avgInterval <= 0) {
+            avgInterval = gap;
+            return;
+        }
+        double dev = Math.abs(gap - avgInterval) / avgInterval;
+        if (dev < STEADY_DEV) {
+            steadyS += gap;
+        } else if (dev > BREAK_DEV) {
+            steadyS = 0;
+        }
+        avgInterval = avgInterval * 0.8 + gap * 0.2;
+    }
+
+    /** True after {@link #GROOVE_AFTER_S} of steady steps in this walk. */
+    static synchronized boolean grooving() {
+        return steadyS >= GROOVE_AFTER_S;
     }
 
     /** How hard the last step landed compared with this walk's usual: 0.5 = usual, 0..1. */
@@ -125,5 +156,7 @@ final class StepDetector {
         smoothed = 0;
         above = false;
         peak = lastPeak = avgPeak = 0;
+        avgInterval = 0;
+        steadyS = 0;
     }
 }
