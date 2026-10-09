@@ -34,6 +34,13 @@ Suggested order is the numbering. Each one needs a test in `tools/test_patch.py`
    (stretch); per slice a random pick weighted by an Amount slider, effects switchable; crusher, delay, ring mod and
    filters already exist and can join per slice; gater = step-synced chopping; Worlds act like Glitch2 scenes.
    Phase 1: buffer + retrigger/reverse/tape stop/shuffle. Phase 2: stretch, gater, per-slice filter, Unstable world.
+   Glitch2 extras worth taking: lanes (several effects on one slice, in series), a Randomizer with a chance per effect,
+   Mutate (small variations of the current settings: our nudge), per-effect pan (the "all around you" spread), gater
+   volume steps, one-shot vs looping. Not useful on a phone: MIDI scene triggers, a drawn pattern editor.
+   Clock without walking (Samuel asked): a free clock (own tempo, or slow and loose), sudden sounds as triggers
+   (the room plays the sequencer), random timing by density, phone gestures (twist = tape stop, shake = stutter), and
+   later maybe the tempo of music heard nearby. Walking locks it to steps; stopping hands over to the other clocks,
+   as the chime queue already does.
 6. **Collective world.** Capture a buffer and "scratch" it back and forth like a turntablist. A new scratch effect.
 7. **Optional: "calm builds" mode.** Dimensions' Tranquil adds layers the longer you stay quiet and lets noise make the music
    shrink away. Opposite of the current behavior (quiet room = quiet notes), so only as an option, if Samuel wants it.
