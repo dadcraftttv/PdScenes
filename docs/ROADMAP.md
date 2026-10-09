@@ -25,6 +25,15 @@ Suggested order is the numbering. Each one needs a test in `tools/test_patch.py`
    stereo field so "the stuttering glitched sound echoes all around". Could tie to steps (stutters on the beat) and to
    jolts (Unstable world, item 5) and share code with Ghost capture (3) and the Collective scratch (6). Today's
    `glitch_hold`/`glitch_len` freeze is the only piece that exists.
+   Researched Oct 9: dblue Glitch 1.x is a tempo-synced slicer: it cuts the incoming audio into slices and a
+   64-step sequencer (or its random mode) applies one of nine effects per slice: retrigger, shuffler, reverser,
+   tape stop, stretcher, crusher, gater, delay, modulator (each with its own filter). Glitch2 (illformed, now free)
+   adds pitch bend, distortion, ring mod, beat repeat, trance gate, a randomizer and scenes. Plan sketch: footsteps
+   are our "host tempo" (standing still: onsets or a slow clock); a RAM ring buffer of ~2-4 s; one reader that can
+   jump (shuffle), loop short (retrigger, shrinking), run backwards (reverse), slow to 0 (tape stop) or granulate
+   (stretch); per slice a random pick weighted by an Amount slider, effects switchable; crusher, delay, ring mod and
+   filters already exist and can join per slice; gater = step-synced chopping; Worlds act like Glitch2 scenes.
+   Phase 1: buffer + retrigger/reverse/tape stop/shuffle. Phase 2: stretch, gater, per-slice filter, Unstable world.
 6. **Collective world.** Capture a buffer and "scratch" it back and forth like a turntablist. A new scratch effect.
 7. **Optional: "calm builds" mode.** Dimensions' Tranquil adds layers the longer you stay quiet and lets noise make the music
    shrink away. Opposite of the current behavior (quiet room = quiet notes), so only as an option, if Samuel wants it.
