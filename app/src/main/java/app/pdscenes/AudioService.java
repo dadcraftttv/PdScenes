@@ -82,6 +82,9 @@ public class AudioService extends Service {
     private String worldLogged;
     private static final long HEARING_LOG_MS = 30_000;
     private long lastHearingLog;
+    /** Harmony answers since the last "Hearing:" line (the patch sends each one on harm_deg). */
+    private static final String HARMONY_RECEIVER = "harm_deg";
+    private final java.util.concurrent.atomic.AtomicInteger harmonyNotes = new java.util.concurrent.atomic.AtomicInteger();
     private final Runnable moverTick = new Runnable() {
         @Override
         public void run() {
@@ -114,7 +117,8 @@ public class AudioService extends Service {
                 }
                 if (Worlds.isEnabled() && now - lastHearingLog >= HEARING_LOG_MS) {   // a trace of the room, to tune the thresholds by
                     lastHearingLog = now;
-                    logEvent("Hearing: " + Worlds.hearing());
+                    int answered = harmonyNotes.getAndSet(0);
+                    logEvent("Hearing: " + Worlds.hearing() + (answered > 0 ? ", harmony " + answered : ""));
                 }
                 if (now - lastClockCheck > CLOCK_CHECK_MS) {   // the time of day changes slowly
                     minuteOfDay = Worlds.minuteOfDayNow();
@@ -413,7 +417,16 @@ public class AudioService extends Service {
         // The patch reports the mic loudness about 30 times a second for the "Louder" movers.
         PdBase.setReceiver(new PdReceiver.Adapter() {
             @Override
+            public void print(String s) {
+                Log.i("Pd", s.trim());   // Pd's own console: object creation errors, scene prints
+            }
+
+            @Override
             public void receiveFloat(String source, float x) {
+                if (HARMONY_RECEIVER.equals(source)) {
+                    harmonyNotes.incrementAndGet();
+                    return;
+                }
                 Modulation.setMicLevelDb(x - 100f);   // env~ reports dB with 100 = full scale
             }
 
@@ -432,6 +445,7 @@ public class AudioService extends Service {
             }
         });
         PdBase.subscribe("mic_level");
+        PdBase.subscribe(HARMONY_RECEIVER);
         PdBase.subscribe(SceneEvents.REQUEST_RECEIVER);
 
         // Must come before initAudio. DEFAULT_ID lets Android choose ("Automatic").

@@ -122,6 +122,7 @@ HARM_STEADY_ST = 0.6       # frame to frame wobble allowed, in semitones (singin
 HARM_ABOVE_DB = 6          # how far above the room's quiet the sound must be
 HARM_FOLD = (60, 72)       # what is heard is folded into this octave (C4-C5) before the answer is picked
 HARM_UP = 2                # the answer: this many scale steps above the heard note (a third in major/minor)
+HARM_RANGE = (36, 104)     # heard pitches outside C2..G#7 are hiss or rumble, not a voice, whistle or bird
 HARM_ATTACK_MS = 150
 HARM_RELEASE_MS = 1800
 
@@ -1069,9 +1070,19 @@ def add_harmony(P, hx, ex, degree_to_hz):
     # Each pitch frame: steady (close to the frame before) and loud enough? Count the steady frames in a row.
     P.obj("mu_hm_p_t", "t f f", hx, 80)
     P.c("mu_hm_sig", "mu_hm_p_t", 0, 0)
-    ex("mu_hm_ok", f"($f1>0)*(abs($f1-$f2)<{HARM_STEADY_ST})*($f3>{HARM_ABOVE_DB})", hx, 140)
+    ex("mu_hm_ok", f"($f1>{HARM_RANGE[0]})*($f1<{HARM_RANGE[1]})*(abs($f1-$f2)<{HARM_STEADY_ST})*($f3>{HARM_ABOVE_DB})", hx, 140)
     P.c("mu_hm_p_t", "mu_hm_ok", 1, 0); P.c("mu_hm_p_t", "mu_hm_ok", 0, 1)   # right first: compare with the old pitch
     P.c("mu_hm_loud", "mu_hm_ok", 0, 2)
+    if os.environ.get("HARM_DEBUG"):
+        P.obj("mu_hm_dbg_m", "metro 300", hx + 500, 50); P.obj("mu_hm_dbg_lb", "loadbang", hx + 500, 30)
+        P.c("mu_hm_dbg_lb", "mu_hm_dbg_m")
+        P.obj("mu_hm_dbg_p", "f", hx + 500, 80); P.obj("mu_hm_dbg_l", "f", hx + 560, 80); P.obj("mu_hm_dbg_e", "f", hx + 620, 80)
+        P.obj("mu_hm_dbg_pk", "pack f f f", hx + 500, 110); P.obj("mu_hm_dbg_pr", "print hm", hx + 500, 140)
+        P.obj("mu_hm_dbg_t", "t b b b", hx + 500, 65)
+        P.c("mu_hm_dbg_m", "mu_hm_dbg_t"); P.c("mu_hm_dbg_t", "mu_hm_dbg_p", 0, 0); P.c("mu_hm_dbg_t", "mu_hm_dbg_l", 1, 0); P.c("mu_hm_dbg_t", "mu_hm_dbg_e", 2, 0)
+        P.c("mu_hm_sig", "mu_hm_dbg_p", 0, 1); P.c("mu_hm_loud", "mu_hm_dbg_l", 0, 1); P.c("mu_hm_sig", "mu_hm_dbg_e", 1, 1)
+        P.c("mu_hm_dbg_p", "mu_hm_dbg_pk", 0, 0); P.c("mu_hm_dbg_l", "mu_hm_dbg_pk", 0, 1); P.c("mu_hm_dbg_e", "mu_hm_dbg_pk", 0, 2)
+        P.c("mu_hm_dbg_pk", "mu_hm_dbg_pr")
     P.obj("mu_hm_ok_t", "t f b", hx, 155)                              # read the count, then add to it or clear it
     P.obj("mu_hm_cnt", "f", hx + 60, 170)
     ex("mu_hm_next", "$f1*($f2+1)", hx, 200)
@@ -1133,7 +1144,7 @@ def add_harmony(P, hx, ex, degree_to_hz):
         P.obj(f"mu_hm{k}_f2", "* 2", vx + 60, 775)
         P.obj(f"mu_hm{k}_o2", "osc~", vx + 60, 790)
         P.c(f"mu_hm{k}_fr", f"mu_hm{k}_o1"); P.c(f"mu_hm{k}_fr", f"mu_hm{k}_f2"); P.c(f"mu_hm{k}_f2", f"mu_hm{k}_o2")
-        P.obj(f"mu_hm{k}_g2", "*~ 0.2", vx + 60, 810)
+        P.obj(f"mu_hm{k}_g2", "*~ 0.35", vx + 60, 810)   # a little reedy, so it stands apart from the pad
         P.c(f"mu_hm{k}_o2", f"mu_hm{k}_g2")
         P.sig2(f"mu_hm{k}_s", "+~", f"mu_hm{k}_o1", f"mu_hm{k}_g2", vx, 830)
         P.msg(f"mu_hm{k}_atk", f"1 {HARM_ATTACK_MS}", vx, 850)
@@ -1149,7 +1160,7 @@ def add_harmony(P, hx, ex, degree_to_hz):
     P.obj("mu_hm_lp", "lop~ 2500", hx, 950)
     P.c(acc, "mu_hm_lp")
     lvl = smoothed(P, "music_harm", "music_harm", hx + 300, 950)
-    P.obj("mu_hm_gain", "*~ 0.22", hx, 970)
+    P.obj("mu_hm_gain", "*~ 0.4", hx, 970)
     P.c("mu_hm_lp", "mu_hm_gain")
     return P.sig2("mu_hm_out", "*~", "mu_hm_gain", lvl, hx, 990)
 
