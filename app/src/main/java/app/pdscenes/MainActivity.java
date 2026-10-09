@@ -6,6 +6,7 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.Canvas;
 import android.graphics.Typeface;
 import android.media.AudioDeviceCallback;
 import android.media.AudioDeviceInfo;
@@ -193,19 +194,29 @@ public class MainActivity extends Activity {
         audioManager = getSystemService(AudioManager.class);
 
         // The settings scroll; the bar with Start/Stop stays at the bottom, in reach of a thumb while walking.
-        LinearLayout screen = new LinearLayout(this);
-        screen.setOrientation(LinearLayout.VERTICAL);
+        android.widget.FrameLayout screen = new android.widget.FrameLayout(this);
         ScrollView scroll = new ScrollView(this);
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         int pad = dp(16);
         root.setPadding(pad, pad, pad, pad);
         scroll.addView(root);
-        screen.addView(scroll, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
-        LinearLayout.LayoutParams barParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        barParams.setMargins(dp(10), dp(4), dp(10), dp(10));   // room for the shadow all round
-        screen.addView(buildBottomBar(), barParams);
+        screen.addView(scroll, new android.widget.FrameLayout.LayoutParams(
+                android.widget.FrameLayout.LayoutParams.MATCH_PARENT, android.widget.FrameLayout.LayoutParams.MATCH_PARENT));
+        // The card floats over the settings, which scroll on behind it; the end of the list stops just above it.
+        View bar = buildBottomBar();
+        android.widget.FrameLayout.LayoutParams barParams = new android.widget.FrameLayout.LayoutParams(
+                android.widget.FrameLayout.LayoutParams.MATCH_PARENT, android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
+                android.view.Gravity.BOTTOM);
+        int m = Math.max(0, dp(10) - barGlow);   // AMOLED's glow already brings its own room
+        barParams.setMargins(m, 0, m, Math.max(0, dp(10) - barGlow));
+        screen.addView(bar, barParams);
+        bar.addOnLayoutChangeListener((v, l, t, r, b2, ol, ot, or, ob) -> {
+            int under = v.getHeight() + barParams.bottomMargin;
+            if (root.getPaddingBottom() != pad + under) {
+                root.setPadding(pad, pad, pad, pad + under);
+            }
+        });
         screen.setClipToPadding(false);   // the card's shadow may spill into the navigation bar area, not stop at it
         setContentView(screen);
 
@@ -356,11 +367,13 @@ public class MainActivity extends Activity {
         android.graphics.drawable.GradientDrawable card = new android.graphics.drawable.GradientDrawable();
         card.setCornerRadius(ScenePad.CORNER_DP * getResources().getDisplayMetrics().density);
         if (theme == UiSettings.THEME_AMOLED) {
-            int accent = accentColor();
-            card.setColor(0xFF000000);
-            card.setStroke(Math.max(1, dp(1)), (accent & 0x00FFFFFF) | 0xAA000000);
-            bar.setOutlineSpotShadowColor(accent);
-            bar.setOutlineAmbientShadowColor(accent);
+            // Android's own shadows don't show on pure black, even tinted, so draw a soft glow ourselves.
+            barGlow = dp(14);
+            bar.setPadding(bar.getPaddingLeft() + barGlow, bar.getPaddingTop() + barGlow,
+                    bar.getPaddingRight() + barGlow, bar.getPaddingBottom() + barGlow);
+            bar.setBackground(new GlowCard(ScenePad.CORNER_DP * getResources().getDisplayMetrics().density,
+                    barGlow, accentColor()));
+            return;
         } else if (UiSettings.isLight(theme)) {
             card.setColor(0xFFFFFFFF);
         } else {
@@ -369,6 +382,45 @@ public class MainActivity extends Activity {
         bar.setBackground(card);
         // A gentle lift on Light and Dark; AMOLED needs more so the accent glow shows.
         bar.setElevation(theme == UiSettings.THEME_AMOLED ? dp(10) : dp(4));
+    }
+
+    /** Extra room around the bar for the AMOLED glow (0 in the other themes, which use a real shadow). */
+    private int barGlow;
+
+    /** A black rounded card with a soft glow in {@code color} around it; the glow takes {@code glow} px each side. */
+    private static final class GlowCard extends android.graphics.drawable.Drawable {
+        private final android.graphics.Paint paint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        private final android.graphics.RectF card = new android.graphics.RectF();
+        private final float corner;
+        private final int glow;
+        private final int color;
+
+        GlowCard(float corner, int glow, int color) {
+            this.corner = corner;
+            this.glow = glow;
+            this.color = color;
+        }
+
+        @Override
+        public void draw(Canvas canvas) {
+            android.graphics.Rect b = getBounds();
+            card.set(b.left + glow, b.top + glow, b.right - glow, b.bottom - glow);
+            paint.setColor(0xFF000000);
+            paint.setShadowLayer(glow * 0.8f, 0, glow * 0.15f, (color & 0x00FFFFFF) | 0x8C000000);
+            canvas.drawRoundRect(card, corner, corner, paint);
+        }
+
+        @Override
+        public void setAlpha(int alpha) { }
+
+        @Override
+        public void setColorFilter(android.graphics.ColorFilter filter) { }
+
+        @Override
+        @SuppressWarnings("deprecation")
+        public int getOpacity() {
+            return android.graphics.PixelFormat.TRANSLUCENT;
+        }
     }
 
     /** The wallpaper accent on Android 12+, otherwise the theme's accent. */
