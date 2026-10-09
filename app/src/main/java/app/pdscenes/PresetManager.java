@@ -246,6 +246,7 @@ final class PresetManager {
         pocketWorld.put("music_pad", 0.2f);
         pocketWorld.put("music_arp", 0.45f);
         pocketWorld.put("music_res", 0f);               // the mic only hears cloth: no ringing rustle
+        pocketWorld.put("music_harm", 0f);
         BUILT_IN.put("Pocket world", pocketWorld);
     }
 

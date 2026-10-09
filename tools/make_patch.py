@@ -34,7 +34,7 @@ DEFAULTS = [
     ("phaser_on", 1), ("phaser_mix", 0), ("phaser_rate", 0.4), ("phaser_depth", 0.7), ("phaser_fb", 0.4),
     ("beat_on", 1), ("beat_level", 0), ("beat_hats", 0.5), ("beat_snare", 0.6), ("beat_pitch", 55),
     ("music_on", 0), ("music_key", 0), ("music_scale", 0), ("music_pad", 0.33), ("music_arp", 0.4),
-    ("music_tone", 0.5), ("music_react", 0.8), ("music_res", 0.8), ("music_pad_reg", 2), ("pocket_hush", 0.5), ("pocket_guard", 0.6),
+    ("music_tone", 0.5), ("music_react", 0.8), ("music_res", 0.8), ("music_harm", 0.6), ("music_pad_reg", 2), ("pocket_hush", 0.5), ("pocket_guard", 0.6),
 ]
 
 # Scales as semitone steps above the key note. The patch snaps every note it plays to these.
@@ -116,6 +116,20 @@ STOP_RECOVER_MS = 8000     # ...then drift back to full over this long
 STOP_RETURN_MS = 800       # walking again brings them straight back
 GROOVE_VEL = 0.45           # groove notes are this share of the arpeggio's loudness...
 GROOVE_FADE_IN_MS = 4000   # ...reached over this long
+# Harmony: a held, clearly pitched sound (humming, whistling, a bird, a horn) gets an in-key note answering it.
+HARM_STABLE_FRAMES = 12    # pitch frames (~11 ms each) the pitch must hold steady before it is answered
+HARM_STEADY_ST = 0.6       # frame to frame wobble allowed, in semitones (singing vibrato passes)
+HARM_ABOVE_DB = 6          # how far above the room's quiet the sound must be
+HARM_FOLD = (60, 72)       # what is heard is folded into this octave (C4-C5) before the answer is picked
+HARM_UP = 2                # the answer: this many scale steps above the heard note (a third in major/minor)
+HARM_ATTACK_MS = 150
+HARM_RELEASE_MS = 1800
+
+
+def pc_to_degree(iv):
+    """For each semitone above the key note (0..11), the nearest scale step (len(iv) = the key note an octave up)."""
+    marks = list(iv) + [12]
+    return [min(range(len(marks)), key=lambda i: (abs(marks[i] - pc), marks[i])) for pc in range(12)]
 DUCK_MS = 600           # how quickly the output dips (and comes back) when other audio plays
 POCKET_HUSH_MS = 400        # how fast the hush fades in and out
 POCKET_GUARD_DB = 12        # mic-down protection at 1 turns the mic down this much more...
@@ -454,6 +468,7 @@ def add_music(P):
 
     # ---- scale and key: the scale lives in a table; a degree (0, 1, 2...) becomes a pitch ----
     P.obj("mu_scale_tab", "table scale_iv 8", x, 20)
+    P.obj("mu_pcdeg_tab", "table pc_deg 12", x + 100, 20)
     P.obj("mu_r_scale", "r music_scale", x, 50)
     P.obj("mu_scale_t", "t b f", x, 65)                                  # table first, then re-pick the chord
     sel = P.obj("mu_scale_sel", "sel " + " ".join(str(i) for i in range(len(SCALES))), x, 80)
@@ -461,6 +476,7 @@ def add_music(P):
     for i, iv in enumerate(SCALES):
         pool, contrast = CHORD_POOLS[i]
         text = (f"{BS}; scale_iv 0 {' '.join(str(v) for v in iv)} {BS}; scale_n {len(iv)}"
+                f" {BS}; pc_deg 0 {' '.join(str(v) for v in pc_to_degree(iv))}"
                 f" {BS}; chord_pool 0 {' '.join(str(v) for v in pool)} {BS}; pool_n {len(pool)}"
                 f" {BS}; pool_x {-1 if contrast is None else contrast}")
         P.msg(f"mu_scale_msg{i}", text, x + 60 * i, 110)
@@ -1032,9 +1048,110 @@ def add_music(P):
     P.sig2("mu_pad_out", "*~", "mu_pad_br", pad_lvl, px, 900)
     P.sig2("mu_chime_out", "*~", "mu_chime_lp", arp_lvl, px + 200, 900)
     P.sig2("mu_mix0", "+~", "mu_pad_out", "mu_chime_out", px, 930)
-    P.sig2("mu_mix", "+~", "mu_mix0", add_room_notes(P, x + 2500, ex, degree_to_hz), px, 945)
+    P.sig2("mu_mix1", "+~", "mu_mix0", add_room_notes(P, x + 2500, ex, degree_to_hz), px, 940)
+    P.sig2("mu_mix", "+~", "mu_mix1", add_harmony(P, x + 3400, ex, degree_to_hz), px, 945)
     P.sig2("mu_out", "*~", "mu_mix", mon, px, 960)
     return "mu_out"
+
+
+def add_harmony(P, hx, ex, degree_to_hz):
+    """Answers a held pitch with an in-key note a few scale steps above it, held as long as the sound is. Only a
+    pitch that stays steady for a moment, clearly above the room's quiet, counts, so noise and speech blips play
+    nothing. Two voices take turns, so a new note never bends the one still fading. Returns the output signal."""
+    P.sig2("mu_hm_src", "*~", "mic_gated", "ph_ln", hx, 20)          # quieter in a pocket, like the rest
+    P.obj("mu_hm_sig", "sigmund~ -hop 512 -npts 2048 pitch env", hx, 50)   # env comes out first, then pitch
+    P.c("mu_hm_src", "mu_hm_sig")
+    P.obj("mu_hm_thr", "value mthr", hx + 200, 80)
+    P.obj("mu_hm_env_t", "t f b", hx + 200, 50)
+    ex("mu_hm_loud", f"$f1-$f2", hx + 200, 110)
+    P.c("mu_hm_sig", "mu_hm_env_t", 1, 0); P.c("mu_hm_env_t", "mu_hm_thr", 1, 0)
+    P.c("mu_hm_thr", "mu_hm_loud", 0, 1); P.c("mu_hm_env_t", "mu_hm_loud", 0, 0)
+    # Each pitch frame: steady (close to the frame before) and loud enough? Count the steady frames in a row.
+    P.obj("mu_hm_p_t", "t f f", hx, 80)
+    P.c("mu_hm_sig", "mu_hm_p_t", 0, 0)
+    ex("mu_hm_ok", f"($f1>0)*(abs($f1-$f2)<{HARM_STEADY_ST})*($f3>{HARM_ABOVE_DB})", hx, 140)
+    P.c("mu_hm_p_t", "mu_hm_ok", 1, 0); P.c("mu_hm_p_t", "mu_hm_ok", 0, 1)   # right first: compare with the old pitch
+    P.c("mu_hm_loud", "mu_hm_ok", 0, 2)
+    P.obj("mu_hm_ok_t", "t f b", hx, 155)                              # read the count, then add to it or clear it
+    P.obj("mu_hm_cnt", "f", hx + 60, 170)
+    ex("mu_hm_next", "$f1*($f2+1)", hx, 200)
+    P.c("mu_hm_ok", "mu_hm_ok_t"); P.c("mu_hm_ok_t", "mu_hm_cnt", 1, 0); P.c("mu_hm_cnt", "mu_hm_next", 0, 1)
+    P.c("mu_hm_ok_t", "mu_hm_next", 0, 0)
+    P.obj("mu_hm_cnt_t", "t f f", hx, 230)
+    P.c("mu_hm_next", "mu_hm_cnt_t"); P.c("mu_hm_cnt_t", "mu_hm_cnt", 1, 1)
+    ex("mu_hm_held", f"$f1>={HARM_STABLE_FRAMES}", hx, 260)
+    P.c("mu_hm_cnt_t", "mu_hm_held")
+    P.obj("mu_hm_chg", "change", hx, 290)
+    P.obj("mu_hm_sel", "sel 1 0", hx, 320)
+    P.c("mu_hm_held", "mu_hm_chg"); P.c("mu_hm_chg", "mu_hm_sel")
+    # The answer: the heard pitch folded into one octave, snapped to the scale, a few steps up.
+    P.obj("mu_hm_pitch", "f", hx + 100, 350)
+    P.c("mu_hm_p_t", "mu_hm_pitch", 0, 1)
+    ex("mu_hm_fold", f"rint($f1-12*floor(($f1-{HARM_FOLD[0]})/12))", hx + 100, 380)
+    P.obj("mu_hm_root", "f 48", hx + 260, 350)
+    P.c("mu_key_root", "mu_hm_root", 0, 1)
+    P.obj("mu_hm_n", "value scale_n", hx + 360, 350)
+    P.obj("mu_hm_t", "t f b b", hx + 100, 400)
+    P.c("mu_hm_fold", "mu_hm_t"); P.c("mu_hm_t", "mu_hm_root", 2, 0); P.c("mu_hm_t", "mu_hm_n", 1, 0)
+    ex("mu_hm_deg", f"int(($f1-$f2)/12)*$f3+pc_deg[int($f1-$f2)%12]+{HARM_UP}", hx + 100, 430)
+    P.c("mu_hm_root", "mu_hm_deg", 0, 1); P.c("mu_hm_n", "mu_hm_deg", 0, 2); P.c("mu_hm_t", "mu_hm_deg", 0, 0)
+    deg_in, deg_hz = degree_to_hz("mu_hm_c", hx + 100, 460)
+    P.c("mu_hm_deg", deg_in)
+    P.obj("mu_hm_degout", "s harm_deg", hx + 300, 470)
+    P.c("mu_hm_deg", "mu_hm_degout")
+    # Note on: frequency first, then pick the other voice and open it; note off closes the voice that is playing.
+    P.obj("mu_hm_on", "t b b", hx, 350)
+    P.c("mu_hm_sel", "mu_hm_on", 0, 0)
+    P.c("mu_hm_on", "mu_hm_pitch", 1, 0); P.c("mu_hm_pitch", "mu_hm_fold")
+    P.obj("mu_hm_vc", "f", hx, 680)
+    P.obj("mu_hm_flip", "== 0", hx + 60, 680)
+    P.c("mu_hm_vc", "mu_hm_flip"); P.c("mu_hm_flip", "mu_hm_vc", 0, 1)
+    P.obj("mu_hm_on2", "t b b", hx, 665)
+    P.c("mu_hm_on", "mu_hm_on2", 0, 0)
+    P.c("mu_hm_on2", "mu_hm_vc", 1, 0)
+    P.obj("mu_hm_cur", "f", hx + 120, 700)
+    P.c("mu_hm_flip", "mu_hm_cur", 0, 1)
+    P.c("mu_hm_on2", "mu_hm_cur", 0, 0)
+    P.obj("mu_hm_off", "t b", hx + 200, 700)
+    P.c("mu_hm_sel", "mu_hm_off", 1, 0)
+    P.obj("mu_hm_vsel", "sel 0 1", hx + 120, 730)
+    P.obj("mu_hm_osel", "sel 0 1", hx + 200, 730)
+    P.obj("mu_hm_cur2", "f", hx + 200, 715)
+    P.c("mu_hm_flip", "mu_hm_cur2", 0, 1)
+    P.c("mu_hm_off", "mu_hm_cur2"); P.c("mu_hm_cur2", "mu_hm_osel")
+    P.c("mu_hm_cur", "mu_hm_vsel")
+    acc = None
+    comma = " " + BS + ","
+    for k in range(2):
+        vx = hx + 400 + k * 200
+        P.obj(f"mu_hm{k}_fr", "f", vx, 760)
+        P.c(deg_hz, f"mu_hm{k}_fr", 0, 1)
+        P.obj(f"mu_hm{k}_t", "t b b", vx, 745)
+        P.c("mu_hm_vsel", f"mu_hm{k}_t", k, 0)
+        P.c(f"mu_hm{k}_t", f"mu_hm{k}_fr", 1, 0)
+        P.obj(f"mu_hm{k}_o1", "osc~", vx, 790)
+        P.obj(f"mu_hm{k}_f2", "* 2", vx + 60, 775)
+        P.obj(f"mu_hm{k}_o2", "osc~", vx + 60, 790)
+        P.c(f"mu_hm{k}_fr", f"mu_hm{k}_o1"); P.c(f"mu_hm{k}_fr", f"mu_hm{k}_f2"); P.c(f"mu_hm{k}_f2", f"mu_hm{k}_o2")
+        P.obj(f"mu_hm{k}_g2", "*~ 0.2", vx + 60, 810)
+        P.c(f"mu_hm{k}_o2", f"mu_hm{k}_g2")
+        P.sig2(f"mu_hm{k}_s", "+~", f"mu_hm{k}_o1", f"mu_hm{k}_g2", vx, 830)
+        P.msg(f"mu_hm{k}_atk", f"1 {HARM_ATTACK_MS}", vx, 850)
+        P.msg(f"mu_hm{k}_rel", f"0 {HARM_RELEASE_MS}", vx + 80, 850)
+        P.obj(f"mu_hm{k}_env", "vline~", vx, 870)
+        P.c(f"mu_hm{k}_t", f"mu_hm{k}_atk", 0, 0)
+        P.c("mu_hm_osel", f"mu_hm{k}_rel", k, 0)
+        P.c(f"mu_hm{k}_atk", f"mu_hm{k}_env"); P.c(f"mu_hm{k}_rel", f"mu_hm{k}_env")
+        P.obj(f"mu_hm{k}_sq", "*~", vx, 890)
+        P.c(f"mu_hm{k}_env", f"mu_hm{k}_sq", 0, 0); P.c(f"mu_hm{k}_env", f"mu_hm{k}_sq", 0, 1)   # eased in and out
+        P.sig2(f"mu_hm{k}_out", "*~", f"mu_hm{k}_s", f"mu_hm{k}_sq", vx, 910)
+        acc = f"mu_hm{k}_out" if acc is None else P.sig2("mu_hm_sum", "+~", acc, f"mu_hm{k}_out", vx, 930)
+    P.obj("mu_hm_lp", "lop~ 2500", hx, 950)
+    P.c(acc, "mu_hm_lp")
+    lvl = smoothed(P, "music_harm", "music_harm", hx + 300, 950)
+    P.obj("mu_hm_gain", "*~ 0.22", hx, 970)
+    P.c("mu_hm_lp", "mu_hm_gain")
+    return P.sig2("mu_hm_out", "*~", "mu_hm_gain", lvl, hx, 990)
 
 
 def add_room_notes(P, rx, ex, degree_to_hz):

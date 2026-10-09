@@ -51,7 +51,7 @@ def fresh(**over):
                 phaser_on=1, phaser_mix=0, phaser_rate=0.4, phaser_depth=0.7, phaser_fb=0.4,
                 beat_on=1, beat_level=0, beat_hats=0.5, beat_snare=0.6, beat_pitch=55,
                 music_on=0, music_key=0, music_scale=0, music_pad=0.33, music_arp=0.4,
-                music_tone=0.5, music_react=0.8, music_res=0.8, music_pad_reg=2, pocket_hush=0.5, pocket_guard=0.6)
+                music_tone=0.5, music_react=0.8, music_res=0.8, music_harm=0, music_pad_reg=2, pocket_hush=0.5, pocket_guard=0.6)
     base.update(over)
     for k, v in base.items():
         e.send(k, v)
@@ -1120,6 +1120,34 @@ def pocket_res(pocket):
     return e.run(x)[:, 0][int(0.1 * SR):]          # the ringing after the burst (the dry burst is over by then)
 rfree, rpocket = rms(pocket_res(0)), rms(pocket_res(1))
 check(0.05 * rfree < rpocket < 0.5 * rfree, "pocket hush: Room notes ring softer in a pocket but still ring (%.6f vs %.4f)" % (rpocket, rfree))
+
+# harmony: a held pitch gets an in-key answer a third above; noise and short blips get none
+def hum(freq, secs, amp=0.1, quiet=0.0005, seed=4):
+    rng = np.random.default_rng(seed); t = np.arange(int(secs * SR)) / SR
+    voice = amp * (np.sin(2 * np.pi * freq * t) + 0.4 * np.sin(4 * np.pi * freq * t) + 0.2 * np.sin(6 * np.pi * freq * t))
+    lead = rng.standard_normal(2 * SR) * quiet; tail = rng.standard_normal(3 * SR) * quiet
+    return np.concatenate([lead, voice + rng.standard_normal(len(t)) * quiet, tail]).astype(np.float32)
+def harmony(x, **over):
+    """The harmony voice alone (the same input with it on, minus with it off; music follows the Dry level)."""
+    base = dict(music_on=1, music_pad=0, music_arp=0, music_res=0, wet=0)
+    base.update(over)
+    e = fresh(**dict(base, music_harm=1)); e.listen("harm_deg"); y = e.run(x)[:, 0]
+    return y - fresh(**dict(base, music_harm=0)).run(x)[:, 0], [int(v) for v in e.heard["harm_deg"]]
+y, degs = harmony(hum(220, 1.5))                               # A3, C major: the answer is C (a third above A)
+held = y[int(2.6 * SR):int(3.4 * SR)]
+check(degs == [14] and tone_level(held, 523.25) > 0.02 and tone_level(held, 523.25) > 4 * tone_level(held, 440),
+      "harmony: humming A in C major is answered with C above it (degrees %s, C %.4f, A %.4f)"
+      % (degs, tone_level(held, 523.25), tone_level(held, 440)))
+check(rms(y[int(4.8 * SR):]) < 0.2 * rms(held), "harmony: the answer fades once the hum stops (%.4f)" % rms(y[int(4.8 * SR):]))
+_, degs_m = harmony(hum(220, 1.5), music_key=2, music_scale=1)   # D minor: A answered with C (third above, in key)
+check(degs_m == [13], "harmony: in D minor the answer to A is C (degree %s)" % degs_m)
+rng = np.random.default_rng(5)
+noise = np.concatenate([rng.standard_normal(2 * SR) * 0.0005, rng.standard_normal(2 * SR) * 0.1, rng.standard_normal(2 * SR) * 0.0005]).astype(np.float32)
+_, degs_n = harmony(noise)
+_, degs_b = harmony(hum(330, 0.08))
+_, degs_q = harmony(hum(220, 1.5, amp=0.0008))
+check(not degs_n and not degs_b and not degs_q,
+      "harmony: noise, a short blip and a hum lost in the room's quiet play nothing (%s %s %s)" % (degs_n, degs_b, degs_q))
 
 # room notes: resonators make the mic's own sound ring the current chord
 def claps(n, gap, amp, quiet=0.0005, seed=1):

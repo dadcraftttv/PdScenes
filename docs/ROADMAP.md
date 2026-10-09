@@ -8,7 +8,7 @@ Suggested order is the numbering. Each one needs a test in `tools/test_patch.py`
    key and scale; filter frequencies move with pitch changes and onsets, so sounds around you ring notes in key.
    Likely a new voice in the Music section (level slider + on/off) or part of the Flux world. Joins the output after
    the filter like the other music voices, so echo/reverb/spatial shape it.
-2. **Pitch-following harmony (Dimensions "Travelling Dream", RjDj "Eargasm").** Track the pitch of what the mic hears
+2. **(BUILT 2026-10-09 as the Harmony slider) Pitch-following harmony (Dimensions "Travelling Dream", RjDj "Eargasm").** Track the pitch of what the mic hears
    (rjlib `analysepitch` / the fiddle external, already in `scene_lib` and the native libs) and answer with in-key notes or
    harmony. Needs a confidence gate so noise does not produce random notes.
 3. **Ghost: capture and stretch.** On a detected onset, record the moment and replay it granularly stretched in time,
