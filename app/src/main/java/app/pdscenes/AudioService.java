@@ -88,6 +88,7 @@ public class AudioService extends Service {
             long now = SystemClock.uptimeMillis();
             // Cap dt so a stalled main thread doesn't make the movers jump.
             double dt = Math.min((now - lastMoverTick) / 1000.0, 0.25);
+            ParamStore.morphTick(dt);   // Randomize gliding to its new sound
             Modulation.tick(dt, (id, value) -> PdBase.sendFloat(id, value));
             if (now - lastCallCheck >= CALL_CHECK_MS) {
                 lastCallCheck = now;

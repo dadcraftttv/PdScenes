@@ -302,6 +302,8 @@ public class MainActivity extends Activity {
         addButton(randomRow, R.string.randomize, () -> {
             ParamStore.randomize();
             refreshRows();
+            uiHandler.removeCallbacks(morphFollow);
+            uiHandler.post(morphFollow);   // the sliders follow the glide on screen
         });
         addButton(randomRow, R.string.nudge, () -> {
             ParamStore.nudge(ParamStore.get("nudge_amount"));
@@ -499,6 +501,17 @@ public class MainActivity extends Activity {
         }
     }
 
+    /** While Randomize glides, redraw the sliders a few times a second so they visibly move. */
+    private final Runnable morphFollow = new Runnable() {
+        @Override
+        public void run() {
+            refreshRows();
+            if (ParamStore.isMorphing()) {
+                uiHandler.postDelayed(this, 120);
+            }
+        }
+    };
+
     /** Where the settings were scrolled to, so a theme change (which rebuilds the screen) keeps the place. */
     private static final String STATE_SCROLL = "scrollY";
     private ScrollView mainScroll;
@@ -557,6 +570,7 @@ public class MainActivity extends Activity {
         AudioService.setStateListener(null);
         Worlds.setListener(null);
         uiHandler.removeCallbacks(nowLineTick);
+        uiHandler.removeCallbacks(morphFollow);
         audioManager.unregisterAudioDeviceCallback(deviceCallback);
         ParamStore.save(this);
         super.onPause();

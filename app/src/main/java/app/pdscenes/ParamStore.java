@@ -82,6 +82,7 @@ final class ParamStore {
 
     /** Apply a preset's values (only known parameters that belong in presets). */
     static synchronized void applyPreset(Map<String, Float> preset) {
+        morph.clear();
         pushUndo();
         applyValues(preset);
     }
@@ -89,18 +90,74 @@ final class ParamStore {
     /** Jump every unlocked, randomizable parameter to a random value in its safe range. */
     static synchronized void randomize() {
         pushUndo();
+        morph.clear();
         for (Param p : Params.ALL) {
             if (!p.randomizable || locked.contains(p.id)) {
                 continue;
             }
             float lo = p.toNorm(p.randMin);
             float hi = p.toNorm(p.randMax);
-            set(p.id, p.toValue(lo + rng.nextFloat() * (hi - lo)));
+            float target = p.toValue(lo + rng.nextFloat() * (hi - lo));
+            if (AudioService.isRunning()) {
+                morph.put(p.id, new float[]{get(p.id), target, get(p.id)});   // from, to, last written
+            } else {
+                set(p.id, target);   // nothing to hear: jump
+            }
+        }
+        morphT = 0;
+    }
+
+    // ---- dice morph: Randomize glides to its new sound instead of jumping ----
+    static final double MORPH_S = 6.0;
+    private static final Map<String, float[]> morph = new LinkedHashMap<>();
+    private static double morphT;
+
+    static synchronized boolean isMorphing() {
+        return !morph.isEmpty();
+    }
+
+    /** Stop a glide where it is (undo, presets, reset, nudge). */
+    static synchronized void stopMorph() {
+        morph.clear();
+    }
+
+    /**
+     * Advance the glide (called by the service's 30 Hz tick). Sliders move with an ease in and out; switches
+     * and menus change halfway. A slider someone (a hand, a world) moved meanwhile is left where it was put.
+     */
+    static synchronized void morphTick(double dt) {
+        if (morph.isEmpty()) {
+            return;
+        }
+        morphT = Math.min(1, morphT + dt / MORPH_S);
+        double e = morphT * morphT * (3 - 2 * morphT);
+        java.util.Iterator<Map.Entry<String, float[]>> it = morph.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry<String, float[]> en = it.next();
+            Param p = Params.byId(en.getKey());
+            float[] m = en.getValue();
+            if (get(p.id) != m[2]) {
+                it.remove();   // someone else moved it
+                continue;
+            }
+            float v;
+            if (p.toggle || p.choices != null) {
+                v = e >= 0.5 ? m[1] : m[0];
+            } else {
+                float a = p.toNorm(m[0]);
+                v = p.toValue((float) (a + (p.toNorm(m[1]) - a) * e));
+            }
+            set(p.id, v);
+            m[2] = get(p.id);
+        }
+        if (morphT >= 1) {
+            morph.clear();
         }
     }
 
     /** Move every unlocked, randomizable parameter a little (amount is a slider fraction). */
     static synchronized void nudge(float amount) {
+        morph.clear();
         pushUndo();
         for (Param p : Params.ALL) {
             if (!p.randomizable || locked.contains(p.id)) {
@@ -114,6 +171,7 @@ final class ParamStore {
     }
 
     static synchronized void undo() {
+        morph.clear();
         Map<String, Float> previous = undoStack.pollFirst();
         if (previous != null) {
             applyValues(previous);
@@ -125,6 +183,7 @@ final class ParamStore {
      * key and scale), every lock off. Only ever called from the Reset button.
      */
     static synchronized void resetAll() {
+        morph.clear();
         pushUndo();
         locked.clear();
         for (Param p : Params.ALL) {

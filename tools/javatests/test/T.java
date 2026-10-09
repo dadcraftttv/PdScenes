@@ -11,6 +11,16 @@ public class T {
     ParamStore.setLocked("feedback",true); float fb0=ParamStore.get("feedback"), g0=ParamStore.get("gain");
     boolean inRange=true; for(int i=0;i<2000;i++){ ParamStore.randomize(); for(Param p:Params.ALL){ if(!p.randomizable) continue; float v=ParamStore.get(p.id); if(p.id.equals("feedback")) continue; if(v<p.randMin-1e-3||v>p.randMax+1e-3) inRange=false; } }
     check(inRange,"randomize stays within safe ranges (2000 runs)");
+    // dice morph: while the audio runs, Randomize glides there over MORPH_S; a slider moved meanwhile stays put
+    AudioService.running=true; ParamStore.set("wet",0.1f); ParamStore.set("ring_freq",100f); ParamStore.setLocked("ring_freq",false);
+    ParamStore.randomize(); float wetTo=-1; check(ParamStore.isMorphing()&&ParamStore.get("wet")==0.1f,"randomize starts a glide, nothing jumps yet");
+    for(int i=0;i<45;i++) ParamStore.morphTick(0.033);   // ~1.5 s
+    float wetMid=ParamStore.get("wet"); ParamStore.set("ring_freq",321f);
+    for(int i=0;i<300&&ParamStore.isMorphing();i++) ParamStore.morphTick(0.033);
+    check(!ParamStore.isMorphing()&&ParamStore.get("ring_freq")==321f,"the glide ends, and a slider moved by hand stays where it was put ("+ParamStore.get("ring_freq")+")");
+    float wetEnd=ParamStore.get("wet"); check(Math.abs(wetMid-0.1f)<Math.abs(wetEnd-0.1f)||wetEnd==0.1f,"wet moved part way first ("+wetMid+") then to "+wetEnd);
+    ParamStore.randomize(); ParamStore.morphTick(0.5); ParamStore.undo(); check(!ParamStore.isMorphing()&&ParamStore.get("wet")==wetEnd,"undo stops the glide and goes back");
+    AudioService.running=false;
     check(ParamStore.get("feedback")==fb0,"locked param untouched by randomize");
     check(ParamStore.get("gain")==g0,"gain untouched by randomize");
     // undo restores
