@@ -27,6 +27,13 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.List;
+import java.util.Locale;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * Hosts libpd in a foreground service so the mic -> Pd -> headphones loop keeps
@@ -82,6 +89,10 @@ public class AudioService extends Service {
             // Cap dt so a stalled main thread doesn't make the movers jump.
             double dt = Math.min((now - lastMoverTick) / 1000.0, 0.25);
             Modulation.tick(dt, (id, value) -> PdBase.sendFloat(id, value));
+            if (now - lastCallCheck >= CALL_CHECK_MS) {
+                lastCallCheck = now;
+                checkForCall();
+            }
             if (autoWorlds) {
                 boolean pocket = PhoneContext.inPocket();
                 if (pocket != pocketSent) {
@@ -122,26 +133,116 @@ public class AudioService extends Service {
     private static final String EVENT_LOG = "events.log";
     private static final long EVENT_LOG_MAX_BYTES = 64 * 1024;
 
+    /** Writes the event log off the main thread, so a slow flash write can't hold up the movers. */
+    private final ExecutorService logWriter = Executors.newSingleThreadExecutor();
+    private final SimpleDateFormat logTime = new SimpleDateFormat("MM-dd HH:mm:ss", Locale.US);   // main thread only
+
     private void logEvent(String what) {
         Log.i(TAG, what);
-        try {
-            File f = new File(getFilesDir(), EVENT_LOG);
-            if (f.length() > EVENT_LOG_MAX_BYTES) {
-                File old = new File(getFilesDir(), EVENT_LOG + ".1");
-                old.delete();
-                f.renameTo(old);
+        String line = logTime.format(new Date()) + "  " + what + "\n";
+        File dir = getFilesDir();
+        logWriter.execute(() -> {
+            try {
+                File f = new File(dir, EVENT_LOG);
+                if (f.length() > EVENT_LOG_MAX_BYTES) {
+                    File old = new File(dir, EVENT_LOG + ".1");
+                    old.delete();
+                    f.renameTo(old);
+                }
+                try (FileOutputStream out = new FileOutputStream(f, true)) {
+                    out.write(line.getBytes(StandardCharsets.UTF_8));
+                }
+            } catch (IOException e) {
+                Log.w(TAG, "Could not write the event log", e);
             }
-            String line = new java.text.SimpleDateFormat("MM-dd HH:mm:ss", java.util.Locale.US)
-                    .format(new java.util.Date()) + "  " + what + "\n";
-            try (FileOutputStream out = new FileOutputStream(f, true)) {
-                out.write(line.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        });
+    }
+
+    // ---- phone calls and other apps' audio ----
+    // The app never asks for audio focus (that would pause the user's music app on Start). Instead it watches:
+    // during a phone call (or ringing) the output is silenced, and while another app plays it dips a little so
+    // both can be heard (Samuel: duck only slightly, never drown the app's effects; always stop for a call).
+    private static final long CALL_CHECK_MS = 500;
+    /** How far the output dips while other audio plays: 0.3 = about 3 dB. */
+    static final float OTHER_AUDIO_DUCK = 0.3f;
+    private long lastCallCheck;
+    private static volatile boolean pausedForCall;
+    private int otherPlayers;
+
+    /** True while a phone call has silenced the output. */
+    static boolean isPausedForCall() {
+        return pausedForCall;
+    }
+
+    @SuppressWarnings("deprecation")
+    private void checkForCall() {
+        int mode = getSystemService(AudioManager.class).getMode();
+        boolean call = mode == AudioManager.MODE_IN_CALL || mode == AudioManager.MODE_RINGTONE
+                || mode == AudioManager.MODE_CALL_SCREENING || mode == AudioManager.MODE_CALL_REDIRECT
+                || mode == AudioManager.MODE_COMMUNICATION_REDIRECT
+                // a voice/video call app; but a Bluetooth mic puts the phone in this mode for us, so not then
+                || (mode == AudioManager.MODE_IN_COMMUNICATION && !bluetoothMicRouted);
+        if (call == pausedForCall) {
+            return;
+        }
+        pausedForCall = call;
+        if (!outputLost) {
+            PdBase.computeAudio(!call);
+        }
+        logEvent(call ? "Paused for a phone call" : "Call over, playing again");
+        notifyStateChanged();
+    }
+
+    private final AudioManager.AudioPlaybackCallback playbackWatcher = new AudioManager.AudioPlaybackCallback() {
+        @Override
+        public void onPlaybackConfigChanged(List<android.media.AudioPlaybackConfiguration> configs) {
+            updateOtherAudio(configs);
+        }
+    };
+
+    /**
+     * Counts the players that are really playing (only those have an output device) with an audible kind of
+     * sound. The app's own output is one of them; key clicks and calls don't count (calls are handled above).
+     * Android 12+ only: older versions don't say which players are playing, so there is no ducking there.
+     */
+    @SuppressWarnings("deprecation")
+    private void updateOtherAudio(List<android.media.AudioPlaybackConfiguration> configs) {
+        if (!running || Build.VERSION.SDK_INT < 31) {
+            return;
+        }
+        int playing = 0;
+        for (android.media.AudioPlaybackConfiguration c : configs) {
+            int usage = c.getAudioAttributes().getUsage();
+            if (c.getAudioDeviceInfo() != null
+                    && usage != android.media.AudioAttributes.USAGE_ASSISTANCE_SONIFICATION
+                    && usage != android.media.AudioAttributes.USAGE_VOICE_COMMUNICATION
+                    && usage != android.media.AudioAttributes.USAGE_VOICE_COMMUNICATION_SIGNALLING) {
+                playing++;
             }
-        } catch (IOException e) {
-            Log.w(TAG, "Could not write the event log", e);
+        }
+        int others = Math.max(0, playing - 1);
+        if ((others > 0) != (otherPlayers > 0)) {
+            logEvent(others > 0 ? "Other audio playing (" + others + "), ducking a little" : "Other audio stopped");
+        }
+        otherPlayers = others;
+        sendDuck();
+    }
+
+    private void sendDuck() {
+        float cut = otherPlayers > 0 ? OTHER_AUDIO_DUCK : 0f;
+        if (sceneRunning) {
+            PdBase.sendMessage("#volume", "set", SceneSettings.volume(this) * (1f - cut));
+        } else {
+            PdBase.sendFloat("duck", cut);
         }
     }
 
     private int patchHandle = -1;
+    private boolean sceneRunning;
+    /** True while waiting (off the main thread) for a Bluetooth headset's call link before opening the audio. */
+    private boolean starting;
+    /** Bumped by every stop, so a Bluetooth wait that finishes after a stop is ignored. */
+    private int startGeneration;
     private boolean bluetoothMicRouted = false;
     private SensorInput sensors;
 
@@ -226,12 +327,12 @@ public class AudioService extends Service {
         enterForeground();
 
         if (ACTION_RESTART.equals(action)) {
-            if (!running) {
+            if (!running && !starting) {
                 return START_NOT_STICKY;   // nothing to restart; the new choice applies on next Start
             }
             stopEngine();
         }
-        if (!running) {
+        if (!running && !starting) {
             try {
                 startEngine();
                 lastError = null;
@@ -286,7 +387,7 @@ public class AudioService extends Service {
         }
 
         File patchDir = new File(getFilesDir(), "patches");
-        copyAssetDir(getAssets(), "patches", patchDir);
+        copyAssetsIfChanged("patches", patchDir);
 
         PdBase.addToSearchPath(patchDir.getAbsolutePath());
         // Where Android unpacks libfiddle_tilde.so and the other optional externals scenes use.
@@ -295,7 +396,7 @@ public class AudioService extends Service {
         // Scenes find the player's soundinput/soundoutput through "declare -path ../pd".
         File scenesDir = SceneSettings.scenesDir(this);
         File libDir = new File(scenesDir, SceneLibrary.LIB_DIR);
-        copyAssetDir(getAssets(), "scene_lib", libDir);
+        copyAssetsIfChanged("scene_lib", libDir);
         PdBase.addToSearchPath(libDir.getAbsolutePath());                       // soundinput, accelerate, rj/...
         PdBase.addToSearchPath(new File(libDir, "rj").getAbsolutePath());       // RjDj library, by bare name
         SceneLibrary.Scene scene = SceneSettings.current(this);
@@ -334,10 +435,47 @@ public class AudioService extends Service {
         if (!canSelectDevices()) {
             Log.w(TAG, "pd-core cannot pick devices; headphones-only output is not enforced");
         }
-        if (!routeBluetoothMic(am, in)) {
+        if (!AudioDevices.isBluetoothMic(in)) {
+            openAudio(sampleRate, patchFile, scene, in, out);
+            return;
+        }
+        String address = requestBluetoothMic(am, in);
+        if (address == null) {
             releaseBluetoothMic();
             throw new IOException(getString(R.string.err_bluetooth_mic));
         }
+        // Android takes up to a few seconds to bring the link up. Wait on another thread (waiting here froze
+        // the screen), then open the audio back on the main thread.
+        starting = true;
+        int generation = startGeneration;
+        final int rate = sampleRate;
+        final AudioDevices.Device output = out;
+        new Thread(() -> {
+            boolean up = waitForBluetoothMic(am, in, address);
+            handler.post(() -> {
+                if (generation != startGeneration) {
+                    return;   // stopped meanwhile
+                }
+                starting = false;
+                try {
+                    if (!up) {
+                        releaseBluetoothMic();
+                        throw new IOException(getString(R.string.err_bluetooth_mic));
+                    }
+                    openAudio(rate, patchFile, scene, in, output);
+                    lastError = null;
+                } catch (IOException | RuntimeException e) {
+                    Log.e(TAG, "Failed to start audio", e);
+                    lastError = getString(R.string.err_start_failed, e.getMessage());
+                    shutDown();
+                }
+            });
+        }, "bluetooth-mic-wait").start();
+    }
+
+    /** Second half of starting: opens the streams and the patch on the devices chosen. */
+    private void openAudio(int sampleRate, File patchFile, SceneLibrary.Scene scene,
+                           AudioDevices.Device in, AudioDevices.Device out) throws IOException {
         if (AudioDevices.isBluetoothMic(in)) {
             // Sound and mic share the headset's one link, so play to its matching output.
             AudioDevices.Device paired = AudioDevices.pairedOutput(this, in);
@@ -360,6 +498,7 @@ public class AudioService extends Service {
         }
 
         ParamStore.sendAllToPd();
+        sceneRunning = scene != null;
         if (scene != null) {
             sendSceneLevels(this);
         }
@@ -372,7 +511,13 @@ public class AudioService extends Service {
         }
         actualRate = queryActualRate();
         running = true;
-        getSystemService(AudioManager.class).registerAudioDeviceCallback(outputWatcher, handler);
+        AudioManager am = getSystemService(AudioManager.class);
+        am.registerAudioDeviceCallback(outputWatcher, handler);
+        pausedForCall = false;
+        lastCallCheck = 0;
+        otherPlayers = 0;
+        am.registerAudioPlaybackCallback(playbackWatcher, handler);
+        updateOtherAudio(am.getActivePlaybackConfigurations());
         Modulation.reset();
         StepDetector.reset();
         // Footsteps drive the built-in patch's drums; scenes have their own business with the sensors.
@@ -457,6 +602,12 @@ public class AudioService extends Service {
     }
 
     private void stopEngine() {
+        startGeneration++;
+        if (starting) {   // still waiting for a Bluetooth headset: give up
+            starting = false;
+            releaseBluetoothMic();
+            notifyStateChanged();
+        }
         if (!running && patchHandle < 0) {
             return;
         }
@@ -464,6 +615,8 @@ public class AudioService extends Service {
         outputLost = false;
         handler.removeCallbacks(afterHeadphonesLost);
         getSystemService(AudioManager.class).unregisterAudioDeviceCallback(outputWatcher);
+        getSystemService(AudioManager.class).unregisterAudioPlaybackCallback(playbackWatcher);
+        pausedForCall = false;
         handler.removeCallbacks(moverTick);
         Modulation.reset();
         StepDetector.setListener(null);
@@ -492,17 +645,14 @@ public class AudioService extends Service {
 
     /**
      * A Bluetooth headset only delivers microphone audio over its hands-free (call) link. Android
-     * opens that link on request and takes a moment to do it, so this puts the phone in call mode,
-     * asks for the headset and waits (up to 3 seconds) until the link is up. The audio streams are
-     * opened only after that, or they would have no device to attach to and stay silent.
+     * opens that link on request and takes a moment to do it, so this puts the phone in call mode and
+     * asks for the headset; {@link #waitForBluetoothMic} then waits (up to 3 seconds) until the link is up.
+     * The audio streams are opened only after that, or they would have no device to attach to and stay silent.
      *
-     * @return true once the headset's call link is active
+     * @return the headset's address, or null if Android refused
      */
     @SuppressWarnings("deprecation")
-    private boolean routeBluetoothMic(AudioManager am, AudioDevices.Device device) {
-        if (!AudioDevices.isBluetoothMic(device)) {
-            return true;
-        }
+    private String requestBluetoothMic(AudioManager am, AudioDevices.Device device) {
         final String address = device.key.substring(device.key.indexOf(':') + 1);
         savedAudioMode = am.getMode();
         am.setMode(AudioManager.MODE_IN_COMMUNICATION);
@@ -522,8 +672,14 @@ public class AudioService extends Service {
         }
         if (!requested) {
             Log.w(TAG, "Android would not route calls to the Bluetooth headset");
-            return false;
+            return null;
         }
+        return address;
+    }
+
+    /** Blocks (call it off the main thread) until the headset's call link is up; false after 3 seconds. */
+    @SuppressWarnings("deprecation")
+    private static boolean waitForBluetoothMic(AudioManager am, AudioDevices.Device device, String address) {
         for (int waited = 0; waited < 3000; waited += 100) {
             boolean up = Build.VERSION.SDK_INT >= 31
                     ? am.getCommunicationDevice() != null
@@ -575,6 +731,7 @@ public class AudioService extends Service {
     @Override
     public void onDestroy() {
         stopEngine();
+        logWriter.shutdown();   // lines already queued are still written
         super.onDestroy();
     }
 
@@ -588,6 +745,33 @@ public class AudioService extends Service {
             return s == null ? fallback : Integer.parseInt(s);
         } catch (NumberFormatException e) {
             return fallback;
+        }
+    }
+
+    /**
+     * Copies an asset directory unless this install already did: the RjDj library alone is ~400 files, and
+     * copying it on every Start made starting slow. A stamp file records which install (update time) copied it.
+     */
+    private void copyAssetsIfChanged(String assetPath, File dest) throws IOException {
+        String stamp;
+        try {
+            stamp = String.valueOf(getPackageManager().getPackageInfo(getPackageName(), 0).lastUpdateTime);
+        } catch (PackageManager.NameNotFoundException e) {
+            stamp = "";
+        }
+        File mark = new File(dest, ".copied");
+        if (!stamp.isEmpty() && mark.isFile()) {
+            try (InputStream in = new java.io.FileInputStream(mark)) {
+                byte[] b = new byte[64];
+                int n = in.read(b);
+                if (n > 0 && stamp.equals(new String(b, 0, n, StandardCharsets.UTF_8))) {
+                    return;
+                }
+            }
+        }
+        copyAssetDir(getAssets(), assetPath, dest);
+        try (OutputStream out = new FileOutputStream(mark)) {
+            out.write(stamp.getBytes(StandardCharsets.UTF_8));
         }
     }
 

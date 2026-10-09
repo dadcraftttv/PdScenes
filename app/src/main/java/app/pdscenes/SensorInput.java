@@ -51,6 +51,7 @@ final class SensorInput implements SensorEventListener {
     private HandlerThread thread;
     /** Latest gravity reading (Android axes), kept for the compass. */
     private final float[] gravity = new float[3];
+    private final float[] sceneAccel = new float[3];   // reused: scene accelerometer events come up to 200 times a second
     private boolean haveGravity;
     /** True when the phone has a fused rotation vector sensor; then it supplies the compass. */
     private boolean haveRotationVector;
@@ -140,7 +141,7 @@ final class SensorInput implements SensorEventListener {
         switch (event.sensor.getType()) {
             case Sensor.TYPE_ACCELEROMETER:
                 if (sendToPd) {
-                    float[] g = toScene(x, y, z);
+                    float[] g = toScene(x, y, z, sceneAccel);
                     PdBase.sendList(ACCELERATE_RECEIVER, g[0], g[1], g[2]);
                 }
                 Modulation.onAcceleration(x, y, z);
@@ -226,8 +227,16 @@ final class SensorInput implements SensorEventListener {
 
     /** Android m/s&sup2; to the iOS-style g values scenes expect (sign flipped, 1 g = 9.80665 m/s&sup2;). */
     static float[] toScene(float x, float y, float z) {
+        return toScene(x, y, z, new float[3]);
+    }
+
+    /** Same, written into {@code out} (returned). */
+    static float[] toScene(float x, float y, float z, float[] out) {
         float g = SensorManager.GRAVITY_EARTH;
-        return new float[]{-x / g, -y / g, -z / g};
+        out[0] = -x / g;
+        out[1] = -y / g;
+        out[2] = -z / g;
+        return out;
     }
 
     /**

@@ -77,7 +77,7 @@ check(not bad, "patch loads with no Pd errors" + (": %s" % bad if bad else ""))
 
 jp = java_params()
 patch_text = open(PATCH).read()
-receivers = set(re.findall(r"#X obj \d+ \d+ r (\w+);", patch_text)) - {"step", "scale_n", "pad_glide", "mic_level", "pad_slot", "pool_n", "pool_x", "pocket", "pocket_down"}   # events and internal links, not settings
+receivers = set(re.findall(r"#X obj \d+ \d+ r (\w+);", patch_text)) - {"step", "scale_n", "pad_glide", "mic_level", "pad_slot", "pool_n", "pool_x", "pocket", "pocket_down", "duck"}   # events and internal links, not settings
 pd_ids = {i for i, _, nopd in jp if not nopd}
 check(len(jp) >= 10, "parsed %d params from Params.java" % len(jp))
 check(pd_ids == receivers, "Params.java ids == patch receivers (java-only %s, patch-only %s)"
@@ -958,6 +958,17 @@ check(still and 0.3 < still[0] < 0.36,
 check(None not in off and any(abs(t - 2.75) < 0.006 for t in walk_t) and 4.5 in walk_t and not any(4.35 < t < 4.5 for t in walk_t),
       "music: walking, chimes fall on steps or half-steps (%d notes; clap at 2.58 s chimed at %s, clap at 4.35 s waited for the 4.5 s step)"
       % (len(walk_t), [round(t, 3) for t in walk_t if 2.5 < t < 3.0]))
+
+# duck: while another app plays, the app's whole output dips a little, smoothly, and comes back
+e = fresh(wet=0, dry=1); e.run(sine(440, 0.1, 0.5))
+full = rms(e.run(sine(440, 0.1, 0.5))[:, 0])
+e.send("duck", 0.3); y = e.run(sine(440, 0.1, 1.5))[:, 0]
+ducked = rms(y[-SR // 2:])
+e.send("duck", 0); back = rms(e.run(sine(440, 0.1, 1.5))[:, 0][-SR // 2:])
+step = np.max(np.abs(np.diff(y[:SR // 2])))
+check(abs(20 * np.log10(ducked / full) + 3.1) < 0.5 and abs(back - full) < 0.01 * full and step < 0.05,
+      "duck: other audio dips the output %.1f dB, without a click (largest step %.3f), and it comes back"
+      % (20 * np.log10(ducked / full), step))
 
 # pocket hush: in a pocket the mic is turned down before the effects and the chimes
 def pocket_level(pocket, hush, **over):

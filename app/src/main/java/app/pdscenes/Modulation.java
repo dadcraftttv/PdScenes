@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package app.pdscenes;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
@@ -81,8 +80,16 @@ final class Modulation {
     private static float shakePeak;             // strongest shake since the last tick (guarded by Modulation.class)
     private static float shakeLevel;            // shake with its fade-out, touched only by tick()
 
-    /** How far each parameter is currently pushed, in slider units (-1..1). Replaced whole. */
-    private static volatile Map<String, Float> offsets = Collections.emptyMap();
+    /** How far mover i's parameter is currently pushed, in slider units (-1..1), while moving[i].
+     *  Arrays, not a map, so the 30 Hz tick allocates nothing. Main thread only (tick, sliders, presets). */
+    private static final float[] offset = new float[MOVERS];
+    private static final boolean[] moving = new boolean[MOVERS];
+    private static final Map<String, Integer> INDEX = new HashMap<>();
+    static {
+        for (int i = 0; i < MOVERS; i++) {
+            INDEX.put(Params.MOVABLE.get(i).id, i);
+        }
+    }
 
     private Modulation() { }
 
@@ -138,7 +145,7 @@ final class Modulation {
 
     /** Start from rest: no offsets, fresh random drift. Call when the engine starts or stops. */
     static void reset() {
-        offsets = Collections.emptyMap();
+        java.util.Arrays.fill(moving, false);
         micLevelDb = -100f;
         upright = leanRight = spin = south = padX = padY = 0f;
         shakeLevel = 0f;
@@ -153,15 +160,18 @@ final class Modulation {
 
     /** Advance every mover by dt seconds and send the changed values to the sink. */
     static void tick(double dt, Sink sink) {
-        Map<String, Float> next = new HashMap<>();
         // A shake rises at once and fades over a fraction of a second.
         shakeLevel = Math.max(takeShakePeak(), (float) (shakeLevel * Math.exp(-dt / SHAKE_RELEASE_S)));
         for (int i = 0; i < MOVERS; i++) {
             int shape = Math.round(ParamStore.get(SHAPE_ID[i]));
+            Param p = Params.MOVABLE.get(i);
             if (shape == SHAPE_OFF || ParamStore.get(SWITCH_ID[i]) < 0.5f) {
+                if (moving[i]) {   // mover switched off: go back to the slider
+                    moving[i] = false;
+                    sink.send(p.id, ParamStore.get(p.id));
+                }
                 continue;
             }
-            Param p = Params.MOVABLE.get(i);
             float speed = ParamStore.get(SPEED_ID[i]);
             phase[i] += dt * speed;
             float position;
@@ -214,35 +224,23 @@ final class Modulation {
             phase[i] -= Math.floor(phase[i]);   // keep it in 0..1 (drift handles its own wrap)
 
             float span = p.toNorm(p.randMax) - p.toNorm(p.randMin);   // swing within the safe range
-            next.put(p.id, position * ParamStore.get(DEPTH_ID[i]) * span);
-        }
-
-        Map<String, Float> previous = offsets;
-        if (next.isEmpty() && previous.isEmpty()) {
-            return;   // no movers running: nothing to send
-        }
-        offsets = next;
-        for (String paramId : next.keySet()) {
-            sink.send(paramId, output(Params.byId(paramId), ParamStore.get(paramId)));
-        }
-        for (String paramId : previous.keySet()) {
-            if (!next.containsKey(paramId)) {   // mover switched off or retargeted: go back to the slider
-                sink.send(paramId, ParamStore.get(paramId));
-            }
+            offset[i] = position * ParamStore.get(DEPTH_ID[i]) * span;
+            moving[i] = true;
+            sink.send(p.id, output(p, ParamStore.get(p.id)));
         }
     }
 
     /** The value to give Pd for a parameter whose slider is at {@code base}. */
     static float output(Param p, float base) {
-        Float offset = offsets.get(p.id);
-        if (offset == null) {
+        Integer i = INDEX.get(p.id);
+        if (i == null || !moving[i]) {
             return base;
         }
         float baseNorm = p.toNorm(base);
         // Stay inside the safe range, but never fight a slider the user put outside it.
         float lo = Math.min(p.toNorm(p.randMin), baseNorm);
         float hi = Math.max(p.toNorm(p.randMax), baseNorm);
-        return p.toValue(Math.max(lo, Math.min(hi, baseNorm + offset)));
+        return p.toValue(Math.max(lo, Math.min(hi, baseNorm + offset[i])));
     }
 
     /**

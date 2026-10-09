@@ -1249,6 +1249,7 @@ public class MainActivity extends Activity {
         } else {
             int hz = AudioService.actualSampleRateHz();
             status.setText(!on ? getString(R.string.status_stopped)
+                    : AudioService.isPausedForCall() ? getString(R.string.status_call)
                     : hz > 0 ? getString(R.string.status_running_rate, hz) : getString(R.string.status_running));
         }
         warning.setVisibility(headphonesConnected() ? View.GONE : View.VISIBLE);

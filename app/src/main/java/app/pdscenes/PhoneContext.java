@@ -201,7 +201,7 @@ final class PhoneContext {
         return inPocket(now());
     }
 
-    static boolean inPocket(double at) {
+    static synchronized boolean inPocket(double at) {   // several fields, read together under the lock
         if (!haveProximity || !near || at - nearSince < POCKET_DWELL_S) {
             return false;
         }

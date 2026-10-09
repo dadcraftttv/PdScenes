@@ -17,6 +17,14 @@ public class W {
     check(!StepDetector.walking(6),"slow sway (0.3 Hz) is not walking");
     StepDetector.reset(); walk(0,6,8,6f);
     check(!StepDetector.walking(6)||StepDetector.stepsPerSecond(6)<=3.6f,"step rate is capped near 3.5/s");
+    // fidgeting or shaking the phone while sitting: jolts at irregular times, no steady rhythm
+    { Random r=new Random(7); List<Double> g2=new ArrayList<>(); StepDetector.setListener(g2::add); StepDetector.reset();
+      double last=-1, next=0.3, amp=0; for(double t=0;t<10;t+=0.005){
+        if(t>=next){ last=t; amp=(r.nextDouble()-0.5)*16; next=t+0.08+r.nextDouble()*0.9; }   // a jolt, then a random gap
+        float bump=(float)(amp*Math.exp(-(t-last)*12));
+        StepDetector.onAcceleration(bump*0.5f,bump*0.3f,9.80665f+bump,t); }
+      StepDetector.setListener(null);
+      check(!StepDetector.walking(10)&&g2.size()<=3,"shaking the phone while sitting is not walking ("+g2.size()+" steps sent)"); }
     // listener gets one call per step with the gap to the previous one
     List<Double> gaps=new ArrayList<>(); StepDetector.setListener(gaps::add);
     StepDetector.reset(); walk(0,5,2.0,4f); StepDetector.setListener(null);

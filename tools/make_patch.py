@@ -103,6 +103,7 @@ RES_MAX = 0.3       # soft ceiling for the whole voice
 RES_OPEN_DB = 10    # the input opens fully this many dB above the room's quiet
 RES_LOOKAHEAD_MS = 20
 POCKET_HUSH_DB = 24         # pocket hush at 1 turns the mic down this far (0.5, the default: 12 dB)
+DUCK_MS = 600           # how quickly the output dips (and comes back) when other audio plays
 POCKET_HUSH_MS = 400        # how fast the hush fades in and out
 POCKET_GUARD_DB = 12        # mic-down protection at 1 turns the mic down this much more...
 POCKET_GUARD_HP_HZ = 300    # ...and filters out the cloth thump below about this (12 dB/octave)
@@ -1474,6 +1475,15 @@ def build():
     P.sig2("out_l", "*~", "rd_l", "gain_l", 1400, 260)
     P.sig2("out_r", "*~", "rd_r", "gain_r", 1500, 260)
 
+    # Duck: while another app plays (music, navigation), the app sends "duck <cut 0..1>" and the whole output dips a
+    # little, so both can be heard. 0 = full level (also before anything arrives).
+    P.obj("r_duck", "r duck", 1600, 290)
+    P.msg("duck_msg", BS + "$1 " + str(DUCK_MS), 1600, 320)
+    P.obj("duck_ln", "line~", 1600, 350)
+    P.obj("duck_neg", "*~ -1", 1600, 370)
+    P.obj("duck_gain", "+~ 1", 1600, 390)
+    P.c("r_duck", "duck_msg"); P.c("duck_msg", "duck_ln"); P.c("duck_ln", "duck_neg"); P.c("duck_neg", "duck_gain")
+
     # Soft limiter: untouched up to 0.7, then the part above is eased in with a smooth cubic
     # so peaks never pass 1.0 and loud audio rounds off instead of hard-clipping into fuzz.
     for side, x in (("l", 1400), ("r", 1500)):
@@ -1497,8 +1507,7 @@ def build():
         P.c(f"lim_{side}_cl", f"lim_{side}_cub", 0, 0); P.c(f"lim_{side}_one", f"lim_{side}_cub", 0, 1)
         P.c(f"lim_{side}_cub", f"lim_{side}_back")
         P.c(f"lim_{side}_back", f"lim_{side}_sum", 0, 0); P.c(f"lim_{side}_base", f"lim_{side}_sum", 0, 1)
-        P.obj(f"limit_{side}", "*~ 1", x, 400)
-        P.c(f"lim_{side}_sum", f"limit_{side}")
+        P.sig2(f"limit_{side}", "*~", f"lim_{side}_sum", "duck_gain", x, 400)
     P.obj("dac", "dac~ 1 2", 1400, 430)
     P.c("limit_l", "dac", 0, 0)
     P.c("limit_r", "dac", 0, 1)

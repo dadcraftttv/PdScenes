@@ -7,6 +7,7 @@
     <string name="status_running">Running: speak, clap, walk around, do some stuff.</string>
     <string name="status_running_rate">Running at %1$d Hz: speak, clap, walk around, do some stuff.</string>
     <string name="status_stopped">Stopped.</string>
+    <string name="status_call">Paused during the phone call. It plays again when the call ends.</string>
     <string name="mic_permission_required">Microphone permission is required.</string>
     <string name="no_headphones_warning">No headphones detected. Using the speaker will cause feedback. Plug in or connect headphones first.</string>
 
