@@ -976,6 +976,19 @@ check(abs(d_half - 250) < 6 and abs(d_quarter - 125) < 6 and abs(d_off - 350) < 
       "echo follows the steps: half %.0f ms, quarter %.0f, off %.0f, standing %.0f, 3 s after stopping %.0f"
       % (d_half, d_quarter, d_off, d_still, d_after))
 
+# stopping after a walk: the pad and bass take a breath (a few dB down within ~3 s), then drift back to full.
+# Measured on the bass alone (a steady level); its own short dips at note changes are why we look at ranges.
+e = fresh(music_on=1, music_pad=0.5, music_arp=0, music_res=0, wet=0, beat_level=0, music_pad_reg=0)
+e.run(e.silence(3.0)); before = rms(e.run(e.silence(1.0))[:, 0])
+for _ in range(8):
+    e.send("step", 0.5); e.run(e.silence(0.5))
+lv = [rms(e.run(e.silence(0.5))[:, 0]) for _ in range(28)]   # half-second windows after the last step
+db = lambda a: 20 * np.log10(a / before)
+walking, dipped, back = db(lv[1]), min(db(v) for v in lv[4:9]), db(np.mean(lv[23:28]))
+check(abs(walking) < 1.5 and -6.5 < dipped < -2.5 and abs(back) < 1.5,
+      "music: stopping after a walk, the pad breathes %.1f dB down and comes back (%.1f dB at 12-14 s; 1 s after %.1f dB)"
+      % (dipped, back, walking))
+
 # switchable blocks: a block whose level is 0 stops its DSP (after its fade), comes back at once when needed,
 # and switching it on doesn't click
 SWITCHED = {"reverb": ("reverb_mix", 0.5), "pitch": ("pitch_mix", 0.5), "chorus": ("chorus_mix", 0.5),

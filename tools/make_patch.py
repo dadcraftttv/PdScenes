@@ -106,6 +106,11 @@ RES_LOOKAHEAD_MS = 20
 POCKET_HUSH_DB = 24         # pocket hush at 1 turns the mic down this far (0.5, the default: 12 dB)
 ECHO_WALK_HOLD_MS = 2500   # echo stays locked to the steps this long after the last one
 RES_FADE_IN_MS = 200       # Room notes fade in this long each time their block switches on
+STOP_AFTER_MS = 1200       # no step for this long after walking = you stopped
+STOP_DIP = 0.55            # the pad and bass breathe down to this share...
+STOP_DIP_MS = 2500         # ...over this long...
+STOP_RECOVER_MS = 8000     # ...then drift back to full over this long
+STOP_RETURN_MS = 800       # walking again brings them straight back
 DUCK_MS = 600           # how quickly the output dips (and comes back) when other audio plays
 POCKET_HUSH_MS = 400        # how fast the hush fades in and out
 POCKET_GUARD_DB = 12        # mic-down protection at 1 turns the mic down this much more...
@@ -939,7 +944,21 @@ def add_music(P):
     pad_lvl = smoothed(P, "music_pad", "music_pad", px + 500, 20)
     arp_lvl = smoothed(P, "music_arp", "music_arp", px + 600, 20)
     mon = smoothed(P, "music_on", "music_on", px + 700, 20)
-    P.sig2("mu_pad_out", "*~", "mu_pad_c", pad_lvl, px, 900)
+    # Stopping after a walk: the pad and bass take a breath (dip, then drift back), so a red light doesn't feel
+    # as if the music didn't notice. Only steps start it, so someone who never walks hears no change.
+    P.obj("mu_br_step", "r step", px + 300, 820)
+    P.obj("mu_br_t", "t b b", px + 300, 840)
+    P.obj("mu_br_del", f"del {STOP_AFTER_MS}", px + 300, 860)
+    P.msg("mu_br_back", ("1 " + str(STOP_RETURN_MS)), px + 400, 860)
+    P.msg("mu_br_dip", (f"{STOP_DIP} {STOP_DIP_MS}, 1 {STOP_RECOVER_MS} {STOP_DIP_MS}").replace(",", " " + BS + ","), px + 300, 880)
+    P.obj("mu_br_ln", "vline~", px + 300, 900)
+    P.obj("mu_br_init", "loadbang", px + 450, 860)
+    P.msg("mu_br_one", "1", px + 450, 880)
+    P.c("mu_br_init", "mu_br_one"); P.c("mu_br_one", "mu_br_ln")
+    P.c("mu_br_step", "mu_br_t"); P.c("mu_br_t", "mu_br_back", 1, 0); P.c("mu_br_t", "mu_br_del", 0, 0)
+    P.c("mu_br_back", "mu_br_ln"); P.c("mu_br_del", "mu_br_dip"); P.c("mu_br_dip", "mu_br_ln")
+    P.sig2("mu_pad_br", "*~", "mu_pad_c", "mu_br_ln", px, 890)
+    P.sig2("mu_pad_out", "*~", "mu_pad_br", pad_lvl, px, 900)
     P.sig2("mu_chime_out", "*~", "mu_chime_lp", arp_lvl, px + 200, 900)
     P.sig2("mu_mix0", "+~", "mu_pad_out", "mu_chime_out", px, 930)
     P.sig2("mu_mix", "+~", "mu_mix0", add_room_notes(P, x + 2500, ex, degree_to_hz), px, 945)
