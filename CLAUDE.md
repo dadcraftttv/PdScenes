@@ -147,6 +147,19 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
 - **Dice morph:** with audio running, Randomize glides there over 6 s (`ParamStore.morphTick` from the service tick,
   smoothstep; switches/menus flip halfway). A slider moved meanwhile (hand or world) drops out of the glide; undo,
   nudge, presets and reset stop it. Stopped audio: Randomize jumps as before.
+- **Glitch cloud** (Glitch section; `gc_amount` default 0 = off and no CPU, `gc_level` 0.7, kinds `gc_stutter/reverse/tape/shuffle`;
+  roadmap 5b, after dblue Glitch): the hushed mic goes into a 4 s ring buffer (memory only). Triggers: a sudden sound (5 ms
+  meter jumps 10 dB over its ~0.25 s average and > -45 dBFS; chance = Amount; then a rest of 2.4 s at Amount 0 -> 0.6 s at 1)
+  and a free clock ((2-8 s)*0.6/(0.2+Amount), reset by sounds; it never starts the rest, so a sound always wins). Walking
+  (a step in the last 2.5 s): it waits for the next step or half-step, and a stutter slice is a quarter step. Kinds:
+  stutter (slice 60-180 ms, or quarter step, x4-7), reverse (plays back the last ~2L ms backwards, after waiting until
+  the sound was heard), tape stop (rate 1 -> 0 over 450-1150 ms), shuffle (a random slice 0.25-3.25 s old). One voice:
+  read position = d0 + a*t + b*t^2 - c*fmod(t,S) from plain objects (expr~ cost 3x more), 3 ms slice windows, a new
+  glitch fades the old one 4 ms first. Random pan per glitch; it joins both ears before the reverb and feeds it too.
+  Cost (desktop): Amount 0 unmeasurable, glitching nonstop +10% (reverb on +70%, music +300%).
+  **Pd lessons from it:** a value stored with `[f]`'s right inlet never reaches anyone: send the message to every
+  consumer's cold inlet. `[pipe]` with several arguments splits a list into outlets (use `[list split]` + `[del]` + `[list]`).
+  A second voice in a switch~ group was silently lost (never explained; one voice avoids it).
 - **Switchable DSP:** make_patch.py groups reverb, pitch, chorus, flanger, phaser, reverse echo, Room notes and music
   into `[switch~]` subpatches (`Patch.group` + `add_switch`), on while their level > 0, off 3x smoothing + tail after.
   Room notes fade in 200 ms on switch-on. Phone: music on ~39% of a core on the audio thread, music off ~18%.

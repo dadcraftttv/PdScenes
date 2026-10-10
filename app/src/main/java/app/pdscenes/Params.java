@@ -44,7 +44,7 @@ final class Params {
             new Section("phaser", "Phaser", false),
             new Section("tremolo", "Tremolo", false),
             new Section("reverse", "Reverse echo", false),
-            new Section("glitch", "Glitch / freeze", false),
+            new Section("glitch", "Glitch", false),
             new Section("reverb", "Reverb", false),
             new Section("space", "Spatial", false),
             new Section("behavior", "Behavior", false)
@@ -250,6 +250,20 @@ final class Params {
                     .inSection("reverse").rand(150f, 800f).resetWhenAbsent(),
 
             // ---- Glitch / freeze ---- (added after the first presets: older presets switch it off)
+            // Glitch cloud: sudden sounds (and now and then a free clock) bring back bits of what was just heard,
+            // mangled, around you. Kept in memory for a few seconds only, never saved.
+            new Param("gc_amount", "Glitch cloud amount (how often bits of the room come back mangled)", 0f, 1f, 0f, "",
+                    Param.Curve.LINEAR).inSection("glitch").rand(0f, 0.6f).resetWhenAbsent(),
+            new Param("gc_level", "Glitch cloud level", 0f, 1f, 0.7f, "", Param.Curve.LINEAR)
+                    .inSection("glitch").rand(0.4f, 1f).resetWhenAbsent(),
+            new Param("gc_stutter", "Stutter (a slice repeated, on the beat while walking)", 0f, 1f, 1f, "",
+                    Param.Curve.LINEAR).inSection("glitch").toggle().resetWhenAbsent(),
+            new Param("gc_reverse", "Reverse (played backwards)", 0f, 1f, 1f, "", Param.Curve.LINEAR)
+                    .inSection("glitch").toggle().resetWhenAbsent(),
+            new Param("gc_tape", "Tape stop (slows to a halt)", 0f, 1f, 1f, "", Param.Curve.LINEAR)
+                    .inSection("glitch").toggle().resetWhenAbsent(),
+            new Param("gc_shuffle", "Shuffle (an older moment, out of order)", 0f, 1f, 1f, "", Param.Curve.LINEAR)
+                    .inSection("glitch").toggle().resetWhenAbsent(),
             new Param("glitch_on", "Glitch/freeze enabled", 0f, 1f, 1f, "", Param.Curve.LINEAR)
                     .inSection("glitch").toggle().resetWhenAbsent(),
             new Param("glitch_hold", "Freeze (0 = live, 1 = frozen)", 0f, 1f, 0f, "",

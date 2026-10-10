@@ -23,7 +23,7 @@ The glitch engine must stay cheap: off at Amount 0 (switch~), measured on the ph
    now has five 8-step patterns picked at random each bar, with rests (2026-10-08); still to do: tie the pattern to pace tiers. Stopping must still drop the drums immediately.
 5. **Unstable world.** Jolt-triggered stack of many ordinary effects on the mic at once (glitch, pitch shift, ring mod,
    crush, delay), glitchy by design. We have all the effects; it needs a trigger and a preset.
-5b. **Samuel's idea (Oct 9): "glitch cloud" — Ableton warp + the Glitch VST (v1.3).** Random bits of what the mic hears
+5b. **(PHASE 1 BUILT 2026-10-09: buffer, stutter/reverse/tape stop/shuffle, sound trigger + free clock + step lock, Amount) Samuel's idea (Oct 9): "glitch cloud" — Ableton warp + the Glitch VST (v1.3).** Random bits of what the mic hears
    are grabbed into a RAM-only ring buffer (never to disk) and played back around the listener: extreme time-stretch
    (granular, like Ableton's warp pushed very far), tape stop (playback rate falling to 0), stutter/retrigger (a
    slice repeated at step-synced divisions, getting shorter), reverse slices, pitch drops, scattered across the

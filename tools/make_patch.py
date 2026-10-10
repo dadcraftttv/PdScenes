@@ -34,7 +34,8 @@ DEFAULTS = [
     ("phaser_on", 1), ("phaser_mix", 0), ("phaser_rate", 0.4), ("phaser_depth", 0.7), ("phaser_fb", 0.4),
     ("beat_on", 1), ("beat_level", 0), ("beat_hats", 0.5), ("beat_snare", 0.6), ("beat_pitch", 55),
     ("music_on", 0), ("music_key", 0), ("music_scale", 0), ("music_pad", 0.33), ("music_arp", 0.4),
-    ("music_tone", 0.5), ("music_react", 0.8), ("music_res", 0.8), ("music_harm", 0.6), ("music_pad_reg", 2), ("pocket_hush", 0.5), ("pocket_guard", 0.6),
+    ("music_tone", 0.5), ("music_react", 0.8), ("music_res", 0.8), ("music_harm", 0.6), ("gc_amount", 0), ("gc_level", 0.7), ("gc_stutter", 1), ("gc_reverse", 1),
+    ("gc_tape", 1), ("gc_shuffle", 1), ("music_pad_reg", 2), ("pocket_hush", 0.5), ("pocket_guard", 0.6),
 ]
 
 # Scales as semitone steps above the key note. The patch snaps every note it plays to these.
@@ -123,6 +124,13 @@ HARM_ABOVE_DB = 6          # how far above the room's quiet the sound must be
 HARM_HIGH = 76             # a pitch from E5 up (a whistle, a bird) is answered below it; lower ones (voices) above
 HARM_RANGE = (36, 104)     # heard pitches outside C2..G#7 are hiss or rumble, not a voice, whistle or bird
 HARM_ATTACK_MS = 150
+# Glitch cloud: bits of what the mic heard (kept in memory only, a few seconds) come back mangled, around you.
+GC_BUF_MS = 4000
+GC_ONSET_DB = 10           # a sudden sound: the 5 ms level jumps this far above its recent average...
+GC_MIN_DB = 55             # ...and is at least this loud (-45 dBFS), so a quiet room's flicker doesn't count
+GC_COOL_MS = (600, 2400)   # rest after a glitch: at Amount 1 / near 0 (also keeps the two voices from overlapping)
+GC_STEP_WAIT_MS = 2500     # a step this recently = walking: a glitch waits for the next step or half-step
+GC_PREROLL_MS = 15         # a glitch of a sudden sound starts this long before it was noticed (5 ms meter), so its attack stays
 HARM_RELEASE_MS = 1800
 
 
@@ -1196,6 +1204,231 @@ def add_harmony(P, hx, ex, degree_to_hz):
     return P.sig2("mu_hm_out", "*~", "mu_hm_gain", lvl, hx, 990)
 
 
+def add_glitch_cloud(P):
+    """Glitch cloud (after dblue Glitch): the hushed mic goes into a ring buffer (memory only, GC_BUF_MS). A sudden
+    sound (and now and then a free clock) grabs a bit of it and plays it back mangled: a stutter (a slice repeated,
+    while walking a quarter step long), reversed, a tape stop (slowing to a halt), or a shuffled older slice, each one
+    somewhere else between the ears. Amount = how often; walking makes glitches wait for the next step or half-step.
+    Returns the left and right output signals."""
+    x, y = 6600, 20
+    def ex(name, text, xx, yy):
+        return P.obj(name, "expr " + text.replace(",", BS + ",").replace("$", BS + "$"), xx, yy)
+    P.sig2("gc_src", "*~", "mic_gated", "ph_ln", x, y)                  # quieter in a pocket, like the rest
+    P.obj("gc_wr", f"delwrite~ gc_buf {GC_BUF_MS}", x, y + 30)
+    P.c("gc_src", "gc_wr")
+    P.obj("gc_r_amt", "r gc_amount", x + 300, y)
+    P.obj("gc_amt", "f", x + 300, y + 30)
+    P.c("gc_r_amt", "gc_amt", 0, 1)
+    # ---- sudden sounds: the 5 ms level against its own recent average ----
+    P.obj("gc_m_t", "t f f", x, y + 80)
+    P.c("meter", "gc_m_t")
+    ex("gc_det", f"($f1-$f2>{GC_ONSET_DB})*($f1>{GC_MIN_DB})", x, y + 110)
+    ex("gc_slow", "$f1*0.04+$f2*0.96", x + 120, y + 110)                # about a quarter second
+    P.obj("gc_slow_t", "t f f", x + 120, y + 140)
+    P.c("gc_m_t", "gc_det", 1, 0); P.c("gc_m_t", "gc_slow", 0, 0)
+    P.c("gc_slow", "gc_slow_t"); P.c("gc_slow_t", "gc_slow", 1, 1); P.c("gc_slow_t", "gc_det", 0, 1)
+    P.obj("gc_det_chg", "change", x, y + 140)
+    P.obj("gc_det_sel", "sel 1", x, y + 170)
+    P.c("gc_det", "gc_det_chg"); P.c("gc_det_chg", "gc_det_sel")
+    # Resting: after a glitch nothing new starts for a while (shorter at a high Amount).
+    P.obj("gc_rest", "spigot 1", x, y + 200)
+    P.c("gc_det_sel", "gc_rest")
+    P.obj("gc_roll_t", "t b b", x, y + 230)
+    P.obj("gc_roll", "random 1000", x + 60, y + 260)
+    P.obj("gc_amt_rd", "f", x + 140, y + 260)
+    ex("gc_pass", "$f1<$f2*1000", x, y + 290)
+    P.c("gc_rest", "gc_roll_t"); P.c("gc_roll_t", "gc_amt_rd", 1, 0); P.c("gc_amt_rd", "gc_pass", 0, 1)
+    P.c("gc_r_amt", "gc_amt_rd", 0, 1)
+    P.c("gc_roll_t", "gc_roll", 0, 0); P.c("gc_roll", "gc_pass")
+    P.obj("gc_pass_sel", "sel 1", x, y + 320)
+    P.c("gc_pass", "gc_pass_sel")
+    # an onset that passes: remember when it began (the timer) and that it was one, then ask for a glitch
+    P.obj("gc_ons_t", "t b b b", x, y + 350)
+    P.c("gc_pass_sel", "gc_ons_t")
+    P.obj("gc_timer", "timer", x + 200, y + 380)
+    P.msg("gc_flag1", "1", x + 120, y + 380)
+    P.obj("gc_flag", "f", x + 120, y + 410)
+    P.c("gc_ons_t", "gc_timer", 2, 0); P.c("gc_ons_t", "gc_flag1", 1, 0); P.c("gc_flag1", "gc_flag", 0, 1)
+    P.obj("gc_trig", "t b b", x, y + 440)                               # right: start resting; left: the glitch
+    P.c("gc_ons_t", "gc_trig", 0, 0)
+    P.msg("gc_rest0", "0", x + 300, y + 200)
+    P.msg("gc_rest1", "1", x + 300, y + 260)
+    P.obj("gc_rest_del", "del 1000", x + 300, y + 230)
+    ex("gc_cool", f"{GC_COOL_MS[1]}-({GC_COOL_MS[1]}-{GC_COOL_MS[0]})*$f1", x + 400, y + 200)
+    P.c("gc_r_amt", "gc_cool"); P.c("gc_cool", "gc_rest_del", 0, 1)
+    P.obj("gc_rest_t", "t b b", x + 300, y + 170)
+    P.c("gc_trig", "gc_rest_t", 1, 0)
+    P.c("gc_rest_t", "gc_rest_del", 0, 0); P.c("gc_rest_t", "gc_rest0", 1, 0); P.c("gc_rest0", "gc_rest", 0, 1)
+    P.c("gc_rest_del", "gc_rest1"); P.c("gc_rest1", "gc_rest", 0, 1)
+    # ---- free clock: when nothing sudden happens, now and then a random older bit (sooner at a high Amount) ----
+    P.obj("gc_clk_lb", "loadbang", x + 500, y + 260)
+    P.obj("gc_clk_t", "t b b", x + 500, y + 320)
+    P.obj("gc_clk_rnd", "random 6000", x + 560, y + 350)
+    P.obj("gc_clk_amt", "f", x + 660, y + 350)
+    P.c("gc_r_amt", "gc_clk_amt", 0, 1)
+    ex("gc_clk_ms", "(2000+$f1)*0.6/(0.2+$f2)", x + 560, y + 380)
+    P.obj("gc_clk_del", "del 4000", x + 500, y + 410)
+    P.c("gc_clk_lb", "gc_clk_t"); P.c("gc_r_amt", "gc_clk_t")                 # Amount changed: pick a new time
+    P.c("gc_clk_t", "gc_clk_amt", 1, 0); P.c("gc_clk_amt", "gc_clk_ms", 0, 1)
+    P.c("gc_clk_t", "gc_clk_rnd", 0, 0); P.c("gc_clk_rnd", "gc_clk_ms"); P.c("gc_clk_ms", "gc_clk_del")
+    P.c("gc_ons_t", "gc_clk_t", 0, 0)                                   # a sudden sound puts the clock back
+    P.obj("gc_clk_fire", "t b b", x + 500, y + 440)
+    P.c("gc_clk_del", "gc_clk_fire"); P.c("gc_clk_fire", "gc_clk_t", 1, 0)
+    P.obj("gc_clk_on", "spigot", x + 500, y + 470)                       # only while Amount > 0, and not resting
+    ex("gc_clk_ok", "$f1>0", x + 600, y + 440)
+    P.c("gc_r_amt", "gc_clk_ok"); P.c("gc_clk_ok", "gc_clk_on", 0, 1)
+    P.obj("gc_clk_rest", "spigot 1", x + 500, y + 500)
+    P.c("gc_rest0", "gc_clk_rest", 0, 1); P.c("gc_rest1", "gc_clk_rest", 0, 1)
+    P.c("gc_clk_fire", "gc_clk_on", 0, 0); P.c("gc_clk_on", "gc_clk_rest")
+    P.obj("gc_clk_go", "t b b", x + 500, y + 530)
+    P.msg("gc_flag0", "0", x + 560, y + 560)
+    P.c("gc_clk_rest", "gc_clk_go"); P.c("gc_clk_go", "gc_flag0", 1, 0); P.c("gc_flag0", "gc_flag", 0, 1)
+    P.c("gc_clk_go", "gc_ask", 0, 0)                                   # (only sudden sounds start the rest)
+    # ---- walking: a glitch waits for the next step or half-step; stutters are a quarter step long ----
+    P.obj("gc_r_step", "r step", x + 800, y)
+    P.obj("gc_step_t", "t b b f b", x + 800, y + 30)
+    P.c("gc_r_step", "gc_step_t")
+    P.msg("gc_walk1", "1", x + 800, y + 90); P.msg("gc_walk0", "0", x + 860, y + 120)
+    P.obj("gc_walk_del", f"del {GC_STEP_WAIT_MS}", x + 860, y + 90)
+    P.obj("gc_walk", "f", x + 800, y + 150)
+    P.c("gc_step_t", "gc_walk1", 3, 0); P.c("gc_walk1", "gc_walk", 0, 1)
+    P.c("gc_step_t", "gc_walk_del", 3, 0); P.c("gc_walk_del", "gc_walk0"); P.c("gc_walk0", "gc_walk", 0, 1)
+    P.obj("gc_step_ms", "* 1000", x + 950, y + 60)
+    P.obj("gc_stepms_v", "f", x + 950, y + 90)
+    P.c("gc_step_t", "gc_step_ms", 2, 0); P.c("gc_step_ms", "gc_stepms_v", 0, 1)
+    P.obj("gc_half", "* 500", x + 1050, y + 60)
+    P.obj("gc_half_del", "del 300", x + 1050, y + 90)
+    P.c("gc_step_t", "gc_half", 2, 0); P.c("gc_half", "gc_half_del", 0, 1); P.c("gc_step_t", "gc_half_del", 1, 0)
+    P.obj("gc_pend", "f", x + 800, y + 200)                              # a glitch waiting for the beat
+    P.obj("gc_pend_sel", "sel 1", x + 800, y + 230)
+    P.obj("gc_beat_t", "t b b", x + 800, y + 170)
+    P.c("gc_step_t", "gc_beat_t", 0, 0); P.c("gc_half_del", "gc_beat_t")
+    P.c("gc_beat_t", "gc_pend", 1, 0); P.c("gc_pend", "gc_pend_sel")
+    P.msg("gc_pend0", "0", x + 900, y + 230)
+    P.c("gc_beat_t", "gc_pend0", 0, 0); P.c("gc_pend0", "gc_pend", 0, 1)
+    P.obj("gc_ask", "t b b", x, y + 470)                                # walking? wait. still? now.
+    P.c("gc_trig", "gc_ask", 0, 0)
+    P.obj("gc_walk_rd", "f", x + 100, y + 500)
+    P.c("gc_ask", "gc_walk_rd", 0, 0); P.c("gc_walk1", "gc_walk_rd", 0, 1); P.c("gc_walk0", "gc_walk_rd", 0, 1)
+    P.obj("gc_walk_sel", "sel 0 1", x + 100, y + 530)
+    P.c("gc_walk_rd", "gc_walk_sel")
+    P.msg("gc_pend1", "1", x + 200, y + 560)
+    P.c("gc_walk_sel", "gc_pend1", 1, 0); P.c("gc_pend1", "gc_pend", 0, 1)
+    P.obj("gc_fire", "t b b b b b b b", x, y + 600)
+    P.c("gc_walk_sel", "gc_fire", 0, 0); P.c("gc_pend_sel", "gc_fire")
+    # ---- what kind of glitch: a random pick among the switched-on kinds (stutter 35, reverse 25, tape 20, shuffle 20) ----
+    P.obj("gc_mode_rnd", "random 1000", x, y + 640)
+    w = "($f2*35+$f3*25+$f4*20+$f5*20)"
+    ex("gc_mode", f"if({w}<=0,-1,if($f1*{w}/1000<$f2*35,0,if($f1*{w}/1000<$f2*35+$f3*25,1,"
+                  f"if($f1*{w}/1000<$f2*35+$f3*25+$f4*20,2,3))))", x, y + 670)
+    for k, name in enumerate(("gc_stutter", "gc_reverse", "gc_tape", "gc_shuffle")):
+        P.obj(f"gc_en{k}", f"r {name}", x + 200 + 80 * k, y + 640)
+        P.c(f"gc_en{k}", "gc_mode", 0, k + 1)
+    P.c("gc_fire", "gc_mode_rnd", 0, 0); P.c("gc_mode_rnd", "gc_mode")
+    P.obj("gc_mode_ok", "moses 0", x, y + 700)
+    P.c("gc_mode", "gc_mode_ok")
+    # randoms, how long ago the sound began (-1 = from the free clock) and the step length (0 = standing)
+    for k in range(4):
+        P.obj(f"gc_rn{k}", "random 1000", x + 200 + 80 * k, y + 700)
+    P.obj("gc_el", "f", x + 520, y + 700)
+    ex("gc_el2", "if($f2,$f1,-1)", x + 520, y + 730)
+    P.c("gc_timer", "gc_el2"); P.c("gc_flag1", "gc_el2", 0, 1); P.c("gc_flag0", "gc_el2", 0, 1)
+    P.obj("gc_st_rd", "f", x + 620, y + 700)
+    ex("gc_st2", "$f1*$f2", x + 620, y + 730)
+    P.c("gc_stepms_v", "gc_st_rd", 0, 1); P.c("gc_st_rd", "gc_st2"); P.c("gc_walk1", "gc_st2", 0, 1); P.c("gc_walk0", "gc_st2", 0, 1)
+    # $f1 mode, $f2 ms since the onset (-1 free), $f3..$f5, $f7 randoms 0..999, $f6 step ms (0 = standing)
+    S = "if($f6>0,min(max($f6/4,60),250),60+40*int($f4/250))"
+    L = f"if($f1==0,({S})*(4+int($f5/250)),if($f1==1,300+0.4*$f3,if($f1==2,450+0.7*$f3,150+0.35*$f3)))"
+    d0 = f"if($f1==1,10,if($f1==3||$f2<0,250+3*$f4,$f2+{GC_PREROLL_MS}))"   # from just before the sound began
+    outs = [L, d0, "if($f1==1,-1,if($f1==0,0,1))", "$f1==0", f"if($f1==0,{S},10000000)",
+            f"if($f1==2,-1/(2*({L})),0)", "$f7/1000*1.6-0.8",
+            f"if($f1==1&&$f2>=0,max(({L})-$f2,0),0)"]                  # reverse: wait until it has all been heard
+    ex("gc_par", " ; ".join(outs).replace(" ; ", " " + BS + "; "), x, y + 770)
+    P.c("gc_mode_ok", "gc_par", 1, 0)
+    P.c("gc_fire", "gc_rn0", 6, 0); P.c("gc_rn0", "gc_par", 0, 6)
+    P.c("gc_fire", "gc_rn1", 5, 0); P.c("gc_rn1", "gc_par", 0, 4)
+    P.c("gc_fire", "gc_rn2", 4, 0); P.c("gc_rn2", "gc_par", 0, 3)
+    P.c("gc_fire", "gc_rn3", 3, 0); P.c("gc_rn3", "gc_par", 0, 2)
+    P.c("gc_fire", "gc_timer", 2, 1); P.c("gc_el2", "gc_par", 0, 1)
+    P.c("gc_fire", "gc_st_rd", 1, 0); P.c("gc_st2", "gc_par", 0, 5)
+    P.obj("gc_pack", "pack f f f f f f f f", x, y + 810)
+    for k in range(7, 0, -1):
+        P.c("gc_par", "gc_pack", k, k)
+    P.c("gc_par", "gc_pack", 0, 0)
+    # a reverse waits (the last number) until the sound has been heard; then the voice plays it. One voice: a glitch
+    # arriving while another plays fades that one out over 4 ms before jumping, so there is no click.
+    P.obj("gc_wait", "list split 7", x + 100, y + 825)
+    P.obj("gc_wait_del", "del", x + 200, y + 840)
+    P.obj("gc_wait_l", "list", x + 100, y + 855)
+    P.c("gc_pack", "gc_wait"); P.c("gc_wait", "gc_wait_del", 1, 0); P.c("gc_wait", "gc_wait_l", 0, 1)
+    P.c("gc_wait_del", "gc_wait_l")
+    P.obj("gc_vc_t", "t l b", x, y + 870)
+    P.msg("gc_vc_fade", "0 4", x + 100, y + 890)
+    P.obj("gc_vc_l", "list", x, y + 910)
+    P.obj("gc_vc_del", "del 5", x + 100, y + 910)
+    P.c("gc_wait_l", "gc_vc_t"); P.c("gc_vc_t", "gc_vc_fade", 1, 0); P.c("gc_vc_t", "gc_vc_del", 1, 0)
+    P.c("gc_vc_t", "gc_vc_l", 0, 1); P.c("gc_vc_del", "gc_vc_l")
+    P.obj("gc_dbg_mode", "s gc_mode", x + 200, y + 700); P.c("gc_mode_ok", "gc_dbg_mode", 1, 0)
+    outs_l, outs_r = [], []
+    for k in range(1):
+        vx, vy = x + 1200, y + 600
+        P.obj(f"gc{k}_up", "unpack f f f f f f f", vx, vy)
+        P.c("gc_vc_l", f"gc{k}_up")
+        P.obj(f"gc{k}_t", "vline~", vx, vy + 90)                           # ms into the glitch
+        # read position (ms back): d0 + a*t + b*t*t - c*fmod(t,S), built from plain objects (expr~ costs far
+        # more per sample). Stutter: a=1 c=1 (back to the slice start every S ms); reverse: a=2; tape stop: a=0,
+        # b=1/(2L); shuffle: all 0. The unpack gives d0, c1, c2, S, c3: a = 1-c1, b = -c3, c = c2.
+        P.obj(f"gc{k}_a", "expr 1-$f1".replace("$", BS + "$"), vx + 60, vy + 40)
+        P.obj(f"gc{k}_b", "* -1", vx + 120, vy + 40)
+        P.c(f"gc{k}_up", f"gc{k}_a", 2, 0); P.c(f"gc{k}_up", f"gc{k}_b", 5, 0)
+        P.obj(f"gc{k}_at", "*~ 0", vx, vy + 120); P.c(f"gc{k}_t", f"gc{k}_at"); P.c(f"gc{k}_a", f"gc{k}_at", 0, 1)
+        P.obj(f"gc{k}_tt", "*~", vx + 60, vy + 120); P.c(f"gc{k}_t", f"gc{k}_tt"); P.c(f"gc{k}_t", f"gc{k}_tt", 0, 1)
+        P.obj(f"gc{k}_btt", "*~ 0", vx + 60, vy + 140); P.c(f"gc{k}_tt", f"gc{k}_btt"); P.c(f"gc{k}_b", f"gc{k}_btt", 0, 1)
+        P.obj(f"gc{k}_invS", "expr 1/$f1".replace("$", BS + "$"), vx + 180, vy + 40)
+        P.c(f"gc{k}_up", f"gc{k}_invS", 4, 0)
+        P.obj(f"gc{k}_ts", "*~ 0", vx + 120, vy + 120); P.c(f"gc{k}_t", f"gc{k}_ts"); P.c(f"gc{k}_invS", f"gc{k}_ts", 0, 1)
+        P.obj(f"gc{k}_wr", "wrap~", vx + 120, vy + 140); P.c(f"gc{k}_ts", f"gc{k}_wr")
+        P.obj(f"gc{k}_f", "*~ 0", vx + 120, vy + 160); P.c(f"gc{k}_wr", f"gc{k}_f"); P.c(f"gc{k}_up", f"gc{k}_f", 4, 1)   # fmod(t,S)
+        P.obj(f"gc{k}_cn", "* -1", vx + 240, vy + 40); P.c(f"gc{k}_up", f"gc{k}_cn", 3, 0)
+        P.obj(f"gc{k}_ctf", "*~ 0", vx + 180, vy + 180); P.c(f"gc{k}_f", f"gc{k}_ctf"); P.c(f"gc{k}_cn", f"gc{k}_ctf", 0, 1)
+        P.sig2(f"gc{k}_s1", "+~", f"gc{k}_at", f"gc{k}_btt", vx, vy + 190)
+        P.sig2(f"gc{k}_s2", "+~", f"gc{k}_s1", f"gc{k}_ctf", vx, vy + 200)
+        P.obj(f"gc{k}_dd", "+~ 0", vx, vy + 210); P.c(f"gc{k}_s2", f"gc{k}_dd"); P.c(f"gc{k}_up", f"gc{k}_dd", 1, 1)
+        P.obj(f"gc{k}_d", "clip~ 1 3990", vx, vy + 220); P.c(f"gc{k}_dd", f"gc{k}_d")
+        P.obj(f"gc{k}_rd", "delread4~ gc_buf", vx, vy + 230)
+        P.c(f"gc{k}_d", f"gc{k}_rd")
+        # each stutter slice fades in and out over 3 ms, so the jumps back don't click
+        P.obj(f"gc{k}_w1", "*~ 0.333", vx + 250, vy + 170); P.c(f"gc{k}_f", f"gc{k}_w1")
+        P.obj(f"gc{k}_w1c", "clip~ 0 1", vx + 250, vy + 180); P.c(f"gc{k}_w1", f"gc{k}_w1c")
+        P.obj(f"gc{k}_w2", "*~ -0.333", vx + 320, vy + 170); P.c(f"gc{k}_f", f"gc{k}_w2")
+        P.obj(f"gc{k}_S3", "/ 3", vx + 320, vy + 40); P.c(f"gc{k}_up", f"gc{k}_S3", 4, 0)
+        P.obj(f"gc{k}_w2o", "+~ 0", vx + 320, vy + 180); P.c(f"gc{k}_w2", f"gc{k}_w2o"); P.c(f"gc{k}_S3", f"gc{k}_w2o", 0, 1)
+        P.obj(f"gc{k}_w2c", "clip~ 0 1", vx + 320, vy + 190); P.c(f"gc{k}_w2o", f"gc{k}_w2c")
+        P.sig2(f"gc{k}_win", "*~", f"gc{k}_w1c", f"gc{k}_w2c", vx + 250, vy + 200)
+        P.obj(f"gc{k}_L", "t f f", vx, vy + 30)
+        P.c(f"gc{k}_up", f"gc{k}_L", 0, 0)
+        P.msg(f"gc{k}_tmsg", f"0 {BS}, {BS}$1 {BS}$1".replace(f"{BS},", f" {BS},").replace("  ", " "), vx, vy + 60)
+        P.obj(f"gc{k}_Lm", "- 25", vx + 100, vy + 45)
+        P.msg(f"gc{k}_emsg", f"1 5 {BS}, 0 20 {BS}$1", vx + 100, vy + 60)
+        P.obj(f"gc{k}_env", "vline~", vx + 100, vy + 90)
+        P.c(f"gc{k}_L", f"gc{k}_Lm", 1, 0); P.c(f"gc{k}_Lm", f"gc{k}_emsg"); P.c(f"gc{k}_emsg", f"gc{k}_env")
+        P.c(f"gc{k}_L", f"gc{k}_tmsg", 0, 0); P.c(f"gc{k}_tmsg", f"gc{k}_t")
+        P.c("gc_vc_fade", f"gc{k}_env")
+        P.sig2(f"gc{k}_ew", "*~", f"gc{k}_env", f"gc{k}_win", vx + 100, vy + 150)
+        P.sig2(f"gc{k}_s", "*~", f"gc{k}_rd", f"gc{k}_ew", vx, vy + 180)
+        # where it sits: equal-power pan, set while the voice is silent (the pan comes out of unpack first)
+        ex(f"gc{k}_pan", "cos(($f1+1)*0.785398) ; sin(($f1+1)*0.785398)".replace(" ; ", " " + BS + "; "), vx + 250, vy + 30)
+        P.c(f"gc{k}_up", f"gc{k}_pan", 6, 0)
+        P.obj(f"gc{k}_gl", "sig~", vx + 250, vy + 60); P.obj(f"gc{k}_gr", "sig~", vx + 320, vy + 60)
+        P.c(f"gc{k}_pan", f"gc{k}_gl", 0, 0); P.c(f"gc{k}_pan", f"gc{k}_gr", 1, 0)
+        outs_l.append(P.sig2(f"gc{k}_l", "*~", f"gc{k}_s", f"gc{k}_gl", vx, vy + 210))
+        outs_r.append(P.sig2(f"gc{k}_r", "*~", f"gc{k}_s", f"gc{k}_gr", vx + 100, vy + 210))
+    lvl = smoothed(P, "gc_level", "gc_level", x + 1200, y + 900)
+    P.sig2("gcx_out_l", "*~", outs_l[0], lvl, x + 1200, y + 950)
+    P.sig2("gcx_out_r", "*~", outs_r[0], lvl, x + 1300, y + 950)
+    return "gcx_out_l", "gcx_out_r"
+
+
 def add_room_notes(P, rx, ex, degree_to_hz):
     """The room plays the notes: the mic goes through narrow resonators tuned to the current chord, so a clap,
     a voice or traffic rings in key. Quiet rooms stay quiet (the input follows the room's liveliness). The
@@ -1839,7 +2072,12 @@ def build():
     P.c("size_calc", "pk_rin", 1, 0); P.c("pk_rin", "ln_rin"); P.c("r_smooth", "pk_rin", 0, 1)
     P.obj("r_reverb_tone", "r reverb_tone", 1900, 400)           # damping: low-pass cutoff in the loops
     # The input level follows the room size so the reverb stays about equally loud at any size.
-    P.sig2("rev_in", "*~", "mix_out", "ln_rin", 1600, 540)
+    gc_l, gc_r = add_glitch_cloud(P)
+    P.sig2("gcx_mono", "+~", gc_l, gc_r, 1700, 520)
+    P.obj("gcx_mono_h", "*~ 0.5", 1700, 530)
+    P.c("gcx_mono", "gcx_mono_h")
+    P.sig2("rev_src", "+~", "mix_out", "gcx_mono_h", 1600, 530)       # the glitch cloud echoes in the reverb too
+    P.sig2("rev_in", "*~", "rev_src", "ln_rin", 1600, 540)
 
     rmix = smoothed(P, "reverb_mix", "reverb_mix", 2000, 400)
     ron = smoothed(P, "reverb_on", "reverb_on", 2100, 400)
@@ -1874,7 +2112,8 @@ def build():
             P.c(f"{n}_rd", f"{n}_g1"); P.c(f"{n}_w", f"{n}_wr"); P.c(f"{n}_w", f"{n}_g2")
             acc = f"{n}_y"
         P.sig2(f"rev_{side}", "*~", acc, "rev_gain", x0 + 400, 1150)
-        P.sig2(f"in_{side}", "+~", "mix_out", f"rev_{side}", x0 + 400, 1200)
+        P.sig2(f"in_{side}0", "+~", "mix_out", f"rev_{side}", x0 + 400, 1200)
+        P.sig2(f"in_{side}", "+~", f"in_{side}0", gc_l if side == "l" else gc_r, x0 + 400, 1210)
 
     # --- spatial: ear delay (time difference between the ears), then pan, then output ---
     # Positive 'space_shift' delays the right ear, so the sound seems to come from the left
@@ -1963,6 +2202,8 @@ def build():
     add_switch(P, "roomnotes", ("music_on", "music_res"), 2500)       # rings run up to ~2 s
     P.group("music", r"^(mu_|ba_)")
     add_switch(P, "music", ("music_on",), 3000)                       # chimes fade over up to 2.6 s
+    P.group("gcloud", r"^gc\d*_(?!r_amt$|amt$|amt_rd$|clk_|rest|cool|m_t$|det|slow|roll|pass|ons_t$|timer$|flag|trig$|ask$|walk|step|half|pend|beat_t$|fire$|mode|en\d$|rn\d$|el2?$|st2$|st_rd$|stepms|par$|pack$|wait|vc|route$|dbg)")
+    add_switch(P, "gcloud", ("gc_amount", "gc_level"), 1500)           # a glitch runs up to ~1.3 s
 
     # --- defaults on load (desktop Pd / standalone) ---
     P.obj("loadbang", "loadbang", 20, 780)

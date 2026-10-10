@@ -77,7 +77,7 @@ check(not bad, "patch loads with no Pd errors" + (": %s" % bad if bad else ""))
 
 jp = java_params()
 patch_text = open(PATCH).read()
-receivers = set(re.findall(r"#X obj \d+ \d+ r (\w+);", patch_text)) - {"step", "scale_n", "pad_glide", "mic_level", "pad_slot", "pool_n", "pool_x", "pocket", "pocket_down", "duck", "step_strength", "step_hit", "beat_sure", "groove"} - {r for r in re.findall(r"#X obj \d+ \d+ r (sw_\w+);", open(PATCH).read())}   # events and internal links, not settings
+receivers = set(re.findall(r"#X obj \d+ \d+ r (\w+);", patch_text)) - {"step", "scale_n", "pad_glide", "mic_level", "pad_slot", "pool_n", "pool_x", "pocket", "pocket_down", "duck", "step_strength", "step_hit", "beat_sure", "groove", "gc_mode"} - {r for r in re.findall(r"#X obj \d+ \d+ r (sw_\w+);", open(PATCH).read())}   # events and internal links, not settings
 pd_ids = {i for i, _, nopd in jp if not nopd}
 check(len(jp) >= 10, "parsed %d params from Params.java" % len(jp))
 check(pd_ids == receivers, "Params.java ids == patch receivers (java-only %s, patch-only %s)"
@@ -886,9 +886,10 @@ def room(amp, secs, windows=False, **over):
     e = fresh(music_on=1, music_pad=0, music_arp=1, wet=0, gain=1, **over)
     y = e.run(sine(50, amp, secs))[:, 0]
     return [band_rms(y[a * SR:(a + 5) * SR]) for a in range(0, secs, 5)] if windows else band_rms(y)
-# with react below 1 a quiet room keeps a tiny chime chance (about one in 25 minutes), so allow one stray chime
+# with react below 1 a quiet room keeps a tiny chime chance (eff^3 at eff 0.08: about one every 3 minutes), so allow
+# two stray chimes in 40 s (Pd's [random] seeds shift whenever objects are added; 2 happens ~2% of the time, 3 ~0.1%)
 qw = room(0.001, 40, windows=True); quiet = float(np.median(qw))
-check(quiet < 0.0005 and sum(w > 0.002 for w in qw) <= 1, "music: a quiet room plays no notes (5 s windows %s)" % ["%.4f" % w for w in qw])
+check(quiet < 0.0005 and sum(w > 0.002 for w in qw) <= 2, "music: a quiet room plays no notes (5 s windows %s)" % ["%.4f" % w for w in qw])
 lively = room(0.3, 40)
 check(lively > 10 * quiet + 0.002, "music: a loud room plays plenty of notes (%.4f vs %.5f)" % (lively, quiet))
 steady_q, steady_l = room(0.001, 40, music_react=0), room(0.3, 40, music_react=0)
@@ -1056,7 +1057,7 @@ check(with_g > without_g + 0.7 and after_stop <= 1,
 # and switching it on doesn't click
 SWITCHED = {"reverb": ("reverb_mix", 0.5), "pitch": ("pitch_mix", 0.5), "chorus": ("chorus_mix", 0.5),
             "flanger": ("flange_mix", 0.5), "phaser": ("phaser_mix", 0.5), "reverse": ("rvs_mix", 0.5),
-            "roomnotes": ("music_res", 0.8), "music": ("music_on", 1)}
+            "roomnotes": ("music_res", 0.8), "music": ("music_on", 1), "gcloud": ("gc_amount", 1)}
 bad_sw = []
 for g, (k, v) in SWITCHED.items():
     over = {"music_on": 1, "music_res": 0} if g == "roomnotes" else {}
@@ -1170,6 +1171,72 @@ _, degs_b, _ = harmony(hum(330, 0.08))
 _, degs_q, _ = harmony(hum(220, 1.5, amp=0.0008))
 check(not degs_n and not degs_b and not degs_q,
       "harmony: noise, a short blip and a hum lost in the room's quiet play nothing (%s %s %s)" % (degs_n, degs_b, degs_q))
+
+# glitch cloud: a sudden sound comes back mangled; each kind does what it says
+GC_KINDS = ("gc_stutter", "gc_reverse", "gc_tape", "gc_shuffle")
+def gc_run(x, kind=None, steps=None, **over):
+    """The glitch cloud alone (dry, echo and music off), with only `kind` switched on. Returns the left+right output
+    and the kinds that fired. steps: seconds between footsteps, sent from the start."""
+    base = dict(dry=0, wet=0, gc_amount=1, gc_level=1, reverb_mix=0)
+    if kind:
+        base.update({k: int(k == kind) for k in GC_KINDS})
+    base.update(over)
+    e = fresh(**base); e.listen("gc_mode")
+    if steps is None:
+        y = e.run(x)
+    else:
+        n = int(steps * SR); ys = []
+        for i in range(0, len(x), n):
+            e.send("step", steps); ys.append(e.run(x[i:i + n]))
+        y = np.concatenate(ys)
+    return y[:, 0] + y[:, 1], [int(v) for v in e.heard["gc_mode"]]
+def burst_in(sig, at=3.0, total=6.0, quiet=0.0005, seed=7):
+    rng = np.random.default_rng(seed); x = rng.standard_normal(int(total * SR)) * quiet
+    i = int(at * SR); x[i:i + len(sig)] += sig
+    return x.astype(np.float32)
+t3 = np.arange(int(0.3 * SR)) / SR
+chirp = (0.3 * np.sin(2 * np.pi * (300 * t3 + 0.5 * 3000 * t3 * t3))).astype(np.float32)    # 300 -> 1200 Hz rising
+steady = (0.3 * np.sin(2 * np.pi * 1000 * t3)).astype(np.float32)
+def centroid(seg):
+    sp = np.abs(np.fft.rfft(seg * np.hanning(len(seg)))); f = np.fft.rfftfreq(len(seg), 1 / SR)
+    return float(np.sum(sp * f) / max(np.sum(sp), 1e-12))
+def glitch_part(y, at=3.0, thr=0.01):
+    """Where the glitch plays: from its first sound after the burst to its last."""
+    a = np.abs(y[int(at * SR):]); idx = np.nonzero(a > thr)[0]
+    return (y[int(at * SR) + idx[0]:int(at * SR) + idx[-1]], idx[0] / SR) if len(idx) else (np.zeros(1), None)
+y0, m0 = gc_run(burst_in(chirp), gc_amount=0)
+check(rms(y0) < 1e-4 and not m0, "glitch cloud: Amount 0 plays nothing (%.6f, %s)" % (rms(y0), m0))
+y, m = gc_run(burst_in(chirp), "gc_reverse"); g, _ = glitch_part(y); q = len(g) // 4
+check(m[:1] == [1] and len(g) > 0.2 * SR and centroid(g[:q]) > 1.3 * centroid(g[-q:]),
+      "glitch cloud: reverse plays a rising sound falling (centroid %.0f -> %.0f Hz, %s)" % (centroid(g[:q]), centroid(g[-q:]), m))
+y, m = gc_run(burst_in(steady), "gc_tape"); g, _ = glitch_part(y); q = len(g) // 5
+zc = lambda v: np.mean(np.abs(np.diff(np.sign(v)))) * SR / 2
+check(m[:1] == [2] and zc(g[:q]) > 900 and zc(g[3 * q:4 * q]) < 0.7 * zc(g[:q]),
+      "glitch cloud: tape stop slows the sound down (%.0f -> %.0f Hz, %s)" % (zc(g[:q]), zc(g[3 * q:4 * q]), m))
+y, m = gc_run(burst_in(steady), "gc_stutter"); g, _ = glitch_part(y)
+check(m[:1] == [0] and len(g) > 0.2 * SR, "glitch cloud: a stutter repeats the sound (%.2f s, %s)" % (len(g) / SR, m))
+jump = np.max(np.abs(np.diff(y))) if len(y) > 1 else 0
+check(jump < 0.15 * max(np.max(np.abs(y)), 1e-9) + 0.01, "glitch cloud: no clicks where a stutter jumps back (%.3f of peak %.3f)" % (jump, np.max(np.abs(y))))
+bed = burst_in(steady); bed += (0.05 * np.sin(2 * np.pi * 300 * np.arange(len(bed)) / SR)).astype(np.float32)   # a room that isn't silent
+y, m = gc_run(bed, "gc_shuffle")
+check(m[:1] == [3] and rms(y[int(3.0 * SR):]) > 0.005, "glitch cloud: shuffle plays a slice of the last few seconds (%s, rms %.4f)" % (m, rms(y[int(3.0 * SR):])))
+# the free clock: a steady sound with no sudden start still gets a glitch now and then
+rng = np.random.default_rng(9); fade = np.minimum(np.arange(12 * SR) / (3 * SR), 1)
+hum12 = (rng.standard_normal(12 * SR) * 0.05 * fade).astype(np.float32)
+y, m = gc_run(hum12)
+check(len(m) >= 1 and rms(y[4 * SR:]) > 0.002, "glitch cloud: with no sudden sounds the free clock still glitches (%d in 12 s)" % len(m))
+# walking: a sudden sound waits for the next step or half-step
+y, m = gc_run(burst_in(steady, at=3.1), "gc_stutter", steps=0.5)
+_, start = glitch_part(y, at=3.1, thr=0.05)
+check(start is not None and 0.15 <= start <= 0.18,   # the half-step at +0.15 s, a 5 ms fade, a few ms of pre-roll
+      "glitch cloud: while walking it lands on the half-step (%.3f s after the sound, wanted 0.15-0.18)" % (start or -1))
+# CPU: what the glitch cloud costs while it runs, and that at Amount 0 it costs nothing
+import time
+def cost(**over):
+    e = fresh(**over); x = burst_in(chirp, total=20.0); t0 = time.perf_counter(); e.run(x); return time.perf_counter() - t0
+c_off = min(cost(gc_amount=0) for _ in range(2)); c_on = min(cost(gc_amount=1) for _ in range(2))
+check(c_on < c_off * 1.25, "glitch cloud: cost while on +%.0f%% of the whole patch (off %.2f s, on %.2f s for 20 s of audio)"
+      % (100 * (c_on / c_off - 1), c_off, c_on))
 
 # room notes: resonators make the mic's own sound ring the current chord
 def claps(n, gap, amp, quiet=0.0005, seed=1):
