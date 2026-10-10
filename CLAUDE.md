@@ -190,7 +190,8 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   share each chance; together at most 100 and what's left is the chance nothing happens. `Param.budget("glitch_matrix")`:
   the UI stops a slider at `ParamStore.budgetRoom` (others never move), the dice scale picked shares to fit (locked ones
   kept); past 100 (presets, movers) the patch treats them as proportions. Amount = how often a chance comes. Ghost world
-  50 reverse / 50 stretch. No `;` in Params.java comments (the test parser stops there; bit us again).
+  50 reverse / 50 stretch. Under the sliders a bold "Glitch budget: 80% used · 20% left to silence" line
+  (`MainActivity.budgetLines`, updated on slider moves and in refreshRows). No `;` in Params.java comments (the test parser stops there; bit us again).
   **Tape stop and a turntable Scratch were built and removed** (Samuel, Oct 10: not wanted in the mix; git has them).
   **Voices switch on only while they play** (groups `gcv` = gc0_*, `gcs` = gc2_*, `sw_gcv`/`sw_gcs` sent at each
   glitch, off L+100/L+700 ms later); only the 4 s buffer runs all the time. Two voices work fine this way.

@@ -15,6 +15,8 @@
     <string name="why_night">night</string>
     <string name="why_walking">walking</string>
     <string name="why_shaken">shaken</string>
+    <string name="glitch_budget">Glitch budget: %1$d%% used · %2$d%% left to silence</string>
+    <string name="glitch_budget_over">Glitch budget: %1$d%% (over 100, shared out in proportion)</string>
     <string name="why_pocket">in a pocket</string>
     <string name="why_room_quiet">quiet room (%d dB)</string>
     <string name="why_room_lively">loud, lively room (%d dB)</string>

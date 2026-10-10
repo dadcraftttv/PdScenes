@@ -42,6 +42,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -64,6 +65,7 @@ public class MainActivity extends Activity {
     private TextView status;
     /** The bar pinned to the bottom: what is playing and why, Start/Stop, hold the world, save this sound. */
     private TextView nowLine;
+    private final Map<String, TextView> budgetLines = new HashMap<>();   // budget name -> its "used / left" line
     private Button holdButton;
     private Button snapButton;
     private final android.os.Handler uiHandler = new android.os.Handler(android.os.Looper.getMainLooper());
@@ -663,7 +665,44 @@ public class MainActivity extends Activity {
                 if (Params.byId(Params.moverId(p.id, "mv")) != null) {
                     addMoverRows(body, section.id, p);
                 }
+                if (p.budget != null && lastOfBudget(p)) {   // the glitch matrix: how much of it is in use
+                    TextView line = new TextView(this);
+                    line.setTextSize(14);
+                    line.setTypeface(Typeface.DEFAULT_BOLD);
+                    line.setPadding(0, dp(10), 0, dp(4));
+                    body.addView(line);
+                    budgetLines.put(p.budget, line);
+                }
             }
+        }
+        updateBudgetLines();
+    }
+
+    /** True for the last slider of its budget group (the line showing what is used goes under it). */
+    private static boolean lastOfBudget(Param p) {
+        boolean after = false;
+        for (Param q : Params.ALL) {
+            if (q == p) {
+                after = true;
+            } else if (after && p.budget.equals(q.budget)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** "Glitch budget: 80% used, 20% left to silence" under the glitch matrix sliders. */
+    private void updateBudgetLines() {
+        for (Map.Entry<String, TextView> e : budgetLines.entrySet()) {
+            float used = 0;
+            for (Param q : Params.ALL) {
+                if (e.getKey().equals(q.budget)) {
+                    used += ParamStore.get(q.id);
+                }
+            }
+            int u = Math.round(used);
+            e.getValue().setText(u > 100 ? getString(R.string.glitch_budget_over, u)
+                    : getString(R.string.glitch_budget, u, 100 - u));
         }
     }
 
@@ -992,6 +1031,9 @@ public class MainActivity extends Activity {
                     }
                     ParamStore.set(p.id, value);
                     label.setText(valueText(p, value));
+                    if (p.budget != null) {
+                        updateBudgetLines();
+                    }
                 }
             }
 
@@ -1087,6 +1129,7 @@ public class MainActivity extends Activity {
             }
         }
         updateMoverUi();
+        updateBudgetLines();
         undoButton.setEnabled(ParamStore.canUndo());
     }
 
