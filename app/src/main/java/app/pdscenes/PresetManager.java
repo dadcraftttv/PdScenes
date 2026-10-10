@@ -238,9 +238,7 @@ final class PresetManager {
         ghostWorld.put("gc_stretch", 1f);
         ghostWorld.put("gc_reverse", 1f);
         ghostWorld.put("gc_stutter", 0f);
-        ghostWorld.put("gc_tape", 0f);
         ghostWorld.put("gc_shuffle", 0f);
-        ghostWorld.put("gc_scratch", 0f);
         mover(ghostWorld, "space_pan", 1, 0.05f, 0.9f);
         mover(ghostWorld, "rvs_time", 1, 0.04f, 0.5f);
         BUILT_IN.put("Ghost world", ghostWorld);

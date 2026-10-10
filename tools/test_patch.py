@@ -1193,7 +1193,7 @@ check(not degs_n and not degs_b and not degs_q,
       "harmony: noise, a short blip and a hum lost in the room's quiet play nothing (%s %s %s)" % (degs_n, degs_b, degs_q))
 
 # glitch cloud: a sudden sound comes back mangled; each kind does what it says
-GC_KINDS = ("gc_stutter", "gc_reverse", "gc_tape", "gc_shuffle", "gc_stretch", "gc_scratch")
+GC_KINDS = ("gc_stutter", "gc_reverse", "gc_shuffle", "gc_stretch")
 def gc_run(x, kind=None, steps=None, **over):
     """The glitch cloud alone (dry, echo and music off), with only `kind` switched on. Returns the left+right output
     and the kinds that fired. steps: seconds between footsteps, sent from the start."""
@@ -1229,29 +1229,19 @@ check(rms(y0) < 1e-4 and not m0, "glitch cloud: Amount 0 plays nothing (%.6f, %s
 y, m = gc_run(burst_in(chirp), "gc_reverse"); g, _ = glitch_part(y); q = len(g) // 4
 check(m[:1] == [1] and len(g) > 0.2 * SR and centroid(g[:q]) > 1.3 * centroid(g[-q:]),
       "glitch cloud: reverse plays a rising sound falling (centroid %.0f -> %.0f Hz, %s)" % (centroid(g[:q]), centroid(g[-q:]), m))
-y, m = gc_run(burst_in(steady), "gc_tape"); g, _ = glitch_part(y); q = len(g) // 5
 zc = lambda v: np.mean(np.abs(np.diff(np.sign(v)))) * SR / 2
-check(m[:1] == [2] and zc(g[:q]) > 900 and zc(g[3 * q:4 * q]) < 0.7 * zc(g[:q]),
-      "glitch cloud: tape stop slows the sound down (%.0f -> %.0f Hz, %s)" % (zc(g[:q]), zc(g[3 * q:4 * q]), m))
 y, m = gc_run(burst_in(steady), "gc_stutter"); g, _ = glitch_part(y)
 check(m[:1] == [0] and len(g) > 0.2 * SR, "glitch cloud: a stutter repeats the sound (%.2f s, %s)" % (len(g) / SR, m))
 jump = np.max(np.abs(np.diff(y))) if len(y) > 1 else 0
 check(jump < 0.15 * max(np.max(np.abs(y)), 1e-9) + 0.01, "glitch cloud: no clicks where a stutter jumps back (%.3f of peak %.3f)" % (jump, np.max(np.abs(y))))
 bed = burst_in(steady); bed += (0.05 * np.sin(2 * np.pi * 300 * np.arange(len(bed)) / SR)).astype(np.float32)   # a room that isn't silent
 y, m = gc_run(bed, "gc_shuffle")
-check(m[:1] == [3] and rms(y[int(3.0 * SR):]) > 0.005, "glitch cloud: shuffle plays a slice of the last few seconds (%s, rms %.4f)" % (m, rms(y[int(3.0 * SR):])))
+check(m[:1] == [2] and rms(y[int(3.0 * SR):]) > 0.005, "glitch cloud: shuffle plays a slice of the last few seconds (%s, rms %.4f)" % (m, rms(y[int(3.0 * SR):])))
 y, m = gc_run(burst_in(steady, total=8.0), "gc_stretch"); g, _ = glitch_part(y, thr=0.02)
 held = g[int(0.4 * SR):int(1.0 * SR)] if len(g) > SR else np.zeros(4)
 pitch = zc(held) / 2                                          # (zc counts the crossings both ways: twice the pitch)
-check(m[:1] == [4] and len(g) > 1.2 * SR and 800 < pitch < 1250,
+check(m[:1] == [3] and len(g) > 1.2 * SR and 800 < pitch < 1250,
       "glitch cloud: stretch smears a 0.3 s sound over %.1f s at its own pitch (%.0f Hz, %s)" % (len(g) / SR, pitch, m[:3]))
-# scratch: the sound rocked back and forth, so its pitch swings up and down (forward fast, stop, backward, stop)
-y, m = gc_run(burst_in(steady, total=8.0), "gc_scratch"); g, _ = glitch_part(y, thr=0.02)
-win = int(0.03 * SR); rates = [zc(g[i:i + win]) / 2 for i in range(0, len(g) - win, win)] if len(g) > 2 * win else [0]
-loud = [r for r, i in zip(rates, range(0, len(g) - win, win)) if rms(g[i:i + win]) > 0.02]
-check(m[:1] == [5] and len(loud) >= 4 and max(loud) > 1.4 * 1000 and min(loud) < 0.7 * 1000,
-      "glitch cloud: scratch swings the pitch up and down (%.0f to %.0f Hz over %d bits, %s)"
-      % (min(loud or [0]), max(loud or [0]), len(loud), m[:3]))
 # the free clock: a steady sound with no sudden start still gets a glitch now and then
 rng = np.random.default_rng(9); fade = np.minimum(np.arange(12 * SR) / (3 * SR), 1)
 hum12 = (rng.standard_normal(12 * SR) * 0.05 * fade).astype(np.float32)
@@ -1265,7 +1255,7 @@ check(start is not None and 0.15 <= start <= 0.18,   # the half-step at +0.15 s,
 # wide: each glitch sits well out to one side (the far ear quieter and a little later)
 def gc_sides(seed):
     x = burst_in(steady, seed=seed)
-    e = fresh(dry=0, wet=0, gc_amount=1, gc_level=1, reverb_mix=0, gc_stutter=1, gc_reverse=0, gc_tape=0, gc_shuffle=0)
+    e = fresh(dry=0, wet=0, gc_amount=1, gc_level=1, reverb_mix=0, gc_stutter=1, gc_reverse=0, gc_shuffle=0)
     y = e.run(x)[int(3.0 * SR):int(3.6 * SR)]
     l, r = rms(y[:, 0]), rms(y[:, 1])
     return (l - r) / max(l + r, 1e-9)

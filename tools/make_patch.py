@@ -36,7 +36,7 @@ DEFAULTS = [
     ("beat_on", 1), ("beat_level", 0), ("beat_hats", 0.5), ("beat_snare", 0.6), ("beat_pitch", 55),
     ("music_on", 0), ("music_key", 0), ("music_scale", 0), ("music_pad", 0.33), ("music_arp", 0.4),
     ("music_tone", 0.5), ("music_react", 0.8), ("music_res", 0.8), ("music_harm", 0.6), ("echo_scatter", 0.5), ("gc_amount", 0), ("gc_level", 0.7), ("gc_stutter", 1), ("gc_reverse", 1),
-    ("gc_tape", 1), ("gc_shuffle", 1), ("gc_stretch", 1), ("gc_scratch", 0), ("music_pad_reg", 2), ("pocket_hush", 0.5), ("pocket_guard", 0.6),
+    ("gc_shuffle", 1), ("gc_stretch", 1), ("music_pad_reg", 2), ("pocket_hush", 0.5), ("pocket_guard", 0.6),
 ]
 
 # Scales as semitone steps above the key note. The patch snaps every note it plays to these.
@@ -1371,16 +1371,16 @@ def add_glitch_cloud(P):
     P.c("gc_walk_sel", "gc_pend1", 1, 0); P.c("gc_pend1", "gc_pend", 0, 1)
     P.obj("gc_fire", "t b b b b b b b", x, y + 600)
     P.c("gc_walk_sel", "gc_fire", 0, 0); P.c("gc_pend_sel", "gc_fire")
-    # ---- what kind of glitch: a random pick among the switched-on kinds (stutter 35, reverse 25, tape 20, shuffle 20) ----
+    # ---- what kind of glitch: a random pick among the switched-on kinds (stutter 35, reverse 25, shuffle 20, stretch 20) ----
+    # (tape stop and a turntable scratch were tried and dropped, Samuel, Oct 10)
     P.obj("gc_mode_rnd", "random 1000", x, y + 640)
-    w = "($f2*35+$f3*25+$f4*20+$f5*20+$f6*20+$f7*20)"
-    c = ["$f2*35", "$f2*35+$f3*25", "$f2*35+$f3*25+$f4*20", "$f2*35+$f3*25+$f4*20+$f5*20",
-         "$f2*35+$f3*25+$f4*20+$f5*20+$f6*20"]
-    pick = "5"
-    for k in range(4, -1, -1):
+    w = "($f2*35+$f3*25+$f4*20+$f5*20)"
+    c = ["$f2*35", "$f2*35+$f3*25", "$f2*35+$f3*25+$f4*20"]
+    pick = "3"
+    for k in range(2, -1, -1):
         pick = f"if($f1*{w}/1000<{c[k]},{k},{pick})"
     ex("gc_mode", f"if({w}<=0,-1,{pick})", x, y + 670)
-    for k, name in enumerate(("gc_stutter", "gc_reverse", "gc_tape", "gc_shuffle", "gc_stretch", "gc_scratch")):
+    for k, name in enumerate(("gc_stutter", "gc_reverse", "gc_shuffle", "gc_stretch")):
         P.obj(f"gc_en{k}", f"r {name}", x + 200 + 80 * k, y + 640)
         P.c(f"gc_en{k}", "gc_mode", 0, k + 1)
     P.c("gc_fire", "gc_mode_rnd", 0, 0); P.c("gc_mode_rnd", "gc_mode")
@@ -1395,23 +1395,18 @@ def add_glitch_cloud(P):
     P.obj("gc_st_rd", "f", x + 620, y + 700)
     ex("gc_st2", "$f1*$f2", x + 620, y + 730)
     P.c("gc_stepms_v", "gc_st_rd", 0, 1); P.c("gc_st_rd", "gc_st2"); P.c("gc_walk1", "gc_st2", 0, 1); P.c("gc_walk0", "gc_st2", 0, 1)
-    # $f1 mode, $f2 ms since the onset (-1 free), $f3..$f5, $f7 randoms 0..999, $f6 step ms (0 = standing)
+    # $f1 mode (0 stutter, 1 reverse, 2 shuffle), $f2 ms since the onset (-1 free), $f3..$f5, $f7 randoms 0..999,
+    # $f6 step ms (0 = standing). Out: L, d0, c1, c2, S, place, wait.
     S = "if($f6>0,min(max($f6/4,60),250),60+40*int($f4/250))"
-    L = (f"if($f1==0,({S})*(4+int($f5/250)),if($f1==1,300+0.4*$f3,if($f1==2,450+0.7*$f3,"
-         f"if($f1==5,600+0.6*$f3,150+0.35*$f3))))")
-    A = "if($f1==5,60+0.09*$f3,0)"                                            # scratch: how far the record is rocked (ms)
-    F = "if($f1==5,if($f6>0,2000/$f6,2+0.0025*$f4),1)"                         # ...and how often (walking: twice a step)
-    # scratch of a sudden sound: wait until 2A+40 ms of it are heard, then rock around A+25 ms into it
-    W5 = f"max(2*({A})+40-$f2,0)"
-    d0 = (f"if($f1==1,10,if($f1==3||$f2<0,250+3*$f4+{A},"
-          f"if($f1==5,$f2+{W5}-({A})-25,$f2+{GC_PREROLL_MS})))")              # from just before the sound began
-    outs = [L, d0, "if($f1==1,-1,if($f1==0||$f1==5,0,1))", "$f1==0", f"if($f1==0,{S},10000000)",
-            f"if($f1==2,-1/(2*({L})),0)", "if($f7<500,-(0.45+0.55*$f7/500),0.45+0.55*($f7-500)/500)",
-            A, F, f"if($f2<0,0,if($f1==1,max(({L})-$f2,0),if($f1==5,{W5},0)))"]   # reverse/scratch: wait until heard
+    L = f"if($f1==0,({S})*(4+int($f5/250)),if($f1==1,300+0.4*$f3,150+0.35*$f3))"
+    d0 = f"if($f1==1,10,if($f1==2||$f2<0,250+3*$f4,$f2+{GC_PREROLL_MS}))"     # from just before the sound began
+    outs = [L, d0, "if($f1==1,-1,if($f1==0,0,1))", "$f1==0", f"if($f1==0,{S},10000000)",
+            "if($f7<500,-(0.45+0.55*$f7/500),0.45+0.55*($f7-500)/500)",
+            f"if($f1==1&&$f2>=0,max(({L})-$f2,0),0)"]                      # reverse: wait until it has all been heard
     ex("gc_par", " ; ".join(outs).replace(" ; ", " " + BS + "; "), x, y + 770)
-    P.obj("gc_kind", "sel 4", x, y + 740)                                # 4 = stretch: its own voice
+    P.obj("gc_kind", "sel 3", x, y + 740)                                # 3 = stretch: its own voice
     P.c("gc_mode_ok", "gc_kind", 1, 0); P.c("gc_kind", "gc_par", 1, 0)
-    P.msg("gc_kind4", "4", x + 60, y + 755); P.c("gc_kind", "gc_kind4", 0, 0)
+    P.msg("gc_kind4", "3", x + 60, y + 755); P.c("gc_kind", "gc_kind4", 0, 0)
     # stretch (Ghost capture, Ableton warp pushed far): the sound smeared 4-12x slower in 100 ms grains, pitch
     # unchanged, fading out slowly. $f2 ms since the onset (-1 free), $f3-$f5, $f7 randoms. Out: L, d0, rate, place.
     sd0 = f"if($f2>=0,$f2+{GC_PREROLL_MS},300+2.5*$f4)"
@@ -1433,13 +1428,13 @@ def add_glitch_cloud(P):
     P.c("gc_fire", "gc_rn3", 3, 0); P.c("gc_rn3", "gc_par", 0, 2)
     P.c("gc_fire", "gc_timer", 2, 1); P.c("gc_el2", "gc_par", 0, 1)
     P.c("gc_fire", "gc_st_rd", 1, 0); P.c("gc_st2", "gc_par", 0, 5)
-    P.obj("gc_pack", "pack f f f f f f f f f f", x, y + 810)
-    for k in range(9, 0, -1):
+    P.obj("gc_pack", "pack f f f f f f f", x, y + 810)
+    for k in range(6, 0, -1):
         P.c("gc_par", "gc_pack", k, k)
     P.c("gc_par", "gc_pack", 0, 0)
     # a reverse waits (the last number) until the sound has been heard; then the voice plays it. One voice: a glitch
     # arriving while another plays fades that one out over 4 ms before jumping, so there is no click.
-    P.obj("gc_wait", "list split 9", x + 100, y + 825)
+    P.obj("gc_wait", "list split 6", x + 100, y + 825)
     P.obj("gc_wait_del", "del", x + 200, y + 840)
     P.obj("gc_wait_l", "list", x + 100, y + 855)
     P.c("gc_pack", "gc_wait"); P.c("gc_wait", "gc_wait_del", 1, 0); P.c("gc_wait", "gc_wait_l", 0, 1)
@@ -1460,19 +1455,16 @@ def add_glitch_cloud(P):
     outs_l, outs_r = [], []
     for k in range(1):
         vx, vy = x + 1200, y + 600
-        P.obj(f"gc{k}_up", "unpack f f f f f f f f f", vx, vy)
+        P.obj(f"gc{k}_up", "unpack f f f f f f", vx, vy)
         P.c("gc_vc_l", f"gc{k}_up")
         P.obj("grp_gcv_r", "r sw_gcv", 10, 10); P.obj("grp_gcv_sw", "switch~", 10, 40); P.c("grp_gcv_r", "grp_gcv_sw")
         P.obj(f"gc{k}_t", "vline~", vx, vy + 90)                           # ms into the glitch
-        # read position (ms back): d0 + a*t + b*t*t - c*fmod(t,S), built from plain objects (expr~ costs far
-        # more per sample). Stutter: a=1 c=1 (back to the slice start every S ms); reverse: a=2; tape stop: a=0,
-        # b=1/(2L); shuffle: all 0. The unpack gives d0, c1, c2, S, c3: a = 1-c1, b = -c3, c = c2.
+        # read position (ms back): d0 + a*t - c*fmod(t,S), built from plain objects (expr~ costs far more per
+        # sample). Stutter: a=1 c=1 (back to the slice start every S ms); reverse: a=2; shuffle: both 0.
+        # The unpack gives L, d0, c1, c2, S, place: a = 1-c1, c = c2.
         P.obj(f"gc{k}_a", "expr 1-$f1".replace("$", BS + "$"), vx + 60, vy + 40)
-        P.obj(f"gc{k}_b", "* -1", vx + 120, vy + 40)
-        P.c(f"gc{k}_up", f"gc{k}_a", 2, 0); P.c(f"gc{k}_up", f"gc{k}_b", 5, 0)
+        P.c(f"gc{k}_up", f"gc{k}_a", 2, 0)
         P.obj(f"gc{k}_at", "*~ 0", vx, vy + 120); P.c(f"gc{k}_t", f"gc{k}_at"); P.c(f"gc{k}_a", f"gc{k}_at", 0, 1)
-        P.obj(f"gc{k}_tt", "*~", vx + 60, vy + 120); P.c(f"gc{k}_t", f"gc{k}_tt"); P.c(f"gc{k}_t", f"gc{k}_tt", 0, 1)
-        P.obj(f"gc{k}_btt", "*~ 0", vx + 60, vy + 140); P.c(f"gc{k}_tt", f"gc{k}_btt"); P.c(f"gc{k}_b", f"gc{k}_btt", 0, 1)
         P.obj(f"gc{k}_invS", "expr 1/$f1".replace("$", BS + "$"), vx + 180, vy + 40)
         P.c(f"gc{k}_up", f"gc{k}_invS", 4, 0)
         P.obj(f"gc{k}_ts", "*~ 0", vx + 120, vy + 120); P.c(f"gc{k}_t", f"gc{k}_ts"); P.c(f"gc{k}_invS", f"gc{k}_ts", 0, 1)
@@ -1480,14 +1472,7 @@ def add_glitch_cloud(P):
         P.obj(f"gc{k}_f", "*~ 0", vx + 120, vy + 160); P.c(f"gc{k}_wr", f"gc{k}_f"); P.c(f"gc{k}_up", f"gc{k}_f", 4, 1)   # fmod(t,S)
         P.obj(f"gc{k}_cn", "* -1", vx + 240, vy + 40); P.c(f"gc{k}_up", f"gc{k}_cn", 3, 0)
         P.obj(f"gc{k}_ctf", "*~ 0", vx + 180, vy + 180); P.c(f"gc{k}_f", f"gc{k}_ctf"); P.c(f"gc{k}_cn", f"gc{k}_ctf", 0, 1)
-        # scratch: the record rocked back and forth, -A*sin(2*pi*f*t) (osc~ started at phase 0.75 is a sine)
-        P.obj(f"gc{k}_sco", "osc~ 1", vx + 400, vy + 120); P.c(f"gc{k}_up", f"gc{k}_sco", 8, 0)
-        P.msg(f"gc{k}_scph", "0.75", vx + 460, vy + 100); P.c(f"gc{k}_scph", f"gc{k}_sco", 0, 1)
-        P.obj(f"gc{k}_scA", "* -1", vx + 400, vy + 40); P.c(f"gc{k}_up", f"gc{k}_scA", 7, 0)
-        P.obj(f"gc{k}_scm", "*~ 0", vx + 400, vy + 140); P.c(f"gc{k}_sco", f"gc{k}_scm"); P.c(f"gc{k}_scA", f"gc{k}_scm", 0, 1)
-        P.sig2(f"gc{k}_s0", "+~", f"gc{k}_at", f"gc{k}_scm", vx, vy + 185)
-        P.sig2(f"gc{k}_s1", "+~", f"gc{k}_s0", f"gc{k}_btt", vx, vy + 190)
-        P.sig2(f"gc{k}_s2", "+~", f"gc{k}_s1", f"gc{k}_ctf", vx, vy + 200)
+        P.sig2(f"gc{k}_s2", "+~", f"gc{k}_at", f"gc{k}_ctf", vx, vy + 200)
         P.obj(f"gc{k}_dd", "+~ 0", vx, vy + 210); P.c(f"gc{k}_s2", f"gc{k}_dd"); P.c(f"gc{k}_up", f"gc{k}_dd", 1, 1)
         P.obj(f"gc{k}_d", "clip~ 1 3990", vx, vy + 220); P.c(f"gc{k}_dd", f"gc{k}_d")
         P.obj(f"gc{k}_rd", "delread4~ gc_buf", vx, vy + 230)
@@ -1507,7 +1492,7 @@ def add_glitch_cloud(P):
         P.msg(f"gc{k}_emsg", f"1 5 {BS}, 0 20 {BS}$1", vx + 100, vy + 60)
         P.obj(f"gc{k}_env", "vline~", vx + 100, vy + 90)
         P.c(f"gc{k}_L", f"gc{k}_Lm", 1, 0); P.c(f"gc{k}_Lm", f"gc{k}_emsg"); P.c(f"gc{k}_emsg", f"gc{k}_env")
-        P.c(f"gc{k}_L", f"gc{k}_tmsg", 0, 0); P.c(f"gc{k}_tmsg", f"gc{k}_t"); P.c(f"gc{k}_L", f"gc{k}_scph", 0, 0)
+        P.c(f"gc{k}_L", f"gc{k}_tmsg", 0, 0); P.c(f"gc{k}_tmsg", f"gc{k}_t")
         P.c("gc_vc_fade", f"gc{k}_env")
         P.sig2(f"gc{k}_ew", "*~", f"gc{k}_env", f"gc{k}_win", vx + 100, vy + 150)
         P.sig2(f"gc{k}_s", "*~", f"gc{k}_rd", f"gc{k}_ew", vx, vy + 180)
@@ -1515,7 +1500,7 @@ def add_glitch_cloud(P):
         # halfway out to one side, the near ear at full level, the far ear quieter and up to 0.6 ms later (the
         # time difference is what makes a sound seem really off to the side)
         ex(f"gc{k}_pan", "min(1,1-$f1) ; min(1,1+$f1) ; 1.5+0.6*max($f1,0) ; 1.5+0.6*max(-$f1,0)".replace(" ; ", " " + BS + "; "), vx + 250, vy + 30)
-        P.c(f"gc{k}_up", f"gc{k}_pan", 6, 0)
+        P.c(f"gc{k}_up", f"gc{k}_pan", 5, 0)
         P.obj(f"gc{k}_gl", "sig~", vx + 250, vy + 60); P.obj(f"gc{k}_gr", "sig~", vx + 320, vy + 60)
         P.obj(f"gc{k}_itd", "delwrite~ gc_itd 10", vx, vy + 215); P.c(f"gc{k}_s", f"gc{k}_itd")
         P.obj(f"gc{k}_rl", "delread~ gc_itd 1.5", vx, vy + 225)            # whole samples are fine for this

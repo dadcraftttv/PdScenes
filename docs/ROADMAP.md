@@ -47,7 +47,7 @@ The glitch engine must stay cheap: off at Amount 0 (switch~), measured on the ph
    later maybe the tempo of music heard nearby. Walking locks it to steps; stopping hands over to the other clocks,
    as the chime queue already does.
    Samuel's pick (Oct 9): sudden sounds as the trigger first, then the free clock (walking still locks to steps).
-6. **(BUILT 2026-10-09 as the Scratch glitch kind, no world) Collective world.** Capture a buffer and "scratch" it back and forth like a turntablist. A new scratch effect.
+6. **(Built 2026-10-09 as a Scratch glitch kind, then removed with tape stop on Oct 10: Samuel didn't want them) Collective world.** Capture a buffer and "scratch" it back and forth like a turntablist. A new scratch effect.
 7. **Optional: "calm builds" mode.** Dimensions' Tranquil adds layers the longer you stay quiet and lets noise make the music
    shrink away. Opposite of the current behavior (quiet room = quiet notes), so only as an option, if Samuel wants it.
 8. **(BUILT 2026-10-09: chimes thin out when lots was played in the last ~8 s) Density memory.** Generative rule sets that look at how dense the recent music has been and adapt (avoids too many

@@ -157,22 +157,19 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
 - **Dice morph:** with audio running, Randomize glides there over 6 s (`ParamStore.morphTick` from the service tick,
   smoothstep; switches/menus flip halfway). A slider moved meanwhile (hand or world) drops out of the glide; undo,
   nudge, presets and reset stop it. Stopped audio: Randomize jumps as before.
-- **Glitch cloud** (Glitch section; `gc_amount` default 0 = off and no CPU, `gc_level` 0.7, kinds `gc_stutter/reverse/tape/shuffle`;
+- **Glitch cloud** (Glitch section; `gc_amount` default 0 = off and no CPU, `gc_level` 0.7, kinds `gc_stutter/reverse/shuffle/stretch`;
   roadmap 5b, after dblue Glitch): the hushed mic goes into a 4 s ring buffer (memory only). Triggers: a sudden sound (5 ms
   meter jumps 10 dB over its ~0.25 s average and > -45 dBFS; chance = Amount; then a rest of 2.4 s at Amount 0 -> 0.6 s at 1)
   and a free clock ((2-8 s)*0.6/(0.2+Amount), reset by sounds; it never starts the rest, so a sound always wins). Walking
   (a step in the last 2.5 s): it waits for the next step or half-step, and a stutter slice is a quarter step. Kinds:
   stutter (slice 60-180 ms, or quarter step, x4-7), reverse (plays back the last ~2L ms backwards, after waiting until
-  the sound was heard), tape stop (rate 1 -> 0 over 450-1150 ms), shuffle (a random slice 0.25-3.25 s old). One voice:
-  read position = d0 + a*t + b*t^2 - c*fmod(t,S) from plain objects (expr~ cost 3x more), 3 ms slice windows, a new
+  the sound was heard), shuffle (a random slice 0.25-3.25 s old). One voice:
+  read position = d0 + a*t - c*fmod(t,S) from plain objects (expr~ cost 3x more), 3 ms slice windows, a new
   glitch fades the old one 4 ms first. Random pan per glitch; it joins both ears before the reverb and feeds it too.
   **Stretch** (`gc_stretch`, 5th kind, roadmap 3 "Ghost capture"; own voice `gc2_*`): the sound smeared at rate
   0.08-0.25 (4-12x slower) for 1.5-3.5 s (capped by the 4 s buffer) in two 100 ms Hann grains, pitch unchanged,
   40 ms in and 600 ms out. The Ghost world turns on stretch + reverse only (Amount 0.45, level 0.8).
-  **Scratch** (`gc_scratch`, off by default: Samuel likes the sound but not in the mix; 6th kind, roadmap 6 "Collective" as a kind, not a world): the main voice gets
-  -A*sin(2*pi*f*t) on its read position (A 60-150 ms, f twice a step while walking, else 2-4.5 Hz; osc~ phase reset
-  to 0.75 at each glitch), so the record rocks forward/stop/back/stop around one spot. A sudden sound is first heard
-  for 2A+40 ms (wait), then rocked around A+25 ms into it; centring it on the onset scratched mostly silence.
+  **Tape stop and a turntable Scratch were built and removed** (Samuel, Oct 10: not wanted in the mix; git has them).
   **Voices switch on only while they play** (groups `gcv` = gc0_*, `gcs` = gc2_*, `sw_gcv`/`sw_gcs` sent at each
   glitch, off L+100/L+700 ms later); only the 4 s buffer runs all the time. Two voices work fine this way.
   Width (Samuel: "around me but not wide enough"): each glitch sits 45-100% out to one side (balance law: near ear

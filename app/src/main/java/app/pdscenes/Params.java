@@ -262,13 +262,9 @@ final class Params {
                     Param.Curve.LINEAR).inSection("glitch").toggle().resetWhenAbsent(),
             new Param("gc_reverse", "Reverse (played backwards)", 0f, 1f, 1f, "", Param.Curve.LINEAR)
                     .inSection("glitch").toggle().resetWhenAbsent(),
-            new Param("gc_tape", "Tape stop (slows to a halt)", 0f, 1f, 1f, "", Param.Curve.LINEAR)
-                    .inSection("glitch").toggle().resetWhenAbsent(),
             new Param("gc_shuffle", "Shuffle (an older moment, out of order)", 0f, 1f, 1f, "", Param.Curve.LINEAR)
                     .inSection("glitch").toggle().resetWhenAbsent(),
             new Param("gc_stretch", "Stretch (smeared out slowly, the pitch stays)", 0f, 1f, 1f, "", Param.Curve.LINEAR)
-                    .inSection("glitch").toggle().resetWhenAbsent(),
-            new Param("gc_scratch", "Scratch (rocked back and forth like a record)", 0f, 1f, 0f, "", Param.Curve.LINEAR)
                     .inSection("glitch").toggle().resetWhenAbsent(),
             new Param("glitch_on", "Glitch/freeze enabled", 0f, 1f, 1f, "", Param.Curve.LINEAR)
                     .inSection("glitch").toggle().resetWhenAbsent(),
