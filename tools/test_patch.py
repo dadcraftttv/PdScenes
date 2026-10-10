@@ -77,7 +77,7 @@ check(not bad, "patch loads with no Pd errors" + (": %s" % bad if bad else ""))
 
 jp = java_params()
 patch_text = open(PATCH).read()
-receivers = set(re.findall(r"#X obj \d+ \d+ r (\w+);", patch_text)) - {"step", "scale_n", "pad_glide", "mic_level", "pad_slot", "pool_n", "pool_x", "pocket", "pocket_down", "duck", "step_strength", "step_hit", "beat_sure", "groove", "gc_mode", "density_on", "motif"} - {r for r in re.findall(r"#X obj \d+ \d+ r (sw_\w+);", open(PATCH).read())}   # events and internal links, not settings
+receivers = set(re.findall(r"#X obj \d+ \d+ r (\w+);", patch_text)) - {"step", "scale_n", "pad_glide", "mic_level", "pad_slot", "pool_n", "pool_x", "pocket", "pocket_down", "duck", "step_strength", "step_hit", "beat_sure", "groove", "gc_mode", "density_on", "motif", "drift_now", "drift_set", "drift_n"} - {r for r in re.findall(r"#X obj \d+ \d+ r (sw_\w+);", open(PATCH).read())}   # events and internal links, not settings
 pd_ids = {i for i, _, nopd in jp if not nopd}
 check(len(jp) >= 10, "parsed %d params from Params.java" % len(jp))
 check(pd_ids == receivers, "Params.java ids == patch receivers (java-only %s, patch-only %s)"
@@ -996,15 +996,16 @@ check(abs(walking) < 1.5 and -6.5 < dipped < -2.5 and abs(back) < 1.5,
       % (dipped, back, walking))
 
 # pace tiers: a stroll plays the calm patterns and rests more; a brisk walk plays the busy, leaping ones
-def arp_run(interval, n=64):
-    e = fresh(music_on=1, music_pad=0, music_arp=1, wet=0); e.listen("chime_deg")
-    per_step = []                                              # the note each step played, None for a rest
+def arp_run(interval, n=256):
+    e = fresh(music_on=1, music_pad=0, music_arp=1, wet=0); e.listen("chime_deg", "pad_chord")
+    per_step, chord_moved = [], []                             # the note each step played (None = a rest)
     for _ in range(n):
-        k = len(e.heard["chime_deg"])
+        k, c = len(e.heard["chime_deg"]), len(e.heard["pad_chord"])
         e.send("step", interval); e.run(e.silence(interval))
         new = e.heard["chime_deg"][k:]
-        per_step.append(int(new[0]) if new else None)
-    jumps = [abs(b - a) for a, b in zip(per_step, per_step[1:]) if a is not None and b is not None]
+        per_step.append(int(new[0]) if new else None); chord_moved.append(len(e.heard["pad_chord"]) > c)
+    # (a chord change shifts the arpeggio whatever the pace, so those steps are left out of the jump measure)
+    jumps = [abs(b - a) for a, b, moved in zip(per_step, per_step[1:], chord_moved[1:]) if a is not None and b is not None and not moved]
     return sum(v is not None for v in per_step) / n, float(np.mean(jumps))
 stroll_rate, stroll_jump = arp_run(1.0)
 brisk_rate, brisk_jump = arp_run(0.38)
@@ -1141,6 +1142,25 @@ def note_rate(on=1):
 with_mem, without = np.mean(note_rate(1)[10:]), np.mean(note_rate(0)[10:])
 check(with_mem < 0.85 * without,
       "music: density memory thins a busy room's notes (%.2f a second, %.2f without it)" % (with_mem, without))
+
+# key drift: the home chord moves to a related one on the same notes; never a diminished chord; off = home again
+def drift_run(scale, n, **over):
+    e = fresh(music_on=1, music_pad=1, music_arp=0, music_res=0, wet=0, music_scale=scale, **over); e.listen("drift", "pad_chord")
+    e.send("music_on", 1); e.run(e.silence(0.5))
+    for _ in range(n):
+        e.send("drift_now", 1); e.run(e.silence(0.3))
+    return e, [int(v) for v in e.heard["drift"]], [int(v) for v in e.heard["pad_chord"]]
+e, drifts, chords = drift_run(0, 24)
+check(set(drifts) <= {0, 1, 4, 5} and len(set(drifts)) >= 3 and 6 not in chords and len(set(chords)) >= 4,
+      "music: key drift in C major moves home among %s and never plays the diminished chord (chords %s)" % (sorted(set(drifts)), sorted(set(chords))))
+_, drifts_m, chords_m = drift_run(1, 24)
+check(set(drifts_m) <= {0, 2, 3, 6} and 1 not in chords_m,
+      "music: key drift in minor stays off the diminished chord (homes %s, chords %s)" % (sorted(set(drifts_m)), sorted(set(chords_m))))
+e.send("music_drift", 0); e.run(e.silence(0.3)); n0 = len(e.heard["drift"])
+for _ in range(5):
+    e.send("drift_now", 1); e.run(e.silence(0.3))
+check(e.heard["drift"][-1] == 0 and all(v == 0 for v in e.heard["drift"][n0:]),
+      "music: switching key drift off brings the home chord back and keeps it (%s)" % [int(v) for v in e.heard["drift"][-6:]])
 
 # motif memory (the app replays phrases): [motif step velocity( plays that chime, and is not reported as a new chime
 e = fresh(music_on=1, music_pad=0, music_arp=1, wet=0); e.listen("chime_deg", "chime_note")

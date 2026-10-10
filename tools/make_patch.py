@@ -35,7 +35,7 @@ DEFAULTS = [
     ("phaser_on", 1), ("phaser_mix", 0), ("phaser_rate", 0.4), ("phaser_depth", 0.7), ("phaser_fb", 0.4),
     ("beat_on", 1), ("beat_level", 0), ("beat_hats", 0.5), ("beat_snare", 0.6), ("beat_pitch", 55),
     ("music_on", 0), ("music_key", 0), ("music_scale", 0), ("music_pad", 0.33), ("music_arp", 0.4),
-    ("music_tone", 0.5), ("music_react", 0.8), ("music_res", 0.8), ("music_harm", 0.6), ("echo_scatter", 0.5), ("gc_amount", 0), ("gc_level", 0.7), ("gc_stutter", 1), ("gc_reverse", 1),
+    ("music_tone", 0.5), ("music_react", 0.8), ("music_res", 0.8), ("music_harm", 0.6), ("music_drift", 1), ("echo_scatter", 0.5), ("gc_amount", 0), ("gc_level", 0.7), ("gc_stutter", 1), ("gc_reverse", 1),
     ("gc_shuffle", 1), ("gc_stretch", 1), ("music_pad_reg", 2), ("pocket_hush", 0.5), ("pocket_guard", 0.6),
 ]
 
@@ -64,6 +64,20 @@ CHORD_POOLS = [
     ((0, 1, 2, 3, 4, 5), None),  # Whole tone
 ]
 CONTRAST_PCT = 20             # chance (in 100) that a chord change picks the contrast chord
+# Key drift: every few minutes the home chord moves to a related one on the same notes (C major -> D dorian, G or
+# A minor feel), and later comes home. Only moves where every chord of the pool stays free of diminished chords.
+DRIFT_MIN_S, DRIFT_MAX_S = 180, 360
+DRIFT_HOME_PCT = 60           # away from home, the chance the next drift goes back home
+
+
+def drift_options(iv, pool):
+    """Scale steps the home chord may drift to: those where every pool chord moved there is not diminished."""
+    n = len(iv)
+    def note(d):
+        return iv[d % n] + 12 * (d // n)
+    def ok(r):
+        return note(r + 4) - note(r) != 6 or note(r + 2) - note(r) != 3
+    return [o for o in range(n) if all(ok(o + r) for r in pool)]
 # Footstep arpeggios: scale steps above the current chord root, one per footstep. Every bar (8 steps) a new
 # pattern is picked at random, and now and then a step rests.
 # Ordered calm -> busy: each bar picks one near the walking pace (a stroll stays near the top, a brisk walk near
@@ -485,13 +499,16 @@ def add_music(P):
     # ---- scale and key: the scale lives in a table; a degree (0, 1, 2...) becomes a pitch ----
     P.obj("mu_scale_tab", "table scale_iv 8", x, 20)
     P.obj("mu_pcdeg_tab", "table pc_deg 12", x + 100, 20)
+    P.obj("mu_dr_tab", "table drift_opts 8", x + 200, 40)
     P.obj("mu_r_scale", "r music_scale", x, 50)
     P.obj("mu_scale_t", "t b f", x, 65)                                  # table first, then re-pick the chord
     sel = P.obj("mu_scale_sel", "sel " + " ".join(str(i) for i in range(len(SCALES))), x, 80)
     P.c("mu_r_scale", "mu_scale_t"); P.c("mu_scale_t", sel, 1, 0)
     for i, iv in enumerate(SCALES):
         pool, contrast = CHORD_POOLS[i]
-        text = (f"{BS}; scale_iv 0 {' '.join(str(v) for v in iv)} {BS}; scale_n {len(iv)}"
+        opts = drift_options(iv, pool)
+        text = (f"{BS}; drift_opts 0 {' '.join(str(v) for v in opts)} {BS}; drift_n {len(opts)} {BS}; drift_set 0"
+                f" {BS}; scale_iv 0 {' '.join(str(v) for v in iv)} {BS}; scale_n {len(iv)}"
                 f" {BS}; pc_deg 0 {' '.join(str(v) for v in pc_to_degree(iv))}"
                 f" {BS}; chord_pool 0 {' '.join(str(v) for v in pool)} {BS}; pool_n {len(pool)}"
                 f" {BS}; pool_x {-1 if contrast is None else contrast}")
@@ -817,8 +834,11 @@ def add_music(P):
     P.obj("mu_pat_rnd", "random 3", x + 960, 840)
     # the pace's pattern or a neighbour ($f1 0..2), never the one just played ($f2), pace 0..1 ($f3)
     top = n_pat - 1
-    ex("mu_pat_new", f"if(min(max(int($f3*{top}+0.5)+$f1-1, 0), {top})==$f2, "
-                     f"if($f2<{top}, $f2+1, $f2-1), min(max(int($f3*{top}+0.5)+$f1-1, 0), {top}))", x + 960, 870)
+    # (a repeat moves toward the pace's own pattern, so a stroll stays on the calm ones and a brisk walk on the busy)
+    tgt = f"int($f3*{top}+0.5)"
+    ex("mu_pat_new", f"if(min(max({tgt}+$f1-1, 0), {top})==$f2, "
+                     f"if($f2<{tgt}, $f2+1, if($f2>{tgt}, $f2-1, if($f2<{top}, $f2+1, $f2-1))), "
+                     f"min(max({tgt}+$f1-1, 0), {top}))", x + 960, 870)
     P.c("mu_pace_f", "mu_pat_new", 0, 2)
     P.obj("mu_pat_cur", "t f f", x + 960, 900)
     P.c("mu_pat_it", "mu_pat_bar", 1, 0); P.c("mu_pat_bar", "mu_pat_rnd"); P.c("mu_pat_rnd", "mu_pat_new")
@@ -923,14 +943,57 @@ def add_music(P):
     P.c("mu_chord_go", "mu_rd_root", 0, 0); P.c("mu_rd_root", "mu_pad_idx")
     P.obj("mu_pad_pool", "tabread chord_pool", px, 160)
     P.c("mu_pad_idx", "mu_pad_pool")
+    # key drift: the pool's chords moved by the drift (mdrift scale steps); no contrast chord while drifted
+    P.obj("mu_dr_pt", "t f b b", px, 170)
+    P.c("mu_pad_pool", "mu_dr_pt")
+    P.obj("mu_dr_rd1", "value mdrift", px + 60, 172); P.obj("mu_dr_rd2", "value mdrift", px + 120, 172)
+    P.obj("mu_dr_n", "value scale_n", px + 180, 172)
     # now and then the contrast chord instead (when the scale has one)
     P.obj("mu_pad_roll", "random 100", px + 160, 140)
     P.c("mu_chord_go", "mu_pad_roll", 2, 0)
     P.obj("mu_r_pool_x", "r pool_x", px + 300, 140)
-    ex("mu_pad_root", f"if($f2<{CONTRAST_PCT}&&$f3>=0,$f3,$f1)", px, 180)
-    P.c("mu_pad_pool", "mu_pad_root"); P.c("mu_pad_roll", "mu_pad_root", 0, 1); P.c("mu_r_pool_x", "mu_pad_root", 0, 2)
+    ex("mu_pad_root", f"if($f2<{CONTRAST_PCT}&&$f3>=0&&$f4==0,$f3,$f1)", px, 180)
+    P.c("mu_dr_pt", "mu_pad_root", 0, 0); P.c("mu_pad_roll", "mu_pad_root", 0, 1); P.c("mu_r_pool_x", "mu_pad_root", 0, 2)
+    ex("mu_dr_apply", "($f1+$f2)%$f3", px, 190)
+    P.c("mu_dr_pt", "mu_dr_rd1", 2, 0); P.c("mu_dr_rd1", "mu_pad_root", 0, 3)
+    P.c("mu_dr_pt", "mu_dr_rd2", 1, 0); P.c("mu_dr_rd2", "mu_dr_apply", 0, 1)
+    P.c("mu_dr_pt", "mu_dr_n", 1, 0); P.c("mu_dr_n", "mu_dr_apply", 0, 2)
+    P.c("mu_pad_root", "mu_dr_apply")
     P.obj("mu_pad_root_v", "t f f b", px, 200)
-    P.c("mu_pad_root", "mu_pad_root_v")
+    P.c("mu_dr_apply", "mu_pad_root_v")
+    # the drift itself: every 3-6 minutes while the music plays (and the switch is on) a new home, often back home
+    P.obj("mu_dr_r_set", "r drift_set", px + 300, 20); P.obj("mu_dr_wr", "value mdrift", px + 300, 40)
+    P.c("mu_dr_r_set", "mu_dr_wr")
+    P.obj("mu_dr_s", "s drift", px + 380, 40)                       # for the tests
+    P.c("mu_dr_r_set", "mu_dr_s")
+    P.obj("mu_dr_del", "del 240000", px + 300, 80)
+    P.obj("mu_dr_sched", "t b b", px + 300, 100)
+    P.obj("mu_dr_rms", "random 1000", px + 380, 110)
+    ex("mu_dr_ms", f"{DRIFT_MIN_S * 1000}+{(DRIFT_MAX_S - DRIFT_MIN_S)}*$f1", px + 380, 130)
+    P.c("mu_dr_sched", "mu_dr_rms", 0, 0); P.c("mu_dr_rms", "mu_dr_ms"); P.c("mu_dr_ms", "mu_dr_del")
+    P.c("mu_on_sel", "mu_dr_sched")                                  # the clock starts with the music
+    P.obj("mu_dr_now", "r drift_now", px + 460, 80)                  # (tests: drift at once)
+    P.obj("mu_dr_fire", "t b b b b b", px + 300, 150)
+    P.c("mu_dr_del", "mu_dr_fire"); P.c("mu_dr_now", "mu_dr_fire")
+    P.obj("mu_dr_on", "r music_drift", px + 560, 80); P.obj("mu_dr_onv", "f 1", px + 560, 110)
+    P.c("mu_dr_on", "mu_dr_onv", 0, 1)
+    P.obj("mu_dr_r1", "random 1000", px + 360, 180); P.obj("mu_dr_r2", "random 1000", px + 420, 180)
+    P.obj("mu_dr_cur", "value mdrift", px + 480, 180); P.obj("mu_dr_nn", "value drift_nv", px + 540, 180)
+    P.obj("mu_dr_rnn", "r drift_n", px + 600, 160); P.obj("mu_dr_wnn", "value drift_nv", px + 600, 180)
+    P.c("mu_dr_rnn", "mu_dr_wnn")
+    ex("mu_dr_pick", f"if($f5==0,0,if($f3!=0&&$f1<{DRIFT_HOME_PCT * 10},0,if(drift_opts[int($f2*$f4/1000)]==$f3,"
+                     f"drift_opts[(int($f2*$f4/1000)+1)%max($f4,1)],drift_opts[int($f2*$f4/1000)])))", px + 300, 210)
+    P.c("mu_dr_fire", "mu_dr_onv", 4, 0); P.c("mu_dr_onv", "mu_dr_pick", 0, 4)
+    P.c("mu_dr_fire", "mu_dr_nn", 3, 0); P.c("mu_dr_nn", "mu_dr_pick", 0, 3)
+    P.c("mu_dr_fire", "mu_dr_cur", 2, 0); P.c("mu_dr_cur", "mu_dr_pick", 0, 2)
+    P.c("mu_dr_fire", "mu_dr_r2", 1, 0); P.c("mu_dr_r2", "mu_dr_pick", 0, 1)
+    P.c("mu_dr_fire", "mu_dr_r1", 0, 0); P.c("mu_dr_r1", "mu_dr_pick")
+    P.obj("mu_dr_out", "t b f", px + 300, 240)
+    P.c("mu_dr_pick", "mu_dr_out"); P.c("mu_dr_out", "mu_dr_wr", 1, 0); P.c("mu_dr_out", "mu_dr_s", 1, 0)
+    P.c("mu_dr_out", "mu_chord_go", 0, 0); P.c("mu_dr_out", "mu_dr_sched", 0, 0)
+    # switching drift off brings the home chord back at once
+    P.obj("mu_dr_off", "sel 0", px + 560, 130); P.msg("mu_dr_home", "0", px + 560, 150)
+    P.c("mu_dr_on", "mu_dr_off"); P.c("mu_dr_off", "mu_dr_home"); P.c("mu_dr_home", "mu_dr_out")
     P.obj("mu_chord_s", "s pad_chord", px + 240, 230)               # for the tests
     P.c("mu_pad_root_v", "mu_chord_s", 1, 0)
     P.obj("mu_v_chord_set", "value mchord", px + 80, 200)
@@ -1013,11 +1076,14 @@ def add_music(P):
     # 2nd and 3rd harmonic so earbuds can play it. A note change dips out and back in (no slides). Each footstep
     # ducks it briefly while the walking beat plays, so it doesn't fight the kick.
     bx = px + 900
-    P.obj("ba_in", "t f b", bx, 230)
+    P.obj("ba_in", "t f b b", bx, 230)
     P.c("mu_pad_root_v", "ba_in", 1, 0)
     P.obj("ba_roll", "random 100", bx + 80, 250)
     P.c("ba_in", "ba_roll", 1, 0)
-    ex("ba_pick", f"if($f2<{BASS_FOLLOW_PCT},$f1,0)", bx, 270)
+    P.obj("ba_home", "value mdrift", bx + 160, 250)                    # the home note moves with the key drift
+    P.c("ba_in", "ba_home", 2, 0)
+    ex("ba_pick", f"if($f2<{BASS_FOLLOW_PCT},$f1,$f3)", bx, 270)
+    P.c("ba_home", "ba_pick", 0, 2)
     P.c("ba_in", "ba_pick", 0, 0); P.c("ba_roll", "ba_pick", 0, 1)
     ba_deg, ba_hz = degree_to_hz("bad", bx, 290)
     P.c("ba_pick", ba_deg)

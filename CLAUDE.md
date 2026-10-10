@@ -133,6 +133,13 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   standing still, at most once per quiet spell and per 30 s, with chance 0.6, it sends `motif <step> 0.45` for each
   note: the phrase moved -2..+2 scale steps (sometimes 0), one note bent +-1 (40%), the rhythm x0.8-1.25. It counts
   for density memory. The event log says "Motif comes back". (Java's Random: small seeds all start near 0.73.)
+  **Key drift** (`music_drift`, Music, default on, noPreset; roadmap 12): every 3-6 min while the music plays the
+  home chord moves to a related one on the same notes (`value mdrift` scale steps added to each pad pick, mod n), 60%
+  of the time back home when away. Allowed homes per scale (`drift_options`): every pool chord moved there must not be
+  diminished (C major: C, D, G, A minor feel; minor: 0, 2, 3, 6). No contrast chord while drifted; the bass's home
+  note follows. A scale change resets it; switching it off brings home back at once. `drift_now` (tests) drifts now.
+  Pattern picker fix: a repeated pattern now moves toward the pace's own pattern (it used to bump upward, so a stroll
+  sometimes got a mid-level pattern).
   **Stop breath:** 1.2 s after the last step the pad+bass ease to 55% over 2.5 s, then return over 8 s (a step
   brings them back in 0.8 s); only steps start it.
   Music joins after the filter, so chorus/flanger/phaser/tremolo/reverse/glitch/echo/reverb/spatial shape it; pitch/ring/crush/dist/filter do not.

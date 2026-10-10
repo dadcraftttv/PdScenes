@@ -135,6 +135,8 @@ final class Params {
                     Param.Curve.LINEAR).inSection("music").rand(0.3f, 1f).resetWhenAbsent(),
             new Param("music_res", "Room notes (sounds around you ring the chord)", 0f, 1f, 0.8f, "",
                     Param.Curve.LINEAR).inSection("music").rand(0.2f, 1f).resetWhenAbsent(),
+            new Param("music_drift", "Let the home chord drift (every few minutes, same notes)", 0f, 1f, 1f, "",
+                    Param.Curve.LINEAR).inSection("music").toggle().noPreset().resetWhenAbsent(),
             new Param("music_harm", "Harmony (a held hum or whistle gets an answering note)", 0f, 1f, 0.6f, "",
                     Param.Curve.LINEAR).inSection("music").rand(0.2f, 1f).resetWhenAbsent(),
 
