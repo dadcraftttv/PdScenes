@@ -1173,7 +1173,7 @@ check(not degs_n and not degs_b and not degs_q,
       "harmony: noise, a short blip and a hum lost in the room's quiet play nothing (%s %s %s)" % (degs_n, degs_b, degs_q))
 
 # glitch cloud: a sudden sound comes back mangled; each kind does what it says
-GC_KINDS = ("gc_stutter", "gc_reverse", "gc_tape", "gc_shuffle")
+GC_KINDS = ("gc_stutter", "gc_reverse", "gc_tape", "gc_shuffle", "gc_stretch")
 def gc_run(x, kind=None, steps=None, **over):
     """The glitch cloud alone (dry, echo and music off), with only `kind` switched on. Returns the left+right output
     and the kinds that fired. steps: seconds between footsteps, sent from the start."""
@@ -1220,6 +1220,11 @@ check(jump < 0.15 * max(np.max(np.abs(y)), 1e-9) + 0.01, "glitch cloud: no click
 bed = burst_in(steady); bed += (0.05 * np.sin(2 * np.pi * 300 * np.arange(len(bed)) / SR)).astype(np.float32)   # a room that isn't silent
 y, m = gc_run(bed, "gc_shuffle")
 check(m[:1] == [3] and rms(y[int(3.0 * SR):]) > 0.005, "glitch cloud: shuffle plays a slice of the last few seconds (%s, rms %.4f)" % (m, rms(y[int(3.0 * SR):])))
+y, m = gc_run(burst_in(steady, total=8.0), "gc_stretch"); g, _ = glitch_part(y, thr=0.02)
+held = g[int(0.4 * SR):int(1.0 * SR)] if len(g) > SR else np.zeros(4)
+pitch = zc(held) / 2                                          # (zc counts the crossings both ways: twice the pitch)
+check(m[:1] == [4] and len(g) > 1.2 * SR and 800 < pitch < 1250,
+      "glitch cloud: stretch smears a 0.3 s sound over %.1f s at its own pitch (%.0f Hz, %s)" % (len(g) / SR, pitch, m[:3]))
 # the free clock: a steady sound with no sudden start still gets a glitch now and then
 rng = np.random.default_rng(9); fade = np.minimum(np.arange(12 * SR) / (3 * SR), 1)
 hum12 = (rng.standard_normal(12 * SR) * 0.05 * fade).astype(np.float32)

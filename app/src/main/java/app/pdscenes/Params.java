@@ -266,6 +266,8 @@ final class Params {
                     .inSection("glitch").toggle().resetWhenAbsent(),
             new Param("gc_shuffle", "Shuffle (an older moment, out of order)", 0f, 1f, 1f, "", Param.Curve.LINEAR)
                     .inSection("glitch").toggle().resetWhenAbsent(),
+            new Param("gc_stretch", "Stretch (smeared out slowly, the pitch stays)", 0f, 1f, 1f, "", Param.Curve.LINEAR)
+                    .inSection("glitch").toggle().resetWhenAbsent(),
             new Param("glitch_on", "Glitch/freeze enabled", 0f, 1f, 1f, "", Param.Curve.LINEAR)
                     .inSection("glitch").toggle().resetWhenAbsent(),
             new Param("glitch_hold", "Freeze (0 = live, 1 = frozen)", 0f, 1f, 0f, "",

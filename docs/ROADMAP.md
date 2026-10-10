@@ -16,7 +16,7 @@ The glitch engine must stay cheap: off at Amount 0 (switch~), measured on the ph
 2. **(BUILT 2026-10-09 as the Harmony slider) Pitch-following harmony (Dimensions "Travelling Dream", RjDj "Eargasm").** Track the pitch of what the mic hears
    (rjlib `analysepitch` / the fiddle external, already in `scene_lib` and the native libs) and answer with in-key notes or
    harmony. Needs a confidence gate so noise does not produce random notes.
-3. **Ghost: capture and stretch.** On a detected onset, record the moment and replay it granularly stretched in time,
+3. **(BUILT 2026-10-09 as the Stretch glitch kind, on in the Ghost world; reverse reverb not done) Ghost: capture and stretch.** On a detected onset, record the moment and replay it granularly stretched in time,
    with reverse reverb; optionally a very short randomized mic delay for atonal pitched noise. Extends the Ghost world
    (which today only has reverse echo).
 4. **(BUILT 2026-10-09 with step strength and the cadence groove) Kinetic pattern tiers.** Dimensions switches among five patterns by accelerometer level, with random variation. Ours

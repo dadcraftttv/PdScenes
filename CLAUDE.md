@@ -156,9 +156,14 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   the sound was heard), tape stop (rate 1 -> 0 over 450-1150 ms), shuffle (a random slice 0.25-3.25 s old). One voice:
   read position = d0 + a*t + b*t^2 - c*fmod(t,S) from plain objects (expr~ cost 3x more), 3 ms slice windows, a new
   glitch fades the old one 4 ms first. Random pan per glitch; it joins both ears before the reverb and feeds it too.
+  **Stretch** (`gc_stretch`, 5th kind, roadmap 3 "Ghost capture"; own voice `gc2_*`): the sound smeared at rate
+  0.08-0.25 (4-12x slower) for 1.5-3.5 s (capped by the 4 s buffer) in two 100 ms Hann grains, pitch unchanged,
+  40 ms in and 600 ms out. The Ghost world turns on stretch + reverse only (Amount 0.45, level 0.8).
+  **Voices switch on only while they play** (groups `gcv` = gc0_*, `gcs` = gc2_*, `sw_gcv`/`sw_gcs` sent at each
+  glitch, off L+100/L+700 ms later); only the 4 s buffer runs all the time. Two voices work fine this way.
   Width (Samuel: "around me but not wide enough"): each glitch sits 45-100% out to one side (balance law: near ear
   full, far ear quieter) and the far ear is up to 0.6 ms later (`delread~`, not `delread4~`: that tripled the cost).
-  Cost (desktop, vs the patch before it): Amount 0 nothing, glitching nonstop ~+16% (reverb on +74%, music +320%);
+  Cost (desktop, vs the patch before it): Amount 0 +3% (echo scatter), glitching nonstop +11% (reverb on +70%, music +310%);
   phone with Music on: 37-39% of a core at Amount 0 and at full, i.e. lost in the noise.
 - **Echo scatter** (`echo_scatter`, Echo section, default 0.5, in presets; Samuel's idea): every repeat lands
   somewhere else between the ears. The echo returns every T ms, so a new place is picked every T ms (snapshot of the
@@ -166,7 +171,7 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   both ears after the beat (and still feeds the reverb); at 0 it is centred as before. ~+5% of the idle patch, always on.
   **Pd lessons from it:** a value stored with `[f]`'s right inlet never reaches anyone: send the message to every
   consumer's cold inlet. `[pipe]` with several arguments splits a list into outlets (use `[list split]` + `[del]` + `[list]`).
-  A second voice in a switch~ group was silently lost (never explained; one voice avoids it).
+  A second voice in the same switch~ group was silently lost (never explained); voices in their own groups work.
 - **Switchable DSP:** make_patch.py groups reverb, pitch, chorus, flanger, phaser, reverse echo, Room notes and music
   into `[switch~]` subpatches (`Patch.group` + `add_switch`), on while their level > 0, off 3x smoothing + tail after.
   Room notes fade in 200 ms on switch-on. Phone: music on ~39% of a core on the audio thread, music off ~18%.

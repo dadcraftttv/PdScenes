@@ -35,7 +35,7 @@ DEFAULTS = [
     ("beat_on", 1), ("beat_level", 0), ("beat_hats", 0.5), ("beat_snare", 0.6), ("beat_pitch", 55),
     ("music_on", 0), ("music_key", 0), ("music_scale", 0), ("music_pad", 0.33), ("music_arp", 0.4),
     ("music_tone", 0.5), ("music_react", 0.8), ("music_res", 0.8), ("music_harm", 0.6), ("echo_scatter", 0.5), ("gc_amount", 0), ("gc_level", 0.7), ("gc_stutter", 1), ("gc_reverse", 1),
-    ("gc_tape", 1), ("gc_shuffle", 1), ("music_pad_reg", 2), ("pocket_hush", 0.5), ("pocket_guard", 0.6),
+    ("gc_tape", 1), ("gc_shuffle", 1), ("gc_stretch", 1), ("music_pad_reg", 2), ("pocket_hush", 0.5), ("pocket_guard", 0.6),
 ]
 
 # Scales as semitone steps above the key note. The patch snaps every note it plays to these.
@@ -1213,6 +1213,18 @@ def add_glitch_cloud(P):
     x, y = 6600, 20
     def ex(name, text, xx, yy):
         return P.obj(name, "expr " + text.replace(",", BS + ",").replace("$", BS + "$"), xx, yy)
+    # The voices only compute while they play (most of the time nothing does): on at each glitch, off after it.
+    def voice_switch(name, src_list, tail_ms, xx, yy):
+        P.msg(f"gcsw_{name}_on", f"{BS}; sw_{name} 1", xx, yy)
+        P.obj(f"gcsw_{name}_t", "t l b", xx, yy + 20)
+        P.obj(f"gcsw_{name}_L", "list split 1", xx + 80, yy + 40)
+        P.obj(f"gcsw_{name}_tail", f"+ {tail_ms}", xx + 80, yy + 60)
+        P.obj(f"gcsw_{name}_del", "del", xx + 80, yy + 80)
+        P.msg(f"gcsw_{name}_off", f"{BS}; sw_{name} 0", xx + 80, yy + 100)
+        P.c(src_list, f"gcsw_{name}_t"); P.c(f"gcsw_{name}_t", f"gcsw_{name}_on", 1, 0)
+        P.c(f"gcsw_{name}_t", f"gcsw_{name}_L", 0, 0); P.c(f"gcsw_{name}_L", f"gcsw_{name}_tail")
+        P.c(f"gcsw_{name}_tail", f"gcsw_{name}_del"); P.c(f"gcsw_{name}_del", f"gcsw_{name}_off")
+        return f"gcsw_{name}_t"
     P.sig2("gc_src", "*~", "mic_gated", "ph_ln", x, y)                  # quieter in a pocket, like the rest
     P.obj("gc_wr", f"delwrite~ gc_buf {GC_BUF_MS}", x, y + 30)
     P.c("gc_src", "gc_wr")
@@ -1318,10 +1330,10 @@ def add_glitch_cloud(P):
     P.c("gc_walk_sel", "gc_fire", 0, 0); P.c("gc_pend_sel", "gc_fire")
     # ---- what kind of glitch: a random pick among the switched-on kinds (stutter 35, reverse 25, tape 20, shuffle 20) ----
     P.obj("gc_mode_rnd", "random 1000", x, y + 640)
-    w = "($f2*35+$f3*25+$f4*20+$f5*20)"
+    w = "($f2*35+$f3*25+$f4*20+$f5*20+$f6*20)"
     ex("gc_mode", f"if({w}<=0,-1,if($f1*{w}/1000<$f2*35,0,if($f1*{w}/1000<$f2*35+$f3*25,1,"
-                  f"if($f1*{w}/1000<$f2*35+$f3*25+$f4*20,2,3))))", x, y + 670)
-    for k, name in enumerate(("gc_stutter", "gc_reverse", "gc_tape", "gc_shuffle")):
+                  f"if($f1*{w}/1000<$f2*35+$f3*25+$f4*20,2,if($f1*{w}/1000<$f2*35+$f3*25+$f4*20+$f5*20,3,4)))))", x, y + 670)
+    for k, name in enumerate(("gc_stutter", "gc_reverse", "gc_tape", "gc_shuffle", "gc_stretch")):
         P.obj(f"gc_en{k}", f"r {name}", x + 200 + 80 * k, y + 640)
         P.c(f"gc_en{k}", "gc_mode", 0, k + 1)
     P.c("gc_fire", "gc_mode_rnd", 0, 0); P.c("gc_mode_rnd", "gc_mode")
@@ -1344,7 +1356,23 @@ def add_glitch_cloud(P):
             f"if($f1==2,-1/(2*({L})),0)", "if($f7<500,-(0.45+0.55*$f7/500),0.45+0.55*($f7-500)/500)",
             f"if($f1==1&&$f2>=0,max(({L})-$f2,0),0)"]                  # reverse: wait until it has all been heard
     ex("gc_par", " ; ".join(outs).replace(" ; ", " " + BS + "; "), x, y + 770)
-    P.c("gc_mode_ok", "gc_par", 1, 0)
+    P.obj("gc_kind", "moses 4", x, y + 740)                              # 4 = stretch: its own voice
+    P.c("gc_mode_ok", "gc_kind", 1, 0); P.c("gc_kind", "gc_par", 0, 0)
+    # stretch (Ghost capture, Ableton warp pushed far): the sound smeared 4-12x slower in 100 ms grains, pitch
+    # unchanged, fading out slowly. $f2 ms since the onset (-1 free), $f3-$f5, $f7 randoms. Out: L, d0, rate, place.
+    sd0 = f"if($f2>=0,$f2+{GC_PREROLL_MS},300+2.5*$f4)"
+    srate = "(0.08+0.17*$f5/1000)"
+    souts = [f"min(1500+2000*$f3/1000,(3850-({sd0}))/(1-{srate}))", sd0, srate,
+             "if($f7<500,-(0.45+0.55*$f7/500),0.45+0.55*($f7-500)/500)"]
+    ex("gc_spar", " ; ".join(souts).replace(" ; ", " " + BS + "; "), x + 700, y + 770)
+    P.c("gc_kind", "gc_spar", 1, 0)
+    P.c("gc_rn0", "gc_spar", 0, 6); P.c("gc_rn1", "gc_spar", 0, 4); P.c("gc_rn2", "gc_spar", 0, 3); P.c("gc_rn3", "gc_spar", 0, 2)
+    P.c("gc_el2", "gc_spar", 0, 1)
+    P.obj("gc_spack", "pack f f f f", x + 700, y + 800)
+    for k in range(3, 0, -1):
+        P.c("gc_spar", "gc_spack", k, k)
+    P.c("gc_spar", "gc_spack", 0, 0)
+    voice_switch("gcs", "gc_spack", 700, x + 900, y + 820)
     P.c("gc_fire", "gc_rn0", 6, 0); P.c("gc_rn0", "gc_par", 0, 6)
     P.c("gc_fire", "gc_rn1", 5, 0); P.c("gc_rn1", "gc_par", 0, 4)
     P.c("gc_fire", "gc_rn2", 4, 0); P.c("gc_rn2", "gc_par", 0, 3)
@@ -1368,12 +1396,14 @@ def add_glitch_cloud(P):
     P.obj("gc_vc_del", "del 5", x + 100, y + 910)
     P.c("gc_wait_l", "gc_vc_t"); P.c("gc_vc_t", "gc_vc_fade", 1, 0); P.c("gc_vc_t", "gc_vc_del", 1, 0)
     P.c("gc_vc_t", "gc_vc_l", 0, 1); P.c("gc_vc_del", "gc_vc_l")
+    voice_switch("gcv", "gc_vc_l", 100, x + 300, y + 900)
     P.obj("gc_dbg_mode", "s gc_mode", x + 200, y + 700); P.c("gc_mode_ok", "gc_dbg_mode", 1, 0)
     outs_l, outs_r = [], []
     for k in range(1):
         vx, vy = x + 1200, y + 600
         P.obj(f"gc{k}_up", "unpack f f f f f f f", vx, vy)
         P.c("gc_vc_l", f"gc{k}_up")
+        P.obj("grp_gcv_r", "r sw_gcv", 10, 10); P.obj("grp_gcv_sw", "switch~", 10, 40); P.c("grp_gcv_r", "grp_gcv_sw")
         P.obj(f"gc{k}_t", "vline~", vx, vy + 90)                           # ms into the glitch
         # read position (ms back): d0 + a*t + b*t*t - c*fmod(t,S), built from plain objects (expr~ costs far
         # more per sample). Stutter: a=1 c=1 (back to the slice start every S ms); reverse: a=2; tape stop: a=0,
@@ -1429,6 +1459,46 @@ def add_glitch_cloud(P):
             P.c(f"gc{k}_pan", f"gc{k}_{n}", o, 0)
         outs_l.append(P.sig2(f"gc{k}_l", "*~", f"gc{k}_rl", f"gc{k}_gl", vx, vy + 240))
         outs_r.append(P.sig2(f"gc{k}_r", "*~", f"gc{k}_rr", f"gc{k}_gr", vx + 100, vy + 240))
+    # the stretch voice: two overlapping Hann-windowed grains; the grain start creeps forward at `rate`, each grain
+    # plays at normal speed, so time slows and pitch stays. Its own place between the ears (no time offset).
+    vx, vy = x + 1800, y + 600
+    P.obj("gc2_up", "unpack f f f f", vx, vy); P.c("gc_spack", "gc2_up")
+    P.obj("grp_gcs_r", "r sw_gcs", 10, 10); P.obj("grp_gcs_sw", "switch~", 10, 40); P.c("grp_gcs_r", "grp_gcs_sw")
+    P.obj("gc2_L", "t f f", vx, vy + 30); P.c("gc2_up", "gc2_L", 0, 0)
+    P.msg("gc2_tmsg", f"0 {BS}, {BS}$1 {BS}$1", vx, vy + 60)
+    P.obj("gc2_t", "vline~", vx, vy + 90)
+    P.obj("gc2_Lm", "- 650", vx + 100, vy + 45)
+    P.msg("gc2_emsg", f"1 40 {BS}, 0 600 {BS}$1", vx + 100, vy + 60)
+    P.obj("gc2_env", "vline~", vx + 100, vy + 90)
+    P.c("gc2_L", "gc2_Lm", 1, 0); P.c("gc2_Lm", "gc2_emsg"); P.c("gc2_emsg", "gc2_env")
+    P.c("gc2_L", "gc2_tmsg", 0, 0); P.c("gc2_tmsg", "gc2_t")
+    P.obj("gc2_k", "expr 1-$f1 ; (1-$f1)*100".replace("$", BS + "$").replace(" ; ", " " + BS + "; "), vx + 200, vy + 30)
+    P.c("gc2_up", "gc2_k", 2, 0)
+    P.obj("gc2_Dt", "*~ 0", vx, vy + 120); P.c("gc2_t", "gc2_Dt"); P.c("gc2_k", "gc2_Dt", 0, 1)
+    P.obj("gc2_D", "+~ 0", vx, vy + 140); P.c("gc2_Dt", "gc2_D"); P.c("gc2_up", "gc2_D", 1, 1)
+    P.obj("gc2_ph", "phasor~ 10", vx + 200, vy + 120)
+    P.obj("gc2_ph2o", "+~ 0.5", vx + 300, vy + 120); P.obj("gc2_ph2", "wrap~", vx + 300, vy + 140)
+    P.c("gc2_ph", "gc2_ph2o"); P.c("gc2_ph2o", "gc2_ph2")
+    taps = []
+    for n, ph in (("a", "gc2_ph"), ("b", "gc2_ph2")):
+        tx = vx + (0 if n == "a" else 200)
+        P.obj(f"gc2_{n}k", "*~ 0", tx, vy + 170); P.c(ph, f"gc2_{n}k"); P.c("gc2_k", f"gc2_{n}k", 1, 1)
+        P.sig2(f"gc2_{n}d0", "-~", "gc2_D", f"gc2_{n}k", tx, vy + 190)
+        P.obj(f"gc2_{n}d", "clip~ 1.5 3990", tx, vy + 210); P.c(f"gc2_{n}d0", f"gc2_{n}d")
+        P.obj(f"gc2_{n}rd", "delread4~ gc_buf", tx, vy + 230); P.c(f"gc2_{n}d", f"gc2_{n}rd")
+        P.obj(f"gc2_{n}cos", "cos~", tx + 100, vy + 170); P.c(ph, f"gc2_{n}cos")
+        P.obj(f"gc2_{n}cn", "*~ -0.5", tx + 100, vy + 190); P.c(f"gc2_{n}cos", f"gc2_{n}cn")
+        P.obj(f"gc2_{n}w", "+~ 0.5", tx + 100, vy + 210); P.c(f"gc2_{n}cn", f"gc2_{n}w")
+        taps.append(P.sig2(f"gc2_{n}g", "*~", f"gc2_{n}rd", f"gc2_{n}w", tx, vy + 250))
+    P.sig2("gc2_sum", "+~", taps[0], taps[1], vx, vy + 270)
+    P.sig2("gc2_s", "*~", "gc2_sum", "gc2_env", vx, vy + 290)
+    ex("gc2_pan", "min(1,1-$f1) ; min(1,1+$f1)".replace(" ; ", " " + BS + "; "), vx + 300, vy + 30)
+    P.c("gc2_up", "gc2_pan", 3, 0)
+    P.obj("gc2_gl", "sig~", vx + 300, vy + 60); P.obj("gc2_gr", "sig~", vx + 370, vy + 60)
+    P.c("gc2_pan", "gc2_gl", 0, 0); P.c("gc2_pan", "gc2_gr", 1, 0)
+    P.sig2("gc2_l", "*~", "gc2_s", "gc2_gl", vx, vy + 310); P.sig2("gc2_r", "*~", "gc2_s", "gc2_gr", vx + 100, vy + 310)
+    P.sig2("gc_mix_l", "+~", outs_l[0], "gc2_l", vx, vy + 330); P.sig2("gc_mix_r", "+~", outs_r[0], "gc2_r", vx + 100, vy + 330)
+    outs_l[0], outs_r[0] = "gc_mix_l", "gc_mix_r"
     lvl = smoothed(P, "gc_level", "gc_level", x + 1200, y + 900)
     P.sig2("gcx_out_l", "*~", outs_l[0], lvl, x + 1200, y + 950)
     P.sig2("gcx_out_r", "*~", outs_r[0], lvl, x + 1300, y + 950)
@@ -2232,7 +2302,9 @@ def build():
     add_switch(P, "roomnotes", ("music_on", "music_res"), 2500)       # rings run up to ~2 s
     P.group("music", r"^(mu_|ba_)")
     add_switch(P, "music", ("music_on",), 3000)                       # chimes fade over up to 2.6 s
-    P.group("gcloud", r"^gc\d*_(?!r_amt$|amt$|amt_rd$|clk_|rest|cool|m_t$|det|slow|roll|pass|ons_t$|timer$|flag|trig$|ask$|walk|step|half|pend|beat_t$|fire$|mode|en\d$|rn\d$|el2?$|st2$|st_rd$|stepms|par$|pack$|wait|vc|route$|dbg)")
+    P.group("gcv", r"^gc0_")                                           # the glitch voices: on only while playing
+    P.group("gcs", r"^gc2_")
+    P.group("gcloud", r"^gc\d*_(?!r_amt$|amt$|amt_rd$|clk_|rest|cool|m_t$|det|slow|roll|pass|ons_t$|timer$|flag|trig$|ask$|walk|step|half|pend|beat_t$|fire$|mode|en\d$|rn\d$|el2?$|st2$|st_rd$|stepms|par$|pack$|wait|vc|route$|dbg|kind$|spar$|spack$)")
     add_switch(P, "gcloud", ("gc_amount", "gc_level"), 1500)           # a glitch runs up to ~1.3 s
 
     # --- defaults on load (desktop Pd / standalone) ---
