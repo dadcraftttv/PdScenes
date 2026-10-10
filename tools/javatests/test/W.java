@@ -66,6 +66,27 @@ public class W {
       double t=6; double[] gaps2={0.9,0.5,1.0,0.45}; for(double g:gaps2){ for(double u=0;u<g;u+=0.005) StepDetector.onAcceleration(0,0,9.80665f+(u<0.06?4f:0f),t+u); t+=g; }
       float uneven=StepDetector.sureness(); walk(t,t+5,1.8,4f); float back=StepDetector.sureness();
       check(even==1f&&uneven<0.6f&&back==1f,"rhythm sureness: even "+even+", uneven "+uneven+", settled again "+back); }
+    // ---- motif memory: a phrase of chimes comes back once the room is quiet, varied, not while walking ----
+    { MotifMemory mm=new MotifMemory(new Random(5)); double t=0;
+      mm.onNote(3,t); mm.onNote(5,t+=0.4); mm.onNote(4,t+=0.3); mm.onNote(6,t+=0.5);   // a 4-note phrase
+      List<MotifMemory.Note> early=mm.poll(t+=3.0,false);                                 // quiet only 3 s: not yet
+      List<MotifMemory.Note> walk=mm.poll(t+=6.0,true);                                   // quiet 9 s but walking
+      List<MotifMemory.Note> back=null; for(int k=0;k<20&&back==null;k++){ MotifMemory m2=new MotifMemory(new Random(k*982451653L+77));   // (small seeds all start near 0.73)
+        double u=0; m2.onNote(3,u); m2.onNote(5,u+=0.4); m2.onNote(4,u+=0.3); m2.onNote(6,u+=0.5); back=m2.poll(u+9,false); }
+      boolean shape=back!=null&&back.size()==4&&back.get(0).at==0;
+      int[] orig={3,5,4,6}; int same=0; if(back!=null) for(int i=0;i<4;i++) if(back.get(i).degree-orig[i]==back.get(0).degree-orig[0]) same++;
+      double span=back==null?0:back.get(3).at;
+      check(early==null&&walk==null&&shape&&same>=3&&span>0.7*1.2&&span<1.25*1.2+0.01,
+            "motif: not after 3 s or while walking ("+early+", "+walk+"); comes back as 4 notes moved together ("+same+"/4 same shift), span "+span+" s (was 1.2)"); }
+    { MotifMemory mm=new MotifMemory(new Random(1)); double t=0; mm.onNote(1,t); mm.onNote(2,t+=0.3);   // too short
+      check(mm.poll(t+20,false)==null,"motif: two notes are not a phrase");
+      MotifMemory once=new MotifMemory(new Random(2)); double u=0; once.onNote(1,u); once.onNote(3,u+=0.3); once.onNote(2,u+=0.3);
+      int plays=0; for(int k=0;k<600;k++){ u+=0.1; if(once.poll(u,false)!=null) plays++; }
+      check(plays<=1,"motif: one quiet spell gets at most one replay ("+plays+" in 60 s)");
+      MotifMemory gap=new MotifMemory(new Random(3)); double g=0; gap.onNote(1,g); gap.onNote(2,g+=0.3); gap.onNote(3,g+=0.3);
+      gap.onNote(7,g+=4.0); gap.onNote(8,g+=0.3);   // a long gap: the first phrase is kept, the next one is too short
+      List<MotifMemory.Note> r=null; for(int k=0;k<20&&r==null;k++){ r=gap.poll(g+9+k*31,false); if(r==null) gap.onNote(9,g+=k*31+5); }
+      check(r==null||r.size()==3,"motif: a long gap closes a phrase; the last full one is what comes back ("+(r==null?"none":r.size()+" notes")+")"); }
     // ---- Unstable: a shake brings it at once, walking never does, it leaves a few seconds after the shaking ----
     { WorldSelector u=new WorldSelector(); Set<String> al=new HashSet<>(Arrays.asList(WorldSelector.PRIORITY)); String uw=null;
       for(int i=0;i<300;i++) uw=u.update(0.1,-60f,false,false,12*60,Double.MAX_VALUE,al);

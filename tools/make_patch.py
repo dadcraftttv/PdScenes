@@ -687,6 +687,17 @@ def add_music(P):
     P.c("mu_pick_t", degree_in)
     P.obj("mu_note_s", "s chime_deg", cx - 100, cy + 160)              # every note played, for the tests
     P.c("mu_pick_t", "mu_note_s")
+    P.obj("mu_chime_s", "s chime_note", cx - 100, cy + 180)            # chimes only: the app's motif memory listens
+    P.c("mu_pick_t", "mu_chime_s")
+    # A remembered phrase coming back (motif memory, in the app): [motif <scale step> <velocity>( plays one chime.
+    P.obj("mu_mo_r", "r motif", cx - 300, cy)
+    P.obj("mu_mo_up", "unpack f f", cx - 300, cy + 20)
+    P.obj("mu_mo_vel", "value cvel", cx - 240, cy + 40)
+    P.obj("mu_mo_t", "t f f f", cx - 300, cy + 60)
+    P.obj("mu_mo_s", "s chime_deg", cx - 300, cy + 90)
+    P.c("mu_mo_r", "mu_mo_up"); P.c("mu_mo_up", "mu_mo_vel", 1, 0); P.c("mu_mo_up", "mu_mo_t", 0, 0)
+    P.c("mu_mo_t", "mu_mo_s", 2, 0); P.c("mu_mo_t", degree_in, 0, 0)
+    P._late_dn = getattr(P, "_late_dn", []) + [("mu_mo_t", "mu_dnc_t")]   # it counts as a chime for density
 
     # ---- density memory: every chime adds 1 (a walking-arpeggio note, the rhythm bed, DENSITY_ARP_WEIGHT), and the
     # count fades away over DENSITY_S ----

@@ -84,6 +84,10 @@ public class AudioService extends Service {
     private long lastHearingLog;
     /** Harmony answers since the last "Hearing:" line (the patch sends each one on harm_deg). */
     private static final String HARMONY_RECEIVER = "harm_deg";
+    /** The patch reports each chime it plays here (not arpeggio notes or replays); motif memory listens. */
+    private static final String CHIME_NOTE = "chime_note";
+    private static final String MOTIF_PLAY = "motif";
+    private final MotifMemory motif = new MotifMemory(new java.util.Random());
     private final java.util.concurrent.atomic.AtomicInteger harmonyNotes = new java.util.concurrent.atomic.AtomicInteger();
     private final Runnable moverTick = new Runnable() {
         @Override
@@ -127,6 +131,17 @@ public class AudioService extends Service {
                 double nowS = SystemClock.elapsedRealtimeNanos() / 1e9;   // the sensors' clock
                 Worlds.tick(dt, Modulation.micLevelDb(), StepDetector.walking(nowS),
                         PhoneContext.inPocket(), minuteOfDay, PhoneContext.secondsSinceShake(nowS));
+                List<MotifMemory.Note> phrase = motif.poll(nowS, StepDetector.walking(nowS));
+                if (phrase != null) {
+                    logEvent("Motif comes back: " + phrase.size() + " notes");
+                    for (MotifMemory.Note n : phrase) {
+                        handler.postDelayed(() -> {
+                            if (running) {
+                                PdBase.sendList(MOTIF_PLAY, (float) n.degree, MotifMemory.VELOCITY);
+                            }
+                        }, Math.round(n.at * 1000));
+                    }
+                }
             }
             lastMoverTick = now;
             handler.postDelayed(this, MOVER_INTERVAL_MS);
@@ -423,6 +438,10 @@ public class AudioService extends Service {
 
             @Override
             public void receiveFloat(String source, float x) {
+                if (CHIME_NOTE.equals(source)) {
+                    motif.onNote(Math.round(x), SystemClock.elapsedRealtimeNanos() / 1e9);
+                    return;
+                }
                 if (HARMONY_RECEIVER.equals(source)) {
                     harmonyNotes.incrementAndGet();
                     return;
@@ -446,6 +465,7 @@ public class AudioService extends Service {
         });
         PdBase.subscribe("mic_level");
         PdBase.subscribe(HARMONY_RECEIVER);
+        PdBase.subscribe(CHIME_NOTE);
         PdBase.subscribe(SceneEvents.REQUEST_RECEIVER);
 
         // Must come before initAudio. DEFAULT_ID lets Android choose ("Automatic").
@@ -552,6 +572,7 @@ public class AudioService extends Service {
         updateOtherAudio(am.getActivePlaybackConfigurations());
         Modulation.reset();
         StepDetector.reset();
+        motif.reset();
         // Footsteps drive the built-in patch's drums; scenes have their own business with the sensors.
         StepDetector.setListener(scene == null ? (interval, strength) -> {
             PdBase.sendFloat("step_strength", strength);   // first, so the step's sounds can use it

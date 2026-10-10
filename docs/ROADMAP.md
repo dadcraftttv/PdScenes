@@ -63,7 +63,7 @@ The glitch engine must stay cheap: off at Amount 0 (switch~), measured on the ph
 
 12. **Music ideas from Samuel's Oct 8 test notes** (after the bass pad, built 2026-10-08 as "Pad register"):
     - (BUILT 2026-10-09) Lock chimes to the walking pulse: while walking, onset chimes wait for the next step or half-step.
-    - Motif memory: remember a short phrase of recent chime notes and bring it back later with variation.
+    - (BUILT 2026-10-10) Motif memory: remember a short phrase of recent chime notes and bring it back later with variation.
     - Slow key-centre drift every few minutes (keeps the chosen key's notes, moves the home chord).
     - Register from sensors: brighter = higher octave, dark/pocket = lower and warmer; climbing raises notes;
       compass heading picks the bass root.
