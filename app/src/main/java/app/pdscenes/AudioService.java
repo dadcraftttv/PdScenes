@@ -124,9 +124,9 @@ public class AudioService extends Service {
                     minuteOfDay = Worlds.minuteOfDayNow();
                     lastClockCheck = now;
                 }
-                Worlds.tick(dt, Modulation.micLevelDb(),
-                        StepDetector.walking(SystemClock.elapsedRealtimeNanos() / 1e9),
-                        PhoneContext.inPocket(), minuteOfDay);
+                double nowS = SystemClock.elapsedRealtimeNanos() / 1e9;   // the sensors' clock
+                Worlds.tick(dt, Modulation.micLevelDb(), StepDetector.walking(nowS),
+                        PhoneContext.inPocket(), minuteOfDay, PhoneContext.secondsSinceShake(nowS));
             }
             lastMoverTick = now;
             handler.postDelayed(this, MOVER_INTERVAL_MS);

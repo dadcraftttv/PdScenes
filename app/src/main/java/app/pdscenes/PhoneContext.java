@@ -57,6 +57,17 @@ final class PhoneContext {
     private static boolean haveTilt;
     private static volatile boolean micDown;
 
+    // Shaking the phone: three hard jolts (the pull with gravity taken out, past 1.2 g) within 1.5 s. Putting the
+    // phone down or a bump is one jolt; walking bumps stay well under 1 g. (Running is ruled out by the caller.)
+    static final double SHAKE_JOLT_G = 1.2;
+    static final double SHAKE_RELEASE_G = 0.5;
+    static final double SHAKE_WINDOW_S = 1.5;
+    static final int SHAKE_JOLTS = 3;
+    private static final double[] jolts = new double[SHAKE_JOLTS];
+    private static int joltCount;
+    private static boolean inJolt;
+    private static double lastShake = -1e9;
+
     private PhoneContext() { }
 
     /** An accelerometer reading (m/s&sup2;, Android axes) at time {@code at} (seconds). */
@@ -64,6 +75,17 @@ final class PhoneContext {
         double g = Math.sqrt(x * x + y * y + z * z);
         if (g < 1e-3) {
             return;
+        }
+        double jolt = Math.abs(g - 9.80665) / 9.80665;
+        if (!inJolt && jolt > SHAKE_JOLT_G) {
+            inJolt = true;
+            jolts[joltCount % SHAKE_JOLTS] = at;
+            joltCount++;
+            if (joltCount >= SHAKE_JOLTS && at - jolts[joltCount % SHAKE_JOLTS] <= SHAKE_WINDOW_S) {
+                lastShake = at;   // (the slot about to be reused holds the oldest of the last three)
+            }
+        } else if (inJolt && jolt < SHAKE_RELEASE_G) {
+            inJolt = false;
         }
         double ny = y / g;
         if (!haveTilt || at - lastTiltAt > 5.0) {
@@ -80,6 +102,11 @@ final class PhoneContext {
         }
     }
 
+    /** Seconds since the phone was last shaken (same clock as {@link #onAcceleration}); huge if never. */
+    static synchronized double secondsSinceShake(double at) {
+        return at - lastShake;
+    }
+
     /** True while the bottom edge (where the main mic is) points down, as when the phone goes into a pocket mic first. */
     static boolean micDown() {
         return micDown;
@@ -93,6 +120,9 @@ final class PhoneContext {
     static synchronized void reset() {
         haveTilt = false;
         micDown = false;
+        joltCount = 0;
+        inJolt = false;
+        lastShake = -1e9;
         haveLight = false;
         lux = 0;
         haveProximity = false;

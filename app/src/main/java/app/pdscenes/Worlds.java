@@ -40,6 +40,7 @@ final class Worlds {
             new World(WorldSelector.KINETIC, "Kinetic", "walking", "Kinetic world"),
             new World(WorldSelector.GHOST, "Ghost", "midnight to 5 AM", "Ghost world"),
             new World(WorldSelector.POCKET, "Pocket", "phone in a pocket", "Pocket world"),
+            new World(WorldSelector.UNSTABLE, "Unstable", "shaking the phone", "Unstable world"),
     };
 
     /** Stored in place of a preset name when the user switches a world off. */
@@ -50,6 +51,8 @@ final class Worlds {
     private static final String KEY_PRESET_PREFIX = "preset_";
 
     private static final double RAMP_S = 3.0;               // how long the sliders take to fade to a new world
+    private static final double FAST_RAMP_S = 0.3;          // ...except into Unstable, which answers a shake at once
+    private static double rampS = RAMP_S;
     private static final double NOTIFY_EVERY_S = 0.25;      // how often the screen is told during a fade
 
     private static final WorldSelector selector = new WorldSelector();
@@ -201,10 +204,15 @@ final class Worlds {
     }
 
     static void tick(double dt, float micLevelDb, boolean walking, boolean inPocket, int minuteOfDay) {
+        tick(dt, micLevelDb, walking, inPocket, minuteOfDay, Double.MAX_VALUE);
+    }
+
+    static void tick(double dt, float micLevelDb, boolean walking, boolean inPocket, int minuteOfDay,
+                     double sinceShake) {
         if (enabled && held) {
-            selector.update(dt, micLevelDb, walking, inPocket, minuteOfDay, allowed);   // keep listening, change nothing
+            selector.update(dt, micLevelDb, walking, inPocket, minuteOfDay, sinceShake, allowed);   // keep listening, change nothing
         } else if (enabled) {
-            String next = selector.update(dt, micLevelDb, walking, inPocket, minuteOfDay, allowed);
+            String next = selector.update(dt, micLevelDb, walking, inPocket, minuteOfDay, sinceShake, allowed);
             if (!equal(next, current)) {
                 switchTo(next);
             }
@@ -229,6 +237,7 @@ final class Worlds {
             }
         }
         current = world;
+        rampS = WorldSelector.UNSTABLE.equals(world) ? FAST_RAMP_S : RAMP_S;
         if (target != null) {
             from = presetValues();
             to = target;
@@ -280,7 +289,7 @@ final class Worlds {
         if (ramp >= 1 || to == null) {
             return;
         }
-        ramp = Math.min(1, ramp + dt / RAMP_S);
+        ramp = Math.min(1, ramp + dt / rampS);
         for (Map.Entry<String, Float> e : to.entrySet()) {
             Param p = Params.byId(e.getKey());
             if (p == null || ParamStore.isLocked(p.id) || isBypassSwitch(p)) {

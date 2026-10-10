@@ -467,7 +467,11 @@ public class MainActivity extends Activity {
         if (minute >= WorldSelector.NIGHT_START_MINUTE && minute < WorldSelector.NIGHT_END_MINUTE) {
             why.add(getString(R.string.why_night));
         }
-        if (StepDetector.walking(android.os.SystemClock.elapsedRealtimeNanos() / 1e9)) {
+        double nowS = android.os.SystemClock.elapsedRealtimeNanos() / 1e9;
+        if (WorldSelector.UNSTABLE.equals(id)) {
+            why.add(getString(R.string.why_shaken));
+        }
+        if (StepDetector.walking(nowS)) {
             why.add(getString(R.string.why_walking));
         }
         if (PhoneContext.inPocket()) {

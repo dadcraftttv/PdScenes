@@ -69,6 +69,19 @@ public class X {
     check(!PhoneContext.micDown(),"footstep jolts don't flip it");
     for(int i=0;i<400;i++){ ta+=0.005; PhoneContext.onAcceleration(0f,0.3f,9.8f,ta); }
     check(!PhoneContext.micDown(),"lying flat: not mic down");
+    // ---- shaking the phone ----
+    PhoneContext.reset(); double ts=0;
+    for(int i=0;i<200;i++){ ts+=0.005; PhoneContext.onAcceleration(0f,0f,9.8f,ts); }
+    check(PhoneContext.secondsSinceShake(ts)>1000,"lying still: never shaken");
+    for(int i=0;i<40;i++){ ts+=0.005; PhoneContext.onAcceleration(0f,0f,(i<4)?35f:9.8f,ts); }
+    check(PhoneContext.secondsSinceShake(ts)>1000,"one hard bump (putting it down) is not a shake");
+    for(int i=0;i<600;i++){ ts+=0.005; float b=(i%110<12)?6f:0f; PhoneContext.onAcceleration(0f,0f,9.8f+b,ts); }
+    check(PhoneContext.secondsSinceShake(ts)>1000,"walking bumps are not a shake");
+    for(int i=0;i<300;i++){ ts+=0.005; float b=(float)(28*Math.sin(2*Math.PI*3*ts)); PhoneContext.onAcceleration(b,b*0.5f,9.8f,ts); }
+    double since=PhoneContext.secondsSinceShake(ts);
+    check(since<0.2,"shaking it hard for 1.5 s is a shake ("+since+" s ago)");
+    for(int i=0;i<400;i++){ ts+=0.005; PhoneContext.onAcceleration(0f,0f,9.8f,ts); }
+    check(Math.abs(PhoneContext.secondsSinceShake(ts)-since-2.0)<0.01,"and the time since it keeps counting once it stops");
     // ---- selector with pocket ----
     WorldSelector s=new WorldSelector(); Set<String> all=new HashSet<>(Arrays.asList(WorldSelector.PRIORITY));
     check(Arrays.asList(WorldSelector.PRIORITY).indexOf("pocket")==WorldSelector.PRIORITY.length-1,"pocket is the fallback: every other world outranks it");

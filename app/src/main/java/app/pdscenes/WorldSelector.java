@@ -15,13 +15,16 @@ final class WorldSelector {
     static final String FLUX = "flux";
     static final String TRANQUIL = "tranquil";
     static final String POCKET = "pocket";
+    /** Shaking the phone: comes at once (no waiting), stays while shaking goes on, leaves a few seconds after. */
+    static final String UNSTABLE = "unstable";
+    static final double UNSTABLE_HOLD_S = 5.0;
 
     /**
      * Which world wins when several fit: the first one in this list. Pocket comes last: in a pocket the world still
      * follows the time, your walking and the room, and the pocket is a layer on top (the patch's pocket hush). The
      * Pocket world only plays when nothing else fits.
      */
-    static final String[] PRIORITY = {GHOST, KINETIC, FLUX, TRANQUIL, POCKET};
+    static final String[] PRIORITY = {UNSTABLE, GHOST, KINETIC, FLUX, TRANQUIL, POCKET};
 
     static final int NIGHT_START_MINUTE = 0;          // midnight...
     static final int NIGHT_END_MINUTE = 5 * 60;       // ...to 5 AM
@@ -93,8 +96,20 @@ final class WorldSelector {
     /** As above, also told whether the phone is in a pocket (see {@link PhoneContext#inPocket()}). */
     String update(double dt, float levelDb, boolean walking, boolean inPocket, int minuteOfDay,
                   Set<String> allowed) {
+        return update(dt, levelDb, walking, inPocket, minuteOfDay, Double.MAX_VALUE, allowed);
+    }
+
+    /** As above, also told how long ago the phone was shaken (see {@link PhoneContext#secondsSinceShake}). */
+    String update(double dt, float levelDb, boolean walking, boolean inPocket, int minuteOfDay, double sinceShake,
+                  Set<String> allowed) {
         pocket = inPocket;
         trackLevel(dt, levelDb);
+        if (allowed.contains(UNSTABLE) && !walking && sinceShake < UNSTABLE_HOLD_S) {
+            sinceSwitch = UNSTABLE.equals(active) ? sinceSwitch + dt : 0;
+            active = UNSTABLE;   // no waiting: a shake is a deliberate act
+            pending = null;
+            return active;
+        }
         String wanted = null;
         for (String id : PRIORITY) {
             if (allowed.contains(id) && fits(id, walking, minuteOfDay)) {
@@ -159,6 +174,8 @@ final class WorldSelector {
                 return walking;
             case POCKET:
                 return pocket;
+            case UNSTABLE:
+                return false;   // decided above, from the shake
             case FLUX:
                 return loud && lively;
             default:

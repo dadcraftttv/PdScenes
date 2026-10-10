@@ -66,6 +66,18 @@ public class W {
       double t=6; double[] gaps2={0.9,0.5,1.0,0.45}; for(double g:gaps2){ for(double u=0;u<g;u+=0.005) StepDetector.onAcceleration(0,0,9.80665f+(u<0.06?4f:0f),t+u); t+=g; }
       float uneven=StepDetector.sureness(); walk(t,t+5,1.8,4f); float back=StepDetector.sureness();
       check(even==1f&&uneven<0.6f&&back==1f,"rhythm sureness: even "+even+", uneven "+uneven+", settled again "+back); }
+    // ---- Unstable: a shake brings it at once, walking never does, it leaves a few seconds after the shaking ----
+    { WorldSelector u=new WorldSelector(); Set<String> al=new HashSet<>(Arrays.asList(WorldSelector.PRIORITY)); String uw=null;
+      for(int i=0;i<300;i++) uw=u.update(0.1,-60f,false,false,12*60,Double.MAX_VALUE,al);
+      String before=uw;
+      uw=u.update(0.1,-60f,false,false,12*60,0.0,al); boolean atOnce="unstable".equals(uw);
+      double since=0; for(int i=0;i<30;i++){ since+=0.1; uw=u.update(0.1,-60f,false,false,12*60,since,al); } boolean stays="unstable".equals(uw);
+      for(int i=0;i<120;i++){ since+=0.1; uw=u.update(0.1,-60f,false,false,12*60,since,al); } String after=uw;
+      WorldSelector v=new WorldSelector(); String vw=null; for(int i=0;i<50;i++) vw=v.update(0.1,-40f,true,false,12*60,0.0,al);
+      Set<String> noU=new HashSet<>(al); noU.remove("unstable"); WorldSelector z=new WorldSelector(); String zw=null;
+      for(int i=0;i<50;i++) zw=z.update(0.1,-60f,false,false,12*60,0.0,noU);
+      check("tranquil".equals(before)&&atOnce&&stays&&"tranquil".equals(after)&&!"unstable".equals(vw)&&!"unstable".equals(zw),
+            "unstable: at once on a shake ("+atOnce+"), held 3 s on ("+stays+"), back to "+after+" after; walking: "+vw+"; switched off: "+zw); }
     // ---- selector ----
     WorldSelector s=new WorldSelector(); Set<String> all=new HashSet<>(Arrays.asList(WorldSelector.PRIORITY));
     String w=null; for(int i=0;i<300;i++) w=s.update(0.1,-40f,false,12*60,all);

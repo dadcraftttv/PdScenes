@@ -58,7 +58,12 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   (the mic and speaker are separate devices with separate ids; matching by id failed). LE Audio headsets can be better. The UI hints about it.
 - **Soft limiter** at the output (`clip~` base plus cubic-eased excess, never above 1.0). Hard clipping sounded fuzzy.
 - **Defaults:** input gain 2.5, compressor -30 dB 4:1. Gain, gate, compressor, smoothing, nudge and music on/key/scale are `noPreset`.
-- **Auto Worlds:** Tranquil / Flux / Kinetic / Ghost / Pocket, priority Ghost > Kinetic > Flux > Tranquil > Pocket. Worlds skip locked params and `*_on`
+- **Auto Worlds:** Tranquil / Flux / Kinetic / Ghost / Pocket / Unstable, priority Unstable > Ghost > Kinetic > Flux > Tranquil > Pocket.
+  **Unstable** (roadmap 5): shaking the phone (`PhoneContext.secondsSinceShake`: 3 jolts past 1.2 g, gravity taken out,
+  within 1.5 s; one bump or walking bumps don't count) while not walking brings it *at once* (no dwell or min hold,
+  0.3 s fade instead of 3 s) and keeps it until 5 s after the last shake; then the normal 5 s dwell hands back.
+  Preset: glitch cloud at full (no stretch), crush, ring mod, pitch +7, echo scatter 1, with Shake = higher movers on
+  ring freq, pitch and crush rate. Now line says "shaken". Worlds skip locked params and `*_on`
   switches and never flip `music_on`.
 - **Sensors / Pocket world:** `PhoneContext` (pure logic, test X) holds brightness/pocket/climb and the rotation-vector heading; `SensorInput` feeds it. Mover shapes 13-15 are Brighter/In pocket/Climbing.
   Brightness is *room-relative* (Samuel: "it should respond to the world/room/situation around the user"): 75% where the light sits between

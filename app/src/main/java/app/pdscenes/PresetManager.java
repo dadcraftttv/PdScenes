@@ -244,6 +244,20 @@ final class PresetManager {
         mover(ghostWorld, "rvs_time", 1, 0.04f, 0.5f);
         BUILT_IN.put("Ghost world", ghostWorld);
 
+        // Unstable: shake the phone and everything piles on at once, glitchy by design; more shaking bends it further.
+        Map<String, Float> unstable = make(180f, 0.55f, 0.45f, 220f, 0.35f);
+        crush(unstable, 0.45f, 6f, 6000f);
+        unstable.put("pitch_semi", 7f);
+        unstable.put("pitch_mix", 0.35f);
+        unstable.put("echo_scatter", 1f);
+        unstable.put("gc_amount", 1f);
+        unstable.put("gc_level", 0.9f);
+        unstable.put("gc_stretch", 0f);   // fast and choppy, not smeared
+        mover(unstable, "ring_freq", 6, 2f, 0.8f);      // Shake = higher: the harder you shake, the wilder it gets
+        mover(unstable, "pitch_semi", 6, 2f, 0.6f);
+        mover(unstable, "crush_rate", 6, 2f, 0.7f);
+        BUILT_IN.put("Unstable world", unstable);
+
         // In a pocket the mic only hears cloth and rustle, so keep the room quiet and soft and let the
         // music and your footsteps carry it.
         Map<String, Float> pocketWorld = make(300f, 0.3f, 0.4f, 80f, 0f);
