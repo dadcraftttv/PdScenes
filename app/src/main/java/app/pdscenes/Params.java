@@ -116,6 +116,8 @@ final class Params {
                     .inSection("music").toggle().noPreset().resetWhenAbsent(),
             new Param("music_drift", "Let the home chord drift (every few minutes, same notes)", 0f, 1f, 1f, "",
                     Param.Curve.LINEAR).inSection("music").toggle().noPreset().resetWhenAbsent(),
+            new Param("music_follow", "Light, pocket and stairs move the notes higher or lower", 0f, 1f, 1f, "",
+                    Param.Curve.LINEAR).inSection("music").toggle().noPreset().noPd().resetWhenAbsent(),
             new Param("music_key", "Key", 0f, 11f, 0f, "", Param.Curve.LINEAR)
                     .choices("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
                     .inSection("music").noPreset().resetWhenAbsent(),

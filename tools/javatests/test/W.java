@@ -66,6 +66,19 @@ public class W {
       double t=6; double[] gaps2={0.9,0.5,1.0,0.45}; for(double g:gaps2){ for(double u=0;u<g;u+=0.005) StepDetector.onAcceleration(0,0,9.80665f+(u<0.06?4f:0f),t+u); t+=g; }
       float uneven=StepDetector.sureness(); walk(t,t+5,1.8,4f); float back=StepDetector.sureness();
       check(even==1f&&uneven<0.6f&&back==1f,"rhythm sureness: even "+even+", uneven "+uneven+", settled again "+back); }
+    // ---- note register: light, pocket and stairs move the notes, but only once a situation has held a while ----
+    { NoteRegister nr=new NoteRegister(); boolean ch=false;
+      for(int i=0;i<100;i++) ch|=nr.tick(0.1,0.5f,false,0f,7,true);
+      int mid=nr.steps();
+      boolean quick=false; for(int i=0;i<10;i++) quick|=nr.tick(0.1,0.1f,false,0f,7,true);        // 1 s of dark: not yet
+      for(int i=0;i<40;i++) nr.tick(0.1,0.1f,false,0f,7,true); int dark=nr.steps(); boolean warmDark=nr.warm();
+      for(int i=0;i<100;i++) nr.tick(0.1,0.1f,true,0f,7,true); int pocket=nr.steps();   // (changes at most every 8 s)
+      for(int i=0;i<120;i++) nr.tick(0.1,0.9f,false,0.8f,7,true); int brightClimb=nr.steps(); boolean warmBright=nr.warm();
+      int flick=0; NoteRegister f2=new NoteRegister(); for(int i=0;i<600;i++){ if(f2.tick(0.1,(i/15)%2==0?0.1f:0.9f,false,0f,7,true)) flick++; }
+      nr.tick(0.1,0.9f,false,0.8f,7,false); int off=nr.steps();
+      check(!ch&&mid==0&&!quick&&dark==-2&&warmDark&&pocket==-7&&brightClimb==4&&!warmBright&&flick==0&&off==0,
+            "register: middle "+mid+", dark "+dark+" warm "+warmDark+" (not after 1 s: "+!quick+"), pocket "+pocket+", bright+climbing "+brightClimb
+            +", light flickering every 1.5 s changes nothing ("+flick+"), off -> "+off); }
     // ---- motif memory: a phrase of chimes comes back once the room is quiet, varied, not while walking ----
     { MotifMemory mm=new MotifMemory(new Random(5)); double t=0;
       mm.onNote(3,t); mm.onNote(5,t+=0.4); mm.onNote(4,t+=0.3); mm.onNote(6,t+=0.5);   // a 4-note phrase

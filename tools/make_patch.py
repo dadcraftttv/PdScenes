@@ -701,7 +701,10 @@ def add_music(P):
     P.obj("mu_pick_t", "t f f", cx, cy + 130)
     P.obj("mu_wr_last", "value clast", cx + 60, cy + 160)
     P.c("mu_pick", "mu_pick_t"); P.c("mu_pick_t", "mu_wr_last", 1, 0)
-    P.c("mu_pick_t", degree_in)
+    P.obj("mu_reg_add", "+ 0", cx + 200, cy + 50)                       # register from the sensors (the app)
+    P.obj("mu_reg_r", "r music_register", cx + 260, cy + 30); P.c("mu_reg_r", "mu_reg_add", 0, 1)
+    P.c("mu_reg_add", degree_in)
+    P.c("mu_pick_t", "mu_reg_add")
     P.obj("mu_note_s", "s chime_deg", cx - 100, cy + 160)              # every note played, for the tests
     P.c("mu_pick_t", "mu_note_s")
     P.obj("mu_chime_s", "s chime_note", cx - 100, cy + 180)            # chimes only: the app's motif memory listens
@@ -713,7 +716,7 @@ def add_music(P):
     P.obj("mu_mo_t", "t f f f", cx - 300, cy + 60)
     P.obj("mu_mo_s", "s chime_deg", cx - 300, cy + 90)
     P.c("mu_mo_r", "mu_mo_up"); P.c("mu_mo_up", "mu_mo_vel", 1, 0); P.c("mu_mo_up", "mu_mo_t", 0, 0)
-    P.c("mu_mo_t", "mu_mo_s", 2, 0); P.c("mu_mo_t", degree_in, 0, 0)
+    P.c("mu_mo_t", "mu_mo_s", 2, 0); P.c("mu_mo_t", "mu_reg_add", 0, 0)
     P._late_dn = getattr(P, "_late_dn", []) + [("mu_mo_t", "mu_dnc_t")]   # it counts as a chime for density
 
     # ---- density memory: every chime adds 1 (a walking-arpeggio note, the rhythm bed, DENSITY_ARP_WEIGHT), and the
@@ -865,7 +868,7 @@ def add_music(P):
     P.c("mu_arp_t", "mu_rest_t", 3, 0); P.c("mu_rest_t", "mu_rest_dn", 1, 0); P.c("mu_rest_dn", "mu_rest_play", 0, 2)
     P.c("mu_rest_t", "mu_rest_rnd", 0, 0); P.c("mu_rest_rnd", "mu_rest_play"); P.c("mu_rest_play", "mu_rest_gate", 0, 1)
     P.c("mu_arp_deg", "mu_rest_gate")
-    P.c("mu_rest_gate", degree_in); P.c("mu_rest_gate", "mu_note_s")
+    P.c("mu_rest_gate", "mu_reg_add"); P.c("mu_rest_gate", "mu_note_s")
     for src, dst in getattr(P, "_late_dn", []):
         P.c(src, dst)
     # The arpeggio note itself needs the chime path's tail (frequency, round robin): it joins at degree_in.
@@ -916,7 +919,7 @@ def add_music(P):
     P.obj("mu_gr_last", "value alast", x + 1250, 1080)
     ex("mu_gr_deg", "$f1+2", x + 1250, 1110)
     P.c("mu_gr_t", "mu_gr_last", 0, 0); P.c("mu_gr_last", "mu_gr_deg")
-    P.c("mu_gr_deg", degree_in); P.c("mu_gr_deg", "mu_note_s")
+    P.c("mu_gr_deg", "mu_reg_add"); P.c("mu_gr_deg", "mu_note_s")
     P.obj("mu_ap_store", "value apvel", x + 1350, 740)
     P.c("mu_pace_vel", "mu_ap_store")
     P.obj("mu_al_store", "value alast", x + 1150, 900)
@@ -1155,7 +1158,16 @@ def add_music(P):
     P.c("mu_r_tone", "mu_cut")
     ex("mu_cut_pad", "$f1*0.6", x + 800, 360)
     P.c("mu_cut", "mu_cut_pad")
-    P.c("mu_cut_pad", "mu_pad_lp", 0, 1); P.c("mu_cut", "mu_chime_lp", 0, 1)
+    P.c("mu_cut_pad", "mu_pad_lp", 0, 1)
+    P.obj("mu_warm_r", "r music_warm", x + 900, 330)
+    P.obj("mu_warm_t", "t b f", x + 900, 345)
+    P.obj("mu_cut_last", "f 1600", x + 860, 360)
+    ex("mu_cut_warm", "$f1*(1-0.55*$f2)", x + 800, 375)
+    P.c("mu_cut", "mu_cut_last", 0, 1); P.c("mu_cut", "mu_cut_warm", 0, 0)
+    P.c("mu_warm_r", "mu_warm_t"); P.c("mu_warm_t", "mu_cut_warm", 1, 1); P.c("mu_warm_t", "mu_cut_last", 0, 0)
+    P.c("mu_cut_last", "mu_cut_warm")
+    P.c("mu_cut_warm", "mu_chime_lp", 0, 1)
+    P.obj("mu_cut_s", "s chime_cut", x + 800, 395); P.c("mu_cut_warm", "mu_cut_s")   # for the tests
     pad_lvl = smoothed(P, "music_pad", "music_pad", px + 500, 20)
     arp_lvl = smoothed(P, "music_arp", "music_arp", px + 600, 20)
     mon = smoothed(P, "music_on", "music_on", px + 700, 20)

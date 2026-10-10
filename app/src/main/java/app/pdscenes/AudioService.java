@@ -88,6 +88,8 @@ public class AudioService extends Service {
     private static final String CHIME_NOTE = "chime_note";
     private static final String MOTIF_PLAY = "motif";
     private final MotifMemory motif = new MotifMemory(new java.util.Random());
+    private final NoteRegister noteRegister = new NoteRegister();
+    private static final int[] SCALE_SIZES = {7, 7, 5, 5, 7, 7, 7, 6};   // the patch's scales, by music_scale
     private final java.util.concurrent.atomic.AtomicInteger harmonyNotes = new java.util.concurrent.atomic.AtomicInteger();
     private final Runnable moverTick = new Runnable() {
         @Override
@@ -131,6 +133,14 @@ public class AudioService extends Service {
                 double nowS = SystemClock.elapsedRealtimeNanos() / 1e9;   // the sensors' clock
                 Worlds.tick(dt, Modulation.micLevelDb(), StepDetector.walking(nowS),
                         PhoneContext.inPocket(), minuteOfDay, PhoneContext.secondsSinceShake(nowS));
+                int scale = Math.round(ParamStore.get("music_scale"));
+                if (noteRegister.tick(dt, PhoneContext.brightness(), PhoneContext.inPocket(), PhoneContext.climb(),
+                        SCALE_SIZES[Math.max(0, Math.min(SCALE_SIZES.length - 1, scale))],
+                        ParamStore.get("music_follow") > 0.5f)) {
+                    PdBase.sendFloat("music_register", noteRegister.steps());
+                    PdBase.sendFloat("music_warm", noteRegister.warm() ? 1f : 0f);
+                    logEvent("Notes moved " + noteRegister.steps() + " steps" + (noteRegister.warm() ? ", warm" : ""));
+                }
                 List<MotifMemory.Note> phrase = motif.poll(nowS, StepDetector.walking(nowS));
                 if (phrase != null) {
                     logEvent("Motif comes back: " + phrase.size() + " notes");
@@ -573,6 +583,7 @@ public class AudioService extends Service {
         Modulation.reset();
         StepDetector.reset();
         motif.reset();
+        noteRegister.reset();
         // Footsteps drive the built-in patch's drums; scenes have their own business with the sensors.
         StepDetector.setListener(scene == null ? (interval, strength) -> {
             PdBase.sendFloat("step_strength", strength);   // first, so the step's sounds can use it

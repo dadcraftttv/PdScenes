@@ -140,6 +140,11 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   note follows. A scale change resets it; switching it off brings home back at once. `drift_now` (tests) drifts now.
   Pattern picker fix: a repeated pattern now moves toward the pace's own pattern (it used to bump upward, so a stroll
   sometimes got a mid-level pattern).
+  **Register from sensors** (`music_follow`, Music, default on, noPreset, app-only `noPd`; `NoteRegister.java`, test W):
+  room-relative light < 0.25 -> 2 scale steps down + warm, > 0.75 -> 2 up; a pocket -> an octave down + warm; climbing
+  (climb > 0.5) +2. A new register must hold 3 s and changes come at most every 8 s. The app sends `music_register
+  <steps>` (added to chimes, arpeggio, groove and motif notes on their way to the voices; the reported degrees stay
+  unshifted) and `music_warm 0|1` (chime low-pass x0.45). Pad and bass stay put. Compass-picks-the-bass was left out.
   **Stop breath:** 1.2 s after the last step the pad+bass ease to 55% over 2.5 s, then return over 8 s (a step
   brings them back in 0.8 s); only steps start it.
   Music joins after the filter, so chorus/flanger/phaser/tremolo/reverse/glitch/echo/reverb/spatial shape it; pitch/ring/crush/dist/filter do not.

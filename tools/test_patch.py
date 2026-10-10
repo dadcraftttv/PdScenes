@@ -77,7 +77,7 @@ check(not bad, "patch loads with no Pd errors" + (": %s" % bad if bad else ""))
 
 jp = java_params()
 patch_text = open(PATCH).read()
-receivers = set(re.findall(r"#X obj \d+ \d+ r (\w+);", patch_text)) - {"step", "scale_n", "pad_glide", "mic_level", "pad_slot", "pool_n", "pool_x", "pocket", "pocket_down", "duck", "step_strength", "step_hit", "beat_sure", "groove", "gc_mode", "density_on", "motif", "drift_now", "drift_set", "drift_n"} - {r for r in re.findall(r"#X obj \d+ \d+ r (sw_\w+);", open(PATCH).read())}   # events and internal links, not settings
+receivers = set(re.findall(r"#X obj \d+ \d+ r (\w+);", patch_text)) - {"step", "scale_n", "pad_glide", "mic_level", "pad_slot", "pool_n", "pool_x", "pocket", "pocket_down", "duck", "step_strength", "step_hit", "beat_sure", "groove", "gc_mode", "density_on", "motif", "drift_now", "drift_set", "drift_n", "music_register", "music_warm"} - {r for r in re.findall(r"#X obj \d+ \d+ r (sw_\w+);", open(PATCH).read())}   # events and internal links, not settings
 pd_ids = {i for i, _, nopd in jp if not nopd}
 check(len(jp) >= 10, "parsed %d params from Params.java" % len(jp))
 check(pd_ids == receivers, "Params.java ids == patch receivers (java-only %s, patch-only %s)"
@@ -1161,6 +1161,28 @@ for _ in range(5):
     e.send("drift_now", 1); e.run(e.silence(0.3))
 check(e.heard["drift"][-1] == 0 and all(v == 0 for v in e.heard["drift"][n0:]),
       "music: switching key drift off brings the home chord back and keeps it (%s)" % [int(v) for v in e.heard["drift"][-6:]])
+
+# register from the sensors (the app sends it): steps move the chimes up or down the scale, warm darkens their tone
+def motif_notes(n=1, **sends):
+    """Plays C5 through the motif input n times; returns its frequency and how bright it is on average (3rd harmonic
+    vs the note: each chime has a random overtone colour, so one note says little)."""
+    e = fresh(music_on=1, music_pad=0, music_arp=1, wet=0, music_tone=0.8)
+    for k, v in sends.items():
+        e.send(k, v)
+    e.run(e.silence(0.3)); ratios = []; f1 = 0
+    for _ in range(n):
+        e.send_list("motif", 14, 0.5); y = e.run(e.silence(0.6))[:, 0]
+        sp = np.abs(np.fft.rfft(y * np.hanning(len(y)))); f = np.fft.rfftfreq(len(y), 1 / SR)
+        f1 = f[np.argmax(sp)]; ratios.append(tone_level(y, 3 * f1) / max(tone_level(y, f1), 1e-9))
+        e.run(e.silence(2.5))
+    return f1, float(np.mean(ratios))
+(f0, _), (f7, _), (fd, _) = motif_notes(), motif_notes(music_register=7), motif_notes(music_register=-2)
+e = fresh(music_on=1, music_tone=0.8); e.listen("chime_cut"); e.send("music_tone", 0.8); e.run(e.silence(0.1))
+cut0 = e.heard["chime_cut"][-1]; e.send("music_warm", 1); e.run(e.silence(0.1)); cut1 = e.heard["chime_cut"][-1]
+e.send("music_warm", 0); e.run(e.silence(0.1)); cut2 = e.heard["chime_cut"][-1]
+check(abs(f7 / f0 - 2) < 0.03 and abs(fd / f0 - 2 ** (-3 / 12)) < 0.03 and abs(cut1 / cut0 - 0.45) < 0.01 and cut2 == cut0,
+      "music: register moves the notes (C %.0f Hz, +7 steps %.0f Hz, -2 steps %.0f Hz); warm lowers the chimes' tone (%.0f -> %.0f -> %.0f Hz)"
+      % (f0, f7, fd, cut0, cut1, cut2))
 
 # motif memory (the app replays phrases): [motif step velocity( plays that chime, and is not reported as a new chime
 e = fresh(music_on=1, music_pad=0, music_arp=1, wet=0); e.listen("chime_deg", "chime_note")
