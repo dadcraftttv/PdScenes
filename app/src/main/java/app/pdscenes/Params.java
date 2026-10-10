@@ -262,14 +262,16 @@ final class Params {
                     Param.Curve.LINEAR).inSection("glitch").rand(0f, 0.6f).resetWhenAbsent(),
             new Param("gc_level", "Glitch cloud level", 0f, 1f, 0.7f, "", Param.Curve.LINEAR)
                     .inSection("glitch").rand(0.4f, 1f).resetWhenAbsent(),
-            new Param("gc_stutter", "Stutter (a slice repeated, on the beat while walking)", 0f, 1f, 1f, "",
-                    Param.Curve.LINEAR).inSection("glitch").toggle().resetWhenAbsent(),
-            new Param("gc_reverse", "Reverse (played backwards)", 0f, 1f, 1f, "", Param.Curve.LINEAR)
-                    .inSection("glitch").toggle().resetWhenAbsent(),
-            new Param("gc_shuffle", "Shuffle (an older moment, out of order)", 0f, 1f, 1f, "", Param.Curve.LINEAR)
-                    .inSection("glitch").toggle().resetWhenAbsent(),
-            new Param("gc_stretch", "Stretch (smeared out slowly, the pitch stays)", 0f, 1f, 1f, "", Param.Curve.LINEAR)
-                    .inSection("glitch").toggle().resetWhenAbsent(),
+            // The glitch matrix: how each glitch is shared out. Together at most 100%, and what is left over is the chance
+            // that nothing happens (Samuel's idea). Amount says how often a glitch gets its chance.
+            new Param("gc_pct_stutter", "Stutter share (a slice repeated, on the beat while walking)", 0f, 100f, 35f, " %",
+                    Param.Curve.LINEAR).inSection("glitch").budget("glitch_matrix").rand(0f, 60f).resetWhenAbsent(),
+            new Param("gc_pct_reverse", "Reverse share (played backwards)", 0f, 100f, 25f, " %", Param.Curve.LINEAR)
+                    .inSection("glitch").budget("glitch_matrix").rand(0f, 60f).resetWhenAbsent(),
+            new Param("gc_pct_shuffle", "Shuffle share (an older moment, out of order)", 0f, 100f, 20f, " %",
+                    Param.Curve.LINEAR).inSection("glitch").budget("glitch_matrix").rand(0f, 60f).resetWhenAbsent(),
+            new Param("gc_pct_stretch", "Stretch share (smeared out slowly, the pitch stays)", 0f, 100f, 20f, " %",
+                    Param.Curve.LINEAR).inSection("glitch").budget("glitch_matrix").rand(0f, 60f).resetWhenAbsent(),
             new Param("glitch_on", "Glitch/freeze enabled", 0f, 1f, 1f, "", Param.Curve.LINEAR)
                     .inSection("glitch").toggle().resetWhenAbsent(),
             new Param("glitch_hold", "Freeze (0 = live, 1 = frozen)", 0f, 1f, 0f, "",

@@ -985,6 +985,11 @@ public class MainActivity extends Activity {
             public void onProgressChanged(SeekBar s, int progress, boolean fromUser) {
                 if (fromUser) {  // ignore changes we make ourselves in refreshRows()
                     float value = p.toValue(progress / 1000f);
+                    float room = ParamStore.budgetRoom(p);   // the glitch matrix: the shares can't pass 100%
+                    if (value > room) {
+                        value = room;
+                        s.setProgress(Math.round(p.toNorm(value) * 1000));
+                    }
                     ParamStore.set(p.id, value);
                     label.setText(valueText(p, value));
                 }

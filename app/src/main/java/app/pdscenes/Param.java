@@ -36,6 +36,8 @@ final class Param {
     String moverOf = null;
     /** When a preset doesn't mention this parameter, reset it to its default instead of keeping it. */
     boolean resetWhenAbsent = false;
+    /** Sliders with the same budget share it: together they may not go past their max (the glitch matrix: 100%). */
+    String budget;
 
     Param(String id, String label, float min, float max, float def, String unit, Curve curve) {
         this.id = id;
@@ -52,6 +54,11 @@ final class Param {
     Param rand(float lo, float hi) {
         randMin = lo;
         randMax = hi;
+        return this;
+    }
+
+    Param budget(String name) {
+        budget = name;
         return this;
     }
 

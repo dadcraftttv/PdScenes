@@ -35,8 +35,8 @@ DEFAULTS = [
     ("phaser_on", 1), ("phaser_mix", 0), ("phaser_rate", 0.4), ("phaser_depth", 0.7), ("phaser_fb", 0.4),
     ("beat_on", 1), ("beat_level", 0), ("beat_hats", 0.5), ("beat_snare", 0.6), ("beat_pitch", 55),
     ("music_on", 0), ("music_key", 0), ("music_scale", 0), ("music_pad", 0.33), ("music_arp", 0.4),
-    ("music_tone", 0.5), ("music_react", 0.8), ("music_res", 0.8), ("music_harm", 0.6), ("music_drift", 1), ("echo_scatter", 0.5), ("gc_amount", 0), ("gc_level", 0.7), ("gc_stutter", 1), ("gc_reverse", 1),
-    ("gc_shuffle", 1), ("gc_stretch", 1), ("music_pad_reg", 2), ("pocket_hush", 0.5), ("pocket_guard", 0.6),
+    ("music_tone", 0.5), ("music_react", 0.8), ("music_res", 0.8), ("music_harm", 0.6), ("music_drift", 1), ("echo_scatter", 0.5), ("gc_amount", 0), ("gc_level", 0.7), ("gc_pct_stutter", 35), ("gc_pct_reverse", 25),
+    ("gc_pct_shuffle", 20), ("gc_pct_stretch", 20), ("music_pad_reg", 2), ("pocket_hush", 0.5), ("pocket_guard", 0.6),
 ]
 
 # Scales as semitone steps above the key note. The patch snaps every note it plays to these.
@@ -1460,19 +1460,21 @@ def add_glitch_cloud(P):
     P.c("gc_walk_sel", "gc_pend1", 1, 0); P.c("gc_pend1", "gc_pend", 0, 1)
     P.obj("gc_fire", "t b b b b b b b", x, y + 600)
     P.c("gc_walk_sel", "gc_fire", 0, 0); P.c("gc_pend_sel", "gc_fire")
-    # ---- what kind of glitch: a random pick among the switched-on kinds (stutter 35, reverse 25, shuffle 20, stretch 20) ----
+    # ---- what kind of glitch: the glitch matrix (Samuel): each kind's share in %, together at most 100; the share
+    # left over is the chance that nothing happens. Past 100 (a preset, the dice) they count as proportions.
     # (tape stop and a turntable scratch were tried and dropped, Samuel, Oct 10)
     P.obj("gc_mode_rnd", "random 1000", x, y + 640)
-    w = "($f2*35+$f3*25+$f4*20+$f5*20)"
-    c = ["$f2*35", "$f2*35+$f3*25", "$f2*35+$f3*25+$f4*20"]
-    pick = "3"
-    for k in range(2, -1, -1):
-        pick = f"if($f1*{w}/1000<{c[k]},{k},{pick})"
-    ex("gc_mode", f"if({w}<=0,-1,{pick})", x, y + 670)
-    for k, name in enumerate(("gc_stutter", "gc_reverse", "gc_shuffle", "gc_stretch")):
+    w = "($f2+$f3+$f4+$f5)"
+    c = ["$f2", "$f2+$f3", "$f2+$f3+$f4", "$f2+$f3+$f4+$f5"]
+    pick = "-1"
+    for k in range(3, -1, -1):
+        pick = f"if($f1*max({w},100)/1000<{c[k]},{k},{pick})"
+    ex("gc_mode", pick, x, y + 670)
+    for k, name in enumerate(("gc_pct_stutter", "gc_pct_reverse", "gc_pct_shuffle", "gc_pct_stretch")):
         P.obj(f"gc_en{k}", f"r {name}", x + 200 + 80 * k, y + 640)
         P.c(f"gc_en{k}", "gc_mode", 0, k + 1)
     P.c("gc_fire", "gc_mode_rnd", 0, 0); P.c("gc_mode_rnd", "gc_mode")
+    P.obj("gc_try_s", "s gc_try", x + 100, y + 655); P.c("gc_mode_rnd", "gc_try_s")   # every chance, for the tests
     P.obj("gc_mode_ok", "moses 0", x, y + 700)
     P.c("gc_mode", "gc_mode_ok")
     # randoms, how long ago the sound began (-1 = from the free clock) and the step length (0 = standing)

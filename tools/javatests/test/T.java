@@ -11,6 +11,16 @@ public class T {
     ParamStore.setLocked("feedback",true); float fb0=ParamStore.get("feedback"), g0=ParamStore.get("gain");
     boolean inRange=true; for(int i=0;i<2000;i++){ ParamStore.randomize(); for(Param p:Params.ALL){ if(!p.randomizable) continue; float v=ParamStore.get(p.id); if(p.id.equals("feedback")) continue; if(v<p.randMin-1e-3||v>p.randMax+1e-3) inRange=false; } }
     check(inRange,"randomize stays within safe ranges (2000 runs)");
+    // the glitch matrix: the shares never pass 100% after the dice, a locked share is kept, a slider stops at what's left
+    { String[] gm={"gc_pct_stutter","gc_pct_reverse","gc_pct_shuffle","gc_pct_stretch"};
+      boolean under=true; float maxSum=0; for(int i=0;i<500;i++){ ParamStore.randomize(); float sum=0; for(String id:gm) sum+=ParamStore.get(id); maxSum=Math.max(maxSum,sum); if(sum>100.01f) under=false; }
+      ParamStore.set("gc_pct_reverse",90f); ParamStore.setLocked("gc_pct_reverse",true);
+      boolean keptLocked=true; for(int i=0;i<200;i++){ ParamStore.randomize(); float sum=0; for(String id:gm) sum+=ParamStore.get(id); if(sum>100.01f||ParamStore.get("gc_pct_reverse")!=90f) keptLocked=false; }
+      ParamStore.setLocked("gc_pct_reverse",false);
+      ParamStore.set("gc_pct_stutter",50f); ParamStore.set("gc_pct_reverse",30f); ParamStore.set("gc_pct_shuffle",0f); ParamStore.set("gc_pct_stretch",0f);
+      float roomShuffle=ParamStore.budgetRoom(Params.byId("gc_pct_shuffle")), roomStutter=ParamStore.budgetRoom(Params.byId("gc_pct_stutter")), roomWet=ParamStore.budgetRoom(Params.byId("wet"));
+      check(under&&keptLocked&&Math.abs(roomShuffle-20f)<1e-3&&Math.abs(roomStutter-70f)<1e-3&&roomWet==1f,
+            "glitch matrix: dice keep the shares <= 100% (max "+maxSum+"), a locked 90% share stays ("+keptLocked+"), room left: shuffle "+roomShuffle+", stutter "+roomStutter+", wet (no budget) "+roomWet); }
     // dice morph: while the audio runs, Randomize glides there over MORPH_S; a slider moved meanwhile stays put
     AudioService.running=true; ParamStore.set("wet",0.1f); ParamStore.set("ring_freq",100f); ParamStore.setLocked("ring_freq",false);
     ParamStore.randomize(); float wetTo=-1; check(ParamStore.isMorphing()&&ParamStore.get("wet")==0.1f,"randomize starts a glide, nothing jumps yet");

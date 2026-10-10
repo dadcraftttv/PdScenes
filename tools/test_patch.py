@@ -77,7 +77,7 @@ check(not bad, "patch loads with no Pd errors" + (": %s" % bad if bad else ""))
 
 jp = java_params()
 patch_text = open(PATCH).read()
-receivers = set(re.findall(r"#X obj \d+ \d+ r (\w+);", patch_text)) - {"step", "scale_n", "pad_glide", "mic_level", "pad_slot", "pool_n", "pool_x", "pocket", "pocket_down", "duck", "step_strength", "step_hit", "beat_sure", "groove", "gc_mode", "density_on", "motif", "drift_now", "drift_set", "drift_n", "music_register", "music_warm"} - {r for r in re.findall(r"#X obj \d+ \d+ r (sw_\w+);", open(PATCH).read())}   # events and internal links, not settings
+receivers = set(re.findall(r"#X obj \d+ \d+ r (\w+);", patch_text)) - {"step", "scale_n", "pad_glide", "mic_level", "pad_slot", "pool_n", "pool_x", "pocket", "pocket_down", "duck", "step_strength", "step_hit", "beat_sure", "groove", "gc_mode", "gc_try", "density_on", "motif", "drift_now", "drift_set", "drift_n", "music_register", "music_warm"} - {r for r in re.findall(r"#X obj \d+ \d+ r (sw_\w+);", open(PATCH).read())}   # events and internal links, not settings
 pd_ids = {i for i, _, nopd in jp if not nopd}
 check(len(jp) >= 10, "parsed %d params from Params.java" % len(jp))
 check(pd_ids == receivers, "Params.java ids == patch receivers (java-only %s, patch-only %s)"
@@ -1248,13 +1248,13 @@ check(not degs_n and not degs_b and not degs_q,
       "harmony: noise, a short blip and a hum lost in the room's quiet play nothing (%s %s %s)" % (degs_n, degs_b, degs_q))
 
 # glitch cloud: a sudden sound comes back mangled; each kind does what it says
-GC_KINDS = ("gc_stutter", "gc_reverse", "gc_shuffle", "gc_stretch")
+GC_KINDS = ("gc_pct_stutter", "gc_pct_reverse", "gc_pct_shuffle", "gc_pct_stretch")
 def gc_run(x, kind=None, steps=None, **over):
     """The glitch cloud alone (dry, echo and music off), with only `kind` switched on. Returns the left+right output
     and the kinds that fired. steps: seconds between footsteps, sent from the start."""
     base = dict(dry=0, wet=0, gc_amount=1, gc_level=1, reverb_mix=0)
     if kind:
-        base.update({k: int(k == kind) for k in GC_KINDS})
+        base.update({k: 100 * (k == kind) for k in GC_KINDS})
     base.update(over)
     e = fresh(**base); e.listen("gc_mode")
     if steps is None:
@@ -1281,18 +1281,18 @@ def glitch_part(y, at=3.0, thr=0.01):
     return (y[int(at * SR) + idx[0]:int(at * SR) + idx[-1]], idx[0] / SR) if len(idx) else (np.zeros(1), None)
 y0, m0 = gc_run(burst_in(chirp), gc_amount=0)
 check(rms(y0) < 1e-4 and not m0, "glitch cloud: Amount 0 plays nothing (%.6f, %s)" % (rms(y0), m0))
-y, m = gc_run(burst_in(chirp), "gc_reverse"); g, _ = glitch_part(y); q = len(g) // 4
+y, m = gc_run(burst_in(chirp), "gc_pct_reverse"); g, _ = glitch_part(y); q = len(g) // 4
 check(m[:1] == [1] and len(g) > 0.2 * SR and centroid(g[:q]) > 1.3 * centroid(g[-q:]),
       "glitch cloud: reverse plays a rising sound falling (centroid %.0f -> %.0f Hz, %s)" % (centroid(g[:q]), centroid(g[-q:]), m))
 zc = lambda v: np.mean(np.abs(np.diff(np.sign(v)))) * SR / 2
-y, m = gc_run(burst_in(steady), "gc_stutter"); g, _ = glitch_part(y)
+y, m = gc_run(burst_in(steady), "gc_pct_stutter"); g, _ = glitch_part(y)
 check(m[:1] == [0] and len(g) > 0.2 * SR, "glitch cloud: a stutter repeats the sound (%.2f s, %s)" % (len(g) / SR, m))
 jump = np.max(np.abs(np.diff(y))) if len(y) > 1 else 0
 check(jump < 0.15 * max(np.max(np.abs(y)), 1e-9) + 0.01, "glitch cloud: no clicks where a stutter jumps back (%.3f of peak %.3f)" % (jump, np.max(np.abs(y))))
 bed = burst_in(steady); bed += (0.05 * np.sin(2 * np.pi * 300 * np.arange(len(bed)) / SR)).astype(np.float32)   # a room that isn't silent
-y, m = gc_run(bed, "gc_shuffle")
+y, m = gc_run(bed, "gc_pct_shuffle")
 check(m[:1] == [2] and rms(y[int(3.0 * SR):]) > 0.005, "glitch cloud: shuffle plays a slice of the last few seconds (%s, rms %.4f)" % (m, rms(y[int(3.0 * SR):])))
-y, m = gc_run(burst_in(steady, total=8.0), "gc_stretch"); g, _ = glitch_part(y, thr=0.02)
+y, m = gc_run(burst_in(steady, total=8.0), "gc_pct_stretch"); g, _ = glitch_part(y, thr=0.02)
 held = g[int(0.4 * SR):int(1.0 * SR)] if len(g) > SR else np.zeros(4)
 pitch = zc(held) / 2                                          # (zc counts the crossings both ways: twice the pitch)
 check(m[:1] == [3] and len(g) > 1.0 * SR and 800 < pitch < 1250,   # a 0.3 s sound, 3x+ longer
@@ -1303,14 +1303,34 @@ hum12 = (rng.standard_normal(12 * SR) * 0.05 * fade).astype(np.float32)
 y, m = gc_run(hum12)
 check(len(m) >= 1 and rms(y[4 * SR:]) > 0.002, "glitch cloud: with no sudden sounds the free clock still glitches (%d in 12 s)" % len(m))
 # walking: a sudden sound waits for the next step or half-step
-y, m = gc_run(burst_in(steady, at=3.1), "gc_stutter", steps=0.5)
+y, m = gc_run(burst_in(steady, at=3.1), "gc_pct_stutter", steps=0.5)
 _, start = glitch_part(y, at=3.1, thr=0.05)
 check(start is not None and 0.15 <= start <= 0.18,   # the half-step at +0.15 s, a 5 ms fade, a few ms of pre-roll
       "glitch cloud: while walking it lands on the half-step (%.3f s after the sound, wanted 0.15-0.18)" % (start or -1))
+# the glitch matrix: each kind gets its share of the chances; what is left over is silence
+def matrix(**pct):
+    e = fresh(dry=0, wet=0, gc_amount=1, gc_level=1, reverb_mix=0, **dict({k: 0 for k in GC_KINDS}, **pct))
+    e.listen("gc_mode", "gc_try")
+    rng = np.random.default_rng(8); x = rng.standard_normal(90 * SR) * 0.003
+    for k in range(60):                                         # a sudden sound every 1.5 s
+        i = int((1.0 + 1.5 * k) * SR); n = int(0.05 * SR); x[i:i + n] += rng.standard_normal(n) * 0.4
+    e.run(x.astype(np.float32))
+    modes = [int(v) for v in e.heard["gc_mode"]]; tries = len(e.heard["gc_try"])
+    return modes, tries
+modes, tries = matrix(gc_pct_stutter=80, gc_pct_reverse=20)
+share = modes.count(0) / max(len(modes), 1)
+check(tries >= 40 and set(modes) <= {0, 1} and 0.68 < share < 0.92 and len(modes) > 0.9 * tries,
+      "glitch matrix: stutter 80%% / reverse 20%% -> %.0f%% stutter over %d glitches (%d chances)" % (100 * share, len(modes), tries))
+modes, tries = matrix(gc_pct_reverse=10, gc_pct_shuffle=10)
+check(tries >= 40 and set(modes) <= {1, 2} and 0.08 < len(modes) / tries < 0.35,
+      "glitch matrix: reverse 10%% + shuffle 10%% -> %d glitches from %d chances (%.0f%%; the rest is silence)" % (len(modes), tries, 100 * len(modes) / tries))
+modes, tries = matrix(gc_pct_stutter=100, gc_pct_reverse=100)
+check(set(modes) == {0, 1} and len(modes) > 0.9 * tries, "glitch matrix: past 100%% the shares count as proportions (%d/%d stutter)" % (modes.count(0), len(modes)))
+
 # wide: each glitch sits well out to one side (the far ear quieter and a little later)
 def gc_sides(seed):
     x = burst_in(steady, seed=seed)
-    e = fresh(dry=0, wet=0, gc_amount=1, gc_level=1, reverb_mix=0, gc_stutter=1, gc_reverse=0, gc_shuffle=0)
+    e = fresh(dry=0, wet=0, gc_amount=1, gc_level=1, reverb_mix=0, gc_pct_stutter=100, gc_pct_reverse=0, gc_pct_shuffle=0, gc_pct_stretch=0)
     y = e.run(x)[int(3.0 * SR):int(3.6 * SR)]
     l, r = rms(y[:, 0]), rms(y[:, 1])
     return (l - r) / max(l + r, 1e-9)

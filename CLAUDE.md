@@ -174,7 +174,7 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
 - **Dice morph:** with audio running, Randomize glides there over 6 s (`ParamStore.morphTick` from the service tick,
   smoothstep; switches/menus flip halfway). A slider moved meanwhile (hand or world) drops out of the glide; undo,
   nudge, presets and reset stop it. Stopped audio: Randomize jumps as before.
-- **Glitch cloud** (Glitch section; `gc_amount` default 0 = off and no CPU, `gc_level` 0.7, kinds `gc_stutter/reverse/shuffle/stretch`;
+- **Glitch cloud** (Glitch section; `gc_amount` default 0 = off and no CPU, `gc_level` 0.7, kinds by the glitch matrix below;
   roadmap 5b, after dblue Glitch): the hushed mic goes into a 4 s ring buffer (memory only). Triggers: a sudden sound (5 ms
   meter jumps 10 dB over its ~0.25 s average and > -45 dBFS; chance = Amount; then a rest of 2.4 s at Amount 0 -> 0.6 s at 1)
   and a free clock ((2-8 s)*0.6/(0.2+Amount), reset by sounds; it never starts the rest, so a sound always wins). Walking
@@ -186,6 +186,11 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   **Stretch** (`gc_stretch`, 5th kind, roadmap 3 "Ghost capture"; own voice `gc2_*`): the sound smeared at rate
   0.08-0.25 (4-12x slower) for 1.5-3.5 s (capped by the 4 s buffer) in two 100 ms Hann grains, pitch unchanged,
   40 ms in and 600 ms out. The Ghost world turns on stretch + reverse only (Amount 0.45, level 0.8).
+  **Glitch matrix** (Samuel, Oct 10): `gc_pct_stutter/reverse/shuffle/stretch` (0-100 %, defaults 35/25/20/20)
+  share each chance; together at most 100 and what's left is the chance nothing happens. `Param.budget("glitch_matrix")`:
+  the UI stops a slider at `ParamStore.budgetRoom` (others never move), the dice scale picked shares to fit (locked ones
+  kept); past 100 (presets, movers) the patch treats them as proportions. Amount = how often a chance comes. Ghost world
+  50 reverse / 50 stretch. No `;` in Params.java comments (the test parser stops there; bit us again).
   **Tape stop and a turntable Scratch were built and removed** (Samuel, Oct 10: not wanted in the mix; git has them).
   **Voices switch on only while they play** (groups `gcv` = gc0_*, `gcs` = gc2_*, `sw_gcv`/`sw_gcs` sent at each
   glitch, off L+100/L+700 ms later); only the 4 s buffer runs all the time. Two voices work fine this way.

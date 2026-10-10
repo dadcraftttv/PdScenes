@@ -10,6 +10,7 @@ import org.json.JSONObject;
 import org.puredata.core.PdBase;
 
 import java.util.ArrayDeque;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -87,17 +88,55 @@ final class ParamStore {
         applyValues(preset);
     }
 
+    /** The most a budget slider may be set to now: its max minus what the others in its budget already take. */
+    static synchronized float budgetRoom(Param p) {
+        if (p.budget == null) {
+            return p.max;
+        }
+        float others = 0;
+        for (Param q : Params.ALL) {
+            if (q != p && p.budget.equals(q.budget)) {
+                others += get(q.id);
+            }
+        }
+        return Math.max(0f, p.max - others);
+    }
+
     /** Jump every unlocked, randomizable parameter to a random value in its safe range. */
     static synchronized void randomize() {
         pushUndo();
         morph.clear();
+        Map<String, Float> targets = new LinkedHashMap<>();
         for (Param p : Params.ALL) {
             if (!p.randomizable || locked.contains(p.id)) {
                 continue;
             }
             float lo = p.toNorm(p.randMin);
             float hi = p.toNorm(p.randMax);
-            float target = p.toValue(lo + rng.nextFloat() * (hi - lo));
+            targets.put(p.id, p.toValue(lo + rng.nextFloat() * (hi - lo)));
+        }
+        // a budget (the glitch matrix) that came out past its max is scaled down to fit; locked members keep theirs
+        Map<String, Float> fixed = new HashMap<>();   // what the members the dice leave alone take
+        Map<String, Float> free = new HashMap<>();    // what the dice picked for the others
+        for (Param p : Params.ALL) {
+            if (p.budget != null) {
+                Float t = targets.get(p.id);
+                (t != null ? free : fixed).merge(p.budget, t != null ? t : get(p.id), Float::sum);
+            }
+        }
+        for (Param p : Params.ALL) {
+            Float t = targets.get(p.id);
+            if (p.budget != null && t != null) {
+                float f = fixed.getOrDefault(p.budget, 0f);
+                float picked = free.get(p.budget);
+                if (f + picked > p.max && picked > 0) {
+                    targets.put(p.id, t * Math.max(0f, p.max - f) / picked);
+                }
+            }
+        }
+        for (Map.Entry<String, Float> e : targets.entrySet()) {
+            Param p = Params.byId(e.getKey());
+            float target = e.getValue();
             if (AudioService.isRunning()) {
                 morph.put(p.id, new float[]{get(p.id), target, get(p.id)});   // from, to, last written
             } else {

@@ -235,10 +235,10 @@ final class PresetManager {
         // Ghost capture: sounds in the night hang and dissolve (stretched) or come back backwards, nothing choppy
         ghostWorld.put("gc_amount", 0.45f);
         ghostWorld.put("gc_level", 0.8f);
-        ghostWorld.put("gc_stretch", 1f);
-        ghostWorld.put("gc_reverse", 1f);
-        ghostWorld.put("gc_stutter", 0f);
-        ghostWorld.put("gc_shuffle", 0f);
+        ghostWorld.put("gc_pct_stretch", 50f);
+        ghostWorld.put("gc_pct_reverse", 50f);
+        ghostWorld.put("gc_pct_stutter", 0f);
+        ghostWorld.put("gc_pct_shuffle", 0f);
         mover(ghostWorld, "space_pan", 1, 0.05f, 0.9f);
         mover(ghostWorld, "rvs_time", 1, 0.04f, 0.5f);
         BUILT_IN.put("Ghost world", ghostWorld);
@@ -251,7 +251,10 @@ final class PresetManager {
         unstable.put("echo_scatter", 1f);
         unstable.put("gc_amount", 1f);
         unstable.put("gc_level", 0.9f);
-        unstable.put("gc_stretch", 0f);   // fast and choppy, not smeared
+        unstable.put("gc_pct_stutter", 45f);   // fast and choppy, not smeared
+        unstable.put("gc_pct_reverse", 30f);
+        unstable.put("gc_pct_shuffle", 25f);
+        unstable.put("gc_pct_stretch", 0f);
         mover(unstable, "ring_freq", 6, 2f, 0.8f);      // Shake = higher: the harder you shake, the wilder it gets
         mover(unstable, "pitch_semi", 6, 2f, 0.6f);
         mover(unstable, "crush_rate", 6, 2f, 0.7f);
