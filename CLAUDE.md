@@ -165,7 +165,7 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   **Stretch** (`gc_stretch`, 5th kind, roadmap 3 "Ghost capture"; own voice `gc2_*`): the sound smeared at rate
   0.08-0.25 (4-12x slower) for 1.5-3.5 s (capped by the 4 s buffer) in two 100 ms Hann grains, pitch unchanged,
   40 ms in and 600 ms out. The Ghost world turns on stretch + reverse only (Amount 0.45, level 0.8).
-  **Scratch** (`gc_scratch`, 6th kind, roadmap 6 "Collective" as a kind, not a world): the main voice gets
+  **Scratch** (`gc_scratch`, off by default: Samuel likes the sound but not in the mix; 6th kind, roadmap 6 "Collective" as a kind, not a world): the main voice gets
   -A*sin(2*pi*f*t) on its read position (A 60-150 ms, f twice a step while walking, else 2-4.5 Hz; osc~ phase reset
   to 0.75 at each glitch), so the record rocks forward/stop/back/stop around one spot. A sudden sound is first heard
   for 2A+40 ms (wait), then rocked around A+25 ms into it; centring it on the onset scratched mostly silence.

@@ -35,7 +35,7 @@ DEFAULTS = [
     ("beat_on", 1), ("beat_level", 0), ("beat_hats", 0.5), ("beat_snare", 0.6), ("beat_pitch", 55),
     ("music_on", 0), ("music_key", 0), ("music_scale", 0), ("music_pad", 0.33), ("music_arp", 0.4),
     ("music_tone", 0.5), ("music_react", 0.8), ("music_res", 0.8), ("music_harm", 0.6), ("echo_scatter", 0.5), ("gc_amount", 0), ("gc_level", 0.7), ("gc_stutter", 1), ("gc_reverse", 1),
-    ("gc_tape", 1), ("gc_shuffle", 1), ("gc_stretch", 1), ("gc_scratch", 1), ("music_pad_reg", 2), ("pocket_hush", 0.5), ("pocket_guard", 0.6),
+    ("gc_tape", 1), ("gc_shuffle", 1), ("gc_stretch", 1), ("gc_scratch", 0), ("music_pad_reg", 2), ("pocket_hush", 0.5), ("pocket_guard", 0.6),
 ]
 
 # Scales as semitone steps above the key note. The patch snaps every note it plays to these.
