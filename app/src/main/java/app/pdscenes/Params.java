@@ -114,6 +114,8 @@ final class Params {
             // ---- Music ---- (a reactive synth: notes snapped to a key and scale, added after the first presets)
             new Param("music_on", "Music enabled", 0f, 1f, 0f, "", Param.Curve.LINEAR)
                     .inSection("music").toggle().noPreset().resetWhenAbsent(),
+            new Param("music_drift", "Let the home chord drift (every few minutes, same notes)", 0f, 1f, 1f, "",
+                    Param.Curve.LINEAR).inSection("music").toggle().noPreset().resetWhenAbsent(),
             new Param("music_key", "Key", 0f, 11f, 0f, "", Param.Curve.LINEAR)
                     .choices("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
                     .inSection("music").noPreset().resetWhenAbsent(),
@@ -135,8 +137,6 @@ final class Params {
                     Param.Curve.LINEAR).inSection("music").rand(0.3f, 1f).resetWhenAbsent(),
             new Param("music_res", "Room notes (sounds around you ring the chord)", 0f, 1f, 0.8f, "",
                     Param.Curve.LINEAR).inSection("music").rand(0.2f, 1f).resetWhenAbsent(),
-            new Param("music_drift", "Let the home chord drift (every few minutes, same notes)", 0f, 1f, 1f, "",
-                    Param.Curve.LINEAR).inSection("music").toggle().noPreset().resetWhenAbsent(),
             new Param("music_harm", "Harmony (a held hum or whistle gets an answering note)", 0f, 1f, 0.6f, "",
                     Param.Curve.LINEAR).inSection("music").rand(0.2f, 1f).resetWhenAbsent(),
 
