@@ -34,7 +34,7 @@ DEFAULTS = [
     ("phaser_on", 1), ("phaser_mix", 0), ("phaser_rate", 0.4), ("phaser_depth", 0.7), ("phaser_fb", 0.4),
     ("beat_on", 1), ("beat_level", 0), ("beat_hats", 0.5), ("beat_snare", 0.6), ("beat_pitch", 55),
     ("music_on", 0), ("music_key", 0), ("music_scale", 0), ("music_pad", 0.33), ("music_arp", 0.4),
-    ("music_tone", 0.5), ("music_react", 0.8), ("music_res", 0.8), ("music_harm", 0.6), ("gc_amount", 0), ("gc_level", 0.7), ("gc_stutter", 1), ("gc_reverse", 1),
+    ("music_tone", 0.5), ("music_react", 0.8), ("music_res", 0.8), ("music_harm", 0.6), ("echo_scatter", 0.5), ("gc_amount", 0), ("gc_level", 0.7), ("gc_stutter", 1), ("gc_reverse", 1),
     ("gc_tape", 1), ("gc_shuffle", 1), ("music_pad_reg", 2), ("pocket_hush", 0.5), ("pocket_guard", 0.6),
 ]
 
@@ -1341,7 +1341,7 @@ def add_glitch_cloud(P):
     L = f"if($f1==0,({S})*(4+int($f5/250)),if($f1==1,300+0.4*$f3,if($f1==2,450+0.7*$f3,150+0.35*$f3)))"
     d0 = f"if($f1==1,10,if($f1==3||$f2<0,250+3*$f4,$f2+{GC_PREROLL_MS}))"   # from just before the sound began
     outs = [L, d0, "if($f1==1,-1,if($f1==0,0,1))", "$f1==0", f"if($f1==0,{S},10000000)",
-            f"if($f1==2,-1/(2*({L})),0)", "$f7/1000*1.6-0.8",
+            f"if($f1==2,-1/(2*({L})),0)", "if($f7<500,-(0.45+0.55*$f7/500),0.45+0.55*($f7-500)/500)",
             f"if($f1==1&&$f2>=0,max(({L})-$f2,0),0)"]                  # reverse: wait until it has all been heard
     ex("gc_par", " ; ".join(outs).replace(" ; ", " " + BS + "; "), x, y + 770)
     P.c("gc_mode_ok", "gc_par", 1, 0)
@@ -1416,13 +1416,19 @@ def add_glitch_cloud(P):
         P.c("gc_vc_fade", f"gc{k}_env")
         P.sig2(f"gc{k}_ew", "*~", f"gc{k}_env", f"gc{k}_win", vx + 100, vy + 150)
         P.sig2(f"gc{k}_s", "*~", f"gc{k}_rd", f"gc{k}_ew", vx, vy + 180)
-        # where it sits: equal-power pan, set while the voice is silent (the pan comes out of unpack first)
-        ex(f"gc{k}_pan", "cos(($f1+1)*0.785398) ; sin(($f1+1)*0.785398)".replace(" ; ", " " + BS + "; "), vx + 250, vy + 30)
+        # where it sits (set while the voice is silent; the place comes out of unpack first): always at least
+        # halfway out to one side, the near ear at full level, the far ear quieter and up to 0.6 ms later (the
+        # time difference is what makes a sound seem really off to the side)
+        ex(f"gc{k}_pan", "min(1,1-$f1) ; min(1,1+$f1) ; 1.5+0.6*max($f1,0) ; 1.5+0.6*max(-$f1,0)".replace(" ; ", " " + BS + "; "), vx + 250, vy + 30)
         P.c(f"gc{k}_up", f"gc{k}_pan", 6, 0)
         P.obj(f"gc{k}_gl", "sig~", vx + 250, vy + 60); P.obj(f"gc{k}_gr", "sig~", vx + 320, vy + 60)
-        P.c(f"gc{k}_pan", f"gc{k}_gl", 0, 0); P.c(f"gc{k}_pan", f"gc{k}_gr", 1, 0)
-        outs_l.append(P.sig2(f"gc{k}_l", "*~", f"gc{k}_s", f"gc{k}_gl", vx, vy + 210))
-        outs_r.append(P.sig2(f"gc{k}_r", "*~", f"gc{k}_s", f"gc{k}_gr", vx + 100, vy + 210))
+        P.obj(f"gc{k}_itd", "delwrite~ gc_itd 10", vx, vy + 215); P.c(f"gc{k}_s", f"gc{k}_itd")
+        P.obj(f"gc{k}_rl", "delread~ gc_itd 1.5", vx, vy + 225)            # whole samples are fine for this
+        P.obj(f"gc{k}_rr", "delread~ gc_itd 1.5", vx + 100, vy + 225)
+        for o, n in enumerate(("gl", "gr", "rl", "rr")):
+            P.c(f"gc{k}_pan", f"gc{k}_{n}", o, 0)
+        outs_l.append(P.sig2(f"gc{k}_l", "*~", f"gc{k}_rl", f"gc{k}_gl", vx, vy + 240))
+        outs_r.append(P.sig2(f"gc{k}_r", "*~", f"gc{k}_rr", f"gc{k}_gr", vx + 100, vy + 240))
     lvl = smoothed(P, "gc_level", "gc_level", x + 1200, y + 900)
     P.sig2("gcx_out_l", "*~", outs_l[0], lvl, x + 1200, y + 950)
     P.sig2("gcx_out_r", "*~", outs_r[0], lvl, x + 1300, y + 950)
@@ -2052,11 +2058,33 @@ def build():
     eon = smoothed(P, "echo_on", "echo_on", 800, 150)
     P.sig2("wet_eff", "*~", wet, eon, 700, 240)           # level, forced to 0 when bypassed
     P.sig2("wet_sig", "*~", "delread", "wet_eff", 700, 270)
+    # Echo scatter: each repeat lands somewhere else between the ears. The echo comes back every T ms (the delay time),
+    # so a new place is picked every T ms: each repeat of a sound falls in its own window. A new place is at least
+    # half the width away from the last (else the other side), and moves there in 15 ms. 0 = in the middle as before.
+    P.obj("es_lb", "loadbang", 900, 160)
+    P.obj("es_tick", "t b b", 900, 190)
+    P.obj("es_T", "snapshot~", 960, 220); P.c("ln_echo_time", "es_T")
+    P.obj("es_Tc", "max 20", 960, 250)
+    P.obj("es_del", "del 350", 900, 280)
+    P.c("es_lb", "es_tick"); P.c("es_tick", "es_T", 0, 0); P.c("es_T", "es_Tc"); P.c("es_Tc", "es_del"); P.c("es_del", "es_tick")
+    P.obj("es_rnd", "random 2001", 1040, 220)
+    ex("es_pick", "if(abs(($f1/1000-1)-$f2)<0.5, -($f1/1000-1), $f1/1000-1)", 1040, 250)
+    P.obj("es_prev", "t f f", 1040, 280)
+    P.c("es_tick", "es_rnd", 1, 0); P.c("es_rnd", "es_pick"); P.c("es_pick", "es_prev"); P.c("es_prev", "es_pick", 1, 1)
+    P.obj("es_r_amt", "r echo_scatter", 1160, 220)
+    ex("es_gains", "min(1,1-$f1*$f2) ; min(1,1+$f1*$f2)".replace(" ; ", " " + BS + "; "), 1040, 310)
+    P.c("es_prev", "es_gains", 0, 0); P.c("es_r_amt", "es_gains", 0, 1)
+    for k, side in enumerate(("l", "r")):
+        P.obj(f"es_pk_{side}", "pack f 15", 1040 + 80 * k, 340); P.obj(f"es_g_{side}", "line~", 1040 + 80 * k, 370)
+        P.c("es_gains", f"es_pk_{side}", k, 0); P.c(f"es_pk_{side}", f"es_g_{side}")
+        P.sig2(f"wet_{side}", "*~", "wet_sig", f"es_g_{side}", 700 + 80 * k, 400)
+    P.obj("es_init", "loadbang", 1200, 340); P.msg("es_one", "1", 1200, 360)
+    P.c("es_init", "es_one"); P.c("es_one", "es_g_l"); P.c("es_one", "es_g_r")
 
     # --- dry level and output ---
     dry = smoothed(P, "dry", "dry", 250, 300)
     P.sig2("dry_sig", "*~", "voice", dry, 250, 380)
-    P.sig2("mix_pre", "+~", "dry_sig", "wet_sig", 250, 420)
+    P.obj("mix_pre", "+~", 250, 420); P.c("dry_sig", "mix_pre")      # the echo joins both ears later, scattered
     beat = add_beat(P)
     P.sig2("mix_out", "+~", "mix_pre", beat, 250, 450)       # the beat joins here, so reverb and pan apply to it
 
@@ -2076,7 +2104,8 @@ def build():
     P.sig2("gcx_mono", "+~", gc_l, gc_r, 1700, 520)
     P.obj("gcx_mono_h", "*~ 0.5", 1700, 530)
     P.c("gcx_mono", "gcx_mono_h")
-    P.sig2("rev_src", "+~", "mix_out", "gcx_mono_h", 1600, 530)       # the glitch cloud echoes in the reverb too
+    P.sig2("rev_src0", "+~", "mix_out", "gcx_mono_h", 1600, 525)       # the glitch cloud echoes in the reverb too
+    P.sig2("rev_src", "+~", "rev_src0", "wet_sig", 1600, 530)            # and the echo, as before
     P.sig2("rev_in", "*~", "rev_src", "ln_rin", 1600, 540)
 
     rmix = smoothed(P, "reverb_mix", "reverb_mix", 2000, 400)
@@ -2113,7 +2142,8 @@ def build():
             acc = f"{n}_y"
         P.sig2(f"rev_{side}", "*~", acc, "rev_gain", x0 + 400, 1150)
         P.sig2(f"in_{side}0", "+~", "mix_out", f"rev_{side}", x0 + 400, 1200)
-        P.sig2(f"in_{side}", "+~", f"in_{side}0", gc_l if side == "l" else gc_r, x0 + 400, 1210)
+        P.sig2(f"in_{side}1", "+~", f"in_{side}0", gc_l if side == "l" else gc_r, x0 + 400, 1210)
+        P.sig2(f"in_{side}", "+~", f"in_{side}1", f"wet_{side}", x0 + 400, 1220)
 
     # --- spatial: ear delay (time difference between the ears), then pan, then output ---
     # Positive 'space_shift' delays the right ear, so the sound seems to come from the left

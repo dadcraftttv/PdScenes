@@ -150,6 +150,8 @@ final class Params {
                     .inSection("echo").rand(0f, 0.7f),
             new Param("wet", "Echo level (wet)", 0f, 1f, 0.5f, "", Param.Curve.LINEAR)
                     .inSection("echo").rand(0f, 0.8f),
+            new Param("echo_scatter", "Echo scatter (each repeat lands somewhere else)", 0f, 1f, 0.5f, "",
+                    Param.Curve.LINEAR).inSection("echo").rand(0f, 1f).resetWhenAbsent(),
 
             // ---- Ring modulator ----
             new Param("ring_on", "Ring mod enabled", 0f, 1f, 1f, "", Param.Curve.LINEAR)

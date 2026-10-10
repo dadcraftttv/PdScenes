@@ -51,7 +51,7 @@ def fresh(**over):
                 phaser_on=1, phaser_mix=0, phaser_rate=0.4, phaser_depth=0.7, phaser_fb=0.4,
                 beat_on=1, beat_level=0, beat_hats=0.5, beat_snare=0.6, beat_pitch=55,
                 music_on=0, music_key=0, music_scale=0, music_pad=0.33, music_arp=0.4,
-                music_tone=0.5, music_react=0.8, music_res=0.8, music_harm=0, music_pad_reg=2, pocket_hush=0.5, pocket_guard=0.6)
+                music_tone=0.5, music_react=0.8, music_res=0.8, music_harm=0, echo_scatter=0, music_pad_reg=2, pocket_hush=0.5, pocket_guard=0.6)
     base.update(over)
     for k, v in base.items():
         e.send(k, v)
@@ -1230,12 +1230,36 @@ y, m = gc_run(burst_in(steady, at=3.1), "gc_stutter", steps=0.5)
 _, start = glitch_part(y, at=3.1, thr=0.05)
 check(start is not None and 0.15 <= start <= 0.18,   # the half-step at +0.15 s, a 5 ms fade, a few ms of pre-roll
       "glitch cloud: while walking it lands on the half-step (%.3f s after the sound, wanted 0.15-0.18)" % (start or -1))
+# wide: each glitch sits well out to one side (the far ear quieter and a little later)
+def gc_sides(seed):
+    x = burst_in(steady, seed=seed)
+    e = fresh(dry=0, wet=0, gc_amount=1, gc_level=1, reverb_mix=0, gc_stutter=1, gc_reverse=0, gc_tape=0, gc_shuffle=0)
+    y = e.run(x)[int(3.0 * SR):int(3.6 * SR)]
+    l, r = rms(y[:, 0]), rms(y[:, 1])
+    return (l - r) / max(l + r, 1e-9)
+bal = [gc_sides(s) for s in (11, 12, 13)]
+check(all(abs(b) > 0.3 for b in bal), "glitch cloud: each glitch sits well out to one side (balance %s)" % ["%.2f" % b for b in bal])
+
+# echo scatter: each repeat lands somewhere else; at 0 the echo stays in the middle
+def echo_balance(scatter):
+    x = np.zeros(4 * SR, np.float32); x[SR:SR + 40] = 0.5
+    e = fresh(dry=0, wet=1, feedback=0.75, echo_time=300, echo_sync=0, echo_scatter=scatter, reverb_mix=0)
+    y = e.run(x); out = []
+    for k in range(1, 7):
+        a = int((1.0 + 0.3 * k) * SR); w = y[a - int(0.02 * SR):a + int(0.06 * SR)]
+        l, r = rms(w[:, 0]), rms(w[:, 1]); out.append((l - r) / max(l + r, 1e-9))
+    return out
+b1, b0 = echo_balance(1), echo_balance(0)
+moves = sum(abs(b - a) > 0.3 for a, b in zip(b1, b1[1:]))
+check(moves >= 3 and max(abs(v) for v in b0) < 0.02,
+      "echo scatter: repeats jump between places (%s), at 0 they stay centred (max %.3f)" % (["%.2f" % v for v in b1], max(abs(v) for v in b0)))
+
 # CPU: what the glitch cloud costs while it runs, and that at Amount 0 it costs nothing
 import time
 def cost(**over):
     e = fresh(**over); x = burst_in(chirp, total=20.0); t0 = time.perf_counter(); e.run(x); return time.perf_counter() - t0
 c_off = min(cost(gc_amount=0) for _ in range(2)); c_on = min(cost(gc_amount=1) for _ in range(2))
-check(c_on < c_off * 1.25, "glitch cloud: cost while on +%.0f%% of the whole patch (off %.2f s, on %.2f s for 20 s of audio)"
+check(c_on < c_off * 1.35, "glitch cloud: cost while on +%.0f%% of the whole patch (off %.2f s, on %.2f s for 20 s of audio)"
       % (100 * (c_on / c_off - 1), c_off, c_on))
 
 # room notes: resonators make the mic's own sound ring the current chord

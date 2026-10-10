@@ -156,7 +156,14 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   the sound was heard), tape stop (rate 1 -> 0 over 450-1150 ms), shuffle (a random slice 0.25-3.25 s old). One voice:
   read position = d0 + a*t + b*t^2 - c*fmod(t,S) from plain objects (expr~ cost 3x more), 3 ms slice windows, a new
   glitch fades the old one 4 ms first. Random pan per glitch; it joins both ears before the reverb and feeds it too.
-  Cost (desktop): Amount 0 unmeasurable, glitching nonstop +10% (reverb on +70%, music +300%).
+  Width (Samuel: "around me but not wide enough"): each glitch sits 45-100% out to one side (balance law: near ear
+  full, far ear quieter) and the far ear is up to 0.6 ms later (`delread~`, not `delread4~`: that tripled the cost).
+  Cost (desktop, vs the patch before it): Amount 0 nothing, glitching nonstop ~+16% (reverb on +74%, music +320%);
+  phone with Music on: 37-39% of a core at Amount 0 and at full, i.e. lost in the noise.
+- **Echo scatter** (`echo_scatter`, Echo section, default 0.5, in presets; Samuel's idea): every repeat lands
+  somewhere else between the ears. The echo returns every T ms, so a new place is picked every T ms (snapshot of the
+  delay time): at least half the width from the last one (else the other side), 15 ms move. The wet signal now joins
+  both ears after the beat (and still feeds the reverb); at 0 it is centred as before. ~+5% of the idle patch, always on.
   **Pd lessons from it:** a value stored with `[f]`'s right inlet never reaches anyone: send the message to every
   consumer's cold inlet. `[pipe]` with several arguments splits a list into outlets (use `[list split]` + `[del]` + `[list]`).
   A second voice in a switch~ group was silently lost (never explained; one voice avoids it).
