@@ -25,12 +25,19 @@ final class Worlds {
         final String title;
         final String when;
         final String defaultPreset;
+        /** False: the world starts out switched off (its preset is still there to pick). */
+        final boolean onByDefault;
 
         World(String id, String title, String when, String defaultPreset) {
+            this(id, title, when, defaultPreset, true);
+        }
+
+        World(String id, String title, String when, String defaultPreset, boolean onByDefault) {
             this.id = id;
             this.title = title;
             this.when = when;
             this.defaultPreset = defaultPreset;
+            this.onByDefault = onByDefault;
         }
     }
 
@@ -40,7 +47,7 @@ final class Worlds {
             new World(WorldSelector.KINETIC, "Kinetic", "walking", "Kinetic world"),
             new World(WorldSelector.GHOST, "Ghost", "midnight to 5 AM", "Ghost world"),
             new World(WorldSelector.POCKET, "Pocket", "phone in a pocket", "Pocket world"),
-            new World(WorldSelector.UNSTABLE, "Unstable", "shaking the phone", "Unstable world"),
+            new World(WorldSelector.UNSTABLE, "Unstable", "shaking the phone", "Unstable world", false),   // Samuel: opt-in
     };
 
     /** Stored in place of a preset name when the user switches a world off. */
@@ -81,7 +88,7 @@ final class Worlds {
         enabled = prefs.getBoolean(KEY_ENABLED, false);
         presetFor.clear();
         for (World w : ALL) {
-            presetFor.put(w.id, prefs.getString(KEY_PRESET_PREFIX + w.id, w.defaultPreset));
+            presetFor.put(w.id, prefs.getString(KEY_PRESET_PREFIX + w.id, w.onByDefault ? w.defaultPreset : NONE));
         }
         updateAllowed();
     }

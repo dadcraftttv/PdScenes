@@ -21,7 +21,7 @@ The glitch engine must stay cheap: off at Amount 0 (switch~), measured on the ph
    (which today only has reverse echo).
 4. **(BUILT 2026-10-09 with step strength and the cadence groove) Kinetic pattern tiers.** Dimensions switches among five patterns by accelerometer level, with random variation. Ours
    now has five 8-step patterns picked at random each bar, with rests (2026-10-08); still to do: tie the pattern to pace tiers. Stopping must still drop the drums immediately.
-5. **(BUILT 2026-10-09: shake the phone, at once, 5 s hold) Unstable world.** Jolt-triggered stack of many ordinary effects on the mic at once (glitch, pitch shift, ring mod,
+5. **(BUILT 2026-10-09: shake the phone, at once, 5 s hold; off by default, Samuel found it adds little) Unstable world.** Jolt-triggered stack of many ordinary effects on the mic at once (glitch, pitch shift, ring mod,
    crush, delay), glitchy by design. We have all the effects; it needs a trigger and a preset.
 5b. **(PHASE 1 BUILT 2026-10-09: buffer, stutter/reverse/tape stop/shuffle, sound trigger + free clock + step lock, Amount) Samuel's idea (Oct 9): "glitch cloud" — Ableton warp + the Glitch VST (v1.3).** Random bits of what the mic hears
    are grabbed into a RAM-only ring buffer (never to disk) and played back around the listener: extreme time-stretch

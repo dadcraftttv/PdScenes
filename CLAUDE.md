@@ -63,7 +63,8 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   within 1.5 s; one bump or walking bumps don't count) while not walking brings it *at once* (no dwell or min hold,
   0.3 s fade instead of 3 s) and keeps it until 5 s after the last shake; then the normal 5 s dwell hands back.
   Preset: glitch cloud at full (no stretch), crush, ring mod, pitch +7, echo scatter 1, with Shake = higher movers on
-  ring freq, pitch and crush rate. Now line says "shaken". Worlds skip locked params and `*_on`
+  ring freq, pitch and crush rate. Now line says "shaken". **Off by default** (Samuel: it adds little; opt-in in the
+  world list, `World.onByDefault`). Worlds skip locked params and `*_on`
   switches and never flip `music_on`.
 - **Sensors / Pocket world:** `PhoneContext` (pure logic, test X) holds brightness/pocket/climb and the rotation-vector heading; `SensorInput` feeds it. Mover shapes 13-15 are Brighter/In pocket/Climbing.
   Brightness is *room-relative* (Samuel: "it should respond to the world/room/situation around the user"): 75% where the light sits between
