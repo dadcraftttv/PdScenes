@@ -1173,7 +1173,7 @@ check(not degs_n and not degs_b and not degs_q,
       "harmony: noise, a short blip and a hum lost in the room's quiet play nothing (%s %s %s)" % (degs_n, degs_b, degs_q))
 
 # glitch cloud: a sudden sound comes back mangled; each kind does what it says
-GC_KINDS = ("gc_stutter", "gc_reverse", "gc_tape", "gc_shuffle", "gc_stretch")
+GC_KINDS = ("gc_stutter", "gc_reverse", "gc_tape", "gc_shuffle", "gc_stretch", "gc_scratch")
 def gc_run(x, kind=None, steps=None, **over):
     """The glitch cloud alone (dry, echo and music off), with only `kind` switched on. Returns the left+right output
     and the kinds that fired. steps: seconds between footsteps, sent from the start."""
@@ -1225,6 +1225,13 @@ held = g[int(0.4 * SR):int(1.0 * SR)] if len(g) > SR else np.zeros(4)
 pitch = zc(held) / 2                                          # (zc counts the crossings both ways: twice the pitch)
 check(m[:1] == [4] and len(g) > 1.2 * SR and 800 < pitch < 1250,
       "glitch cloud: stretch smears a 0.3 s sound over %.1f s at its own pitch (%.0f Hz, %s)" % (len(g) / SR, pitch, m[:3]))
+# scratch: the sound rocked back and forth, so its pitch swings up and down (forward fast, stop, backward, stop)
+y, m = gc_run(burst_in(steady, total=8.0), "gc_scratch"); g, _ = glitch_part(y, thr=0.02)
+win = int(0.03 * SR); rates = [zc(g[i:i + win]) / 2 for i in range(0, len(g) - win, win)] if len(g) > 2 * win else [0]
+loud = [r for r, i in zip(rates, range(0, len(g) - win, win)) if rms(g[i:i + win]) > 0.02]
+check(m[:1] == [5] and len(loud) >= 4 and max(loud) > 1.4 * 1000 and min(loud) < 0.7 * 1000,
+      "glitch cloud: scratch swings the pitch up and down (%.0f to %.0f Hz over %d bits, %s)"
+      % (min(loud or [0]), max(loud or [0]), len(loud), m[:3]))
 # the free clock: a steady sound with no sudden start still gets a glitch now and then
 rng = np.random.default_rng(9); fade = np.minimum(np.arange(12 * SR) / (3 * SR), 1)
 hum12 = (rng.standard_normal(12 * SR) * 0.05 * fade).astype(np.float32)
@@ -1242,8 +1249,8 @@ def gc_sides(seed):
     y = e.run(x)[int(3.0 * SR):int(3.6 * SR)]
     l, r = rms(y[:, 0]), rms(y[:, 1])
     return (l - r) / max(l + r, 1e-9)
-bal = [gc_sides(s) for s in (11, 12, 13)]
-check(all(abs(b) > 0.3 for b in bal), "glitch cloud: each glitch sits well out to one side (balance %s)" % ["%.2f" % b for b in bal])
+bal = [gc_sides(s) for s in (11, 12, 13, 14, 15)]   # (now and then a free-clock glitch elsewhere overlaps the window)
+check(sum(abs(b) > 0.3 for b in bal) >= 4, "glitch cloud: each glitch sits well out to one side (balance %s)" % ["%.2f" % b for b in bal])
 
 # echo scatter: each repeat lands somewhere else; at 0 the echo stays in the middle
 def echo_balance(scatter):
