@@ -7,6 +7,7 @@ graph from named nodes instead, so adding an effect is a few lines. Run from any
 
     python3 tools/make_patch.py
 """
+import math
 import os
 import re
 
@@ -76,6 +77,13 @@ ARP_PATTERNS = (
 )
 ARP_REST_SLOW_PCT = 25       # chance (in 100) that a footstep plays no note when strolling...
 ARP_REST_FAST_PCT = 5        # ...and when walking briskly
+# Density memory: the music counts the notes it played lately (each fades over DENSITY_S) and makes room when busy
+DENSITY_S = 8.0
+DENSITY_BUSY = 10            # notes "in memory" at which half the chimes are skipped (about 1.25 a second)
+DENSITY_ARP_FROM = 16        # the walking arpeggio only starts resting more past this...
+DENSITY_ARP_PCT = 2          # ...by this many percent per note over it...
+DENSITY_ARP_MAX = 30         # ...up to this much
+DENSITY_ARP_WEIGHT = 0.3     # an arpeggio note counts this much (the steady bed must not silence the chimes on the beat)
 CHIME_SPAN = 4               # chime melodies wander this many scale steps either side of the brightness note
 CHIME_DECAY_MS = (900, 2600)     # each chime's fade, picked at random
 CHIME_OVERTONE = (0.12, 0.45)    # each chime's 2nd-harmonic level (3rd is a third of it): mellow to bright
@@ -680,6 +688,25 @@ def add_music(P):
     P.obj("mu_note_s", "s chime_deg", cx - 100, cy + 160)              # every note played, for the tests
     P.c("mu_pick_t", "mu_note_s")
 
+    # ---- density memory: every chime adds 1 (a walking-arpeggio note, the rhythm bed, DENSITY_ARP_WEIGHT), and the
+    # count fades away over DENSITY_S ----
+    for nm, w, src in (("c", 1, "mu_pick_t"), ("a", DENSITY_ARP_WEIGHT, "mu_rest_gate")):
+        P.obj(f"mu_dn{nm}_t", "t b", x - 300 + 60 * (nm == "a"), 620)
+        P.obj(f"mu_dn{nm}_rd", "value mdens", x - 300 + 60 * (nm == "a"), 640)
+        P.obj(f"mu_dn{nm}_add", f"+ {w}", x - 300 + 60 * (nm == "a"), 660)
+        P.obj(f"mu_dn{nm}_wr", "value mdens", x - 300 + 60 * (nm == "a"), 680)
+        P._late_dn = getattr(P, "_late_dn", []) + [(src, f"mu_dn{nm}_t")]
+        P.c(f"mu_dn{nm}_t", f"mu_dn{nm}_rd"); P.c(f"mu_dn{nm}_rd", f"mu_dn{nm}_add"); P.c(f"mu_dn{nm}_add", f"mu_dn{nm}_wr")
+    P.obj("mu_dn_tick", "metro 250", x - 200, 600)
+    P.c("mu_load", "mu_dn_tick")
+    P.obj("mu_dn_rd2", "value mdens", x - 200, 640)
+    P.obj("mu_dn_fade", f"* {math.exp(-0.25 / DENSITY_S):.5f}", x - 200, 660)
+    P.obj("mu_dn_wr2", "value mdens", x - 200, 680)
+    P.obj("mu_dn_on", "* 1", x - 200, 670)                              # density_on 0 (tests only) forgets at once
+    P.obj("mu_dn_r_on", "r density_on", x - 120, 650); P.c("mu_dn_r_on", "mu_dn_on", 0, 1)
+    P.c("mu_dn_tick", "mu_dn_rd2"); P.c("mu_dn_rd2", "mu_dn_fade"); P.c("mu_dn_fade", "mu_dn_on"); P.c("mu_dn_on", "mu_dn_wr2")
+    keep = f"1000/(1+pow($f2/{DENSITY_BUSY},2))"                       # chance in 1000 a chime still plays
+
     # Path 1, sudden sounds: a chime whose loudness follows the room.
     P.obj("mu_ons_gate", "spigot 1", x + 300, 510)
     P.obj("mu_ons_gate_on", "spigot", x + 300, 540)
@@ -700,7 +727,14 @@ def add_music(P):
     # arpeggio instead of landing anywhere (Samuel). Standing still it plays at once.
     P.obj("mu_q_now", "spigot 1", x + 200, 690)                      # not walking: straight through
     P.obj("mu_q_hold", "spigot 0", x + 300, 690)                     # walking: keep the latest one for the next slot
-    P.c("mu_ons_vel", "mu_q_now"); P.c("mu_ons_vel", "mu_q_hold")
+    P.obj("mu_dn1_t", "t f b b", x + 200, 670)                        # busy lately? skip some
+    P.obj("mu_dn1_rnd", "random 1000", x + 260, 680); P.obj("mu_dn1_rd", "value mdens", x + 330, 680)
+    ex("mu_dn1_keep", f"$f1<{keep}", x + 260, 690)
+    P.obj("mu_dn1_gate", "spigot", x + 200, 695)
+    P.c("mu_ons_vel", "mu_dn1_t"); P.c("mu_dn1_t", "mu_dn1_rd", 2, 0); P.c("mu_dn1_rd", "mu_dn1_keep", 0, 1)
+    P.c("mu_dn1_t", "mu_dn1_rnd", 1, 0); P.c("mu_dn1_rnd", "mu_dn1_keep"); P.c("mu_dn1_keep", "mu_dn1_gate", 0, 1)
+    P.c("mu_dn1_t", "mu_dn1_gate", 0, 0)
+    P.c("mu_dn1_gate", "mu_q_now"); P.c("mu_dn1_gate", "mu_q_hold")
     P.c("mu_q_now", "mu_deg")
     P.obj("mu_q_store", "f", x + 300, 720)
     P.c("mu_q_hold", "mu_q_store", 0, 1)
@@ -721,10 +755,13 @@ def add_music(P):
     P.c("mu_still_on", "mu_still_t")
     P.obj("mu_roll", "random 1000", x + 800, 720)
     ex("mu_chance", "$f1<$f2", x + 800, 750)
-    ex("mu_p", "320*pow($f1,3)", x + 900, 720)                       # chance in 1000 every 0.25 s: 0 in a quiet room, about 1 in 3 when lively
+    ex("mu_p", f"320*pow($f1,3)/(1+pow($f2/{DENSITY_BUSY},2))", x + 900, 720)   # chance in 1000 every 0.25 s: 0 in a quiet room, about 1 in 3 when lively (less when busy lately)
+    P.obj("mu_p_dn", "value mdens", x + 980, 690)
     P.obj("mu_rd_p", "value mloud", x + 900, 690)
     P.c("mu_still_t", "mu_roll", 0, 0)
-    P.c("mu_still_t", "mu_rd_p", 1, 0); P.c("mu_rd_p", "mu_p"); P.c("mu_p", "mu_chance", 0, 1)
+    P.obj("mu_p_t", "t b b", x + 900, 680)
+    P.c("mu_still_t", "mu_p_t", 1, 0); P.c("mu_p_t", "mu_p_dn", 1, 0); P.c("mu_p_dn", "mu_p", 0, 1)
+    P.c("mu_p_t", "mu_rd_p", 0, 0); P.c("mu_rd_p", "mu_p"); P.c("mu_p", "mu_chance", 0, 1)
     P.c("mu_roll", "mu_chance")
     P.obj("mu_chance_sel", "sel 1", x + 800, 780)
     P.c("mu_chance", "mu_chance_sel")
@@ -788,12 +825,18 @@ def add_music(P):
     P.c("mu_pat_tab", "mu_arp_deg")
     # now and then a step rests (the bar still moves on)
     P.obj("mu_rest_rnd", "random 100", x + 1300, 690)
-    ex("mu_rest_play", f"$f1>=({ARP_REST_SLOW_PCT}-{ARP_REST_SLOW_PCT - ARP_REST_FAST_PCT}*$f2)", x + 1300, 720)
+    ex("mu_rest_play", f"$f1>=({ARP_REST_SLOW_PCT}-{ARP_REST_SLOW_PCT - ARP_REST_FAST_PCT}*$f2"
+                       f"+min({DENSITY_ARP_MAX},max(0,$f3-{DENSITY_ARP_FROM})*{DENSITY_ARP_PCT}))", x + 1300, 720)
+    P.obj("mu_rest_dn", "value mdens", x + 1400, 690)
     P.c("mu_pace_f", "mu_rest_play", 0, 1)        # strolling rests more than walking briskly
     P.obj("mu_rest_gate", "spigot 1", x + 1100, 885)
-    P.c("mu_arp_t", "mu_rest_rnd", 3, 0); P.c("mu_rest_rnd", "mu_rest_play"); P.c("mu_rest_play", "mu_rest_gate", 0, 1)
+    P.obj("mu_rest_t", "t b b", x + 1300, 680)
+    P.c("mu_arp_t", "mu_rest_t", 3, 0); P.c("mu_rest_t", "mu_rest_dn", 1, 0); P.c("mu_rest_dn", "mu_rest_play", 0, 2)
+    P.c("mu_rest_t", "mu_rest_rnd", 0, 0); P.c("mu_rest_rnd", "mu_rest_play"); P.c("mu_rest_play", "mu_rest_gate", 0, 1)
     P.c("mu_arp_deg", "mu_rest_gate")
     P.c("mu_rest_gate", degree_in); P.c("mu_rest_gate", "mu_note_s")
+    for src, dst in getattr(P, "_late_dn", []):
+        P.c(src, dst)
     # The arpeggio note itself needs the chime path's tail (frequency, round robin): it joins at degree_in.
     # Walking state: while steps keep coming the "still" pattern stays quiet.
     P.obj("mu_walk_t", "t b b", x + 1100, 900)

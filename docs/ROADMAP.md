@@ -50,7 +50,7 @@ The glitch engine must stay cheap: off at Amount 0 (switch~), measured on the ph
 6. **(BUILT 2026-10-09 as the Scratch glitch kind, no world) Collective world.** Capture a buffer and "scratch" it back and forth like a turntablist. A new scratch effect.
 7. **Optional: "calm builds" mode.** Dimensions' Tranquil adds layers the longer you stay quiet and lets noise make the music
    shrink away. Opposite of the current behavior (quiet room = quiet notes), so only as an option, if Samuel wants it.
-8. **Density memory.** Generative rule sets that look at how dense the recent music has been and adapt (avoids too many
+8. **(BUILT 2026-10-09: chimes thin out when lots was played in the last ~8 s) Density memory.** Generative rule sets that look at how dense the recent music has been and adapt (avoids too many
    notes in a row).
 9. **Stems player (hybrid approach).** Dimensions used stems made in a DAW, layered and faded by sensor data; all-Pd
    synthesis was too heavy. Samuel makes synthwave stems, so the app could play his loops. Plan: ship compressed audio,

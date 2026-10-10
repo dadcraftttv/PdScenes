@@ -77,7 +77,7 @@ check(not bad, "patch loads with no Pd errors" + (": %s" % bad if bad else ""))
 
 jp = java_params()
 patch_text = open(PATCH).read()
-receivers = set(re.findall(r"#X obj \d+ \d+ r (\w+);", patch_text)) - {"step", "scale_n", "pad_glide", "mic_level", "pad_slot", "pool_n", "pool_x", "pocket", "pocket_down", "duck", "step_strength", "step_hit", "beat_sure", "groove", "gc_mode"} - {r for r in re.findall(r"#X obj \d+ \d+ r (sw_\w+);", open(PATCH).read())}   # events and internal links, not settings
+receivers = set(re.findall(r"#X obj \d+ \d+ r (\w+);", patch_text)) - {"step", "scale_n", "pad_glide", "mic_level", "pad_slot", "pool_n", "pool_x", "pocket", "pocket_down", "duck", "step_strength", "step_hit", "beat_sure", "groove", "gc_mode", "density_on"} - {r for r in re.findall(r"#X obj \d+ \d+ r (sw_\w+);", open(PATCH).read())}   # events and internal links, not settings
 pd_ids = {i for i, _, nopd in jp if not nopd}
 check(len(jp) >= 10, "parsed %d params from Params.java" % len(jp))
 check(pd_ids == receivers, "Params.java ids == patch receivers (java-only %s, patch-only %s)"
@@ -848,12 +848,17 @@ check(len(low) >= 6 and lo_main and hi_main and np.mean(lo_main) + 1.5 < np.mean
 # pad chords per scale: home chord, its two neighbours, and now and then one contrast chord. Never a diminished chord.
 POOLS = {0: ({0, 3, 4}, 5), 1: ({0, 3, 4}, 2), 2: ({0, 1, 2, 3, 4}, None), 4: ({0, 3, 4}, 6), 5: ({0, 3, 6}, 4), 6: ({0, 1, 4}, 5)}
 NAMES = {0: "major", 1: "minor", 2: "major pentatonic", 4: "dorian", 5: "mixolydian", 6: "lydian"}
+# (a 20% contrast chord can miss ~21 picks of one scale about 1% of the time, and Pd's random seeds shift whenever
+# objects are added, so its presence is checked over all the scales together)
+contrast_seen = 0
 for scale, (pool, contrast) in POOLS.items():
     picks = pad_choices(200, 40, music_scale=scale) + pad_choices(3000, 40, music_scale=scale) + pad_choices(800, 60, music_scale=scale)
     allowed = pool | ({contrast} if contrast is not None else set())
     n_con = sum(1 for c in picks if c == contrast)
-    ok = set(picks) <= allowed and (contrast is None or 0 < n_con <= 0.45 * len(picks))
+    contrast_seen += n_con if contrast is not None else 0
+    ok = set(picks) <= allowed and (contrast is None or n_con <= 0.45 * len(picks))
     check(ok, "music: %s pad uses only its chords %s%s (picked %s)" % (NAMES[scale], sorted(pool), "" if contrast is None else " + contrast %d" % contrast, picks))
+check(contrast_seen >= 3, "music: the contrast chords do turn up (%d times over the scales)" % contrast_seen)
 # chord changes crossfade: no pitch slides through notes outside the key while the chord changes
 e = fresh(music_on=1, music_pad=1, music_arp=0, music_res=0, wet=0); e.listen("pad_chord")
 y = e.run(sine(3000, 0.05, 40))[:, 0]
@@ -1121,6 +1126,21 @@ def pocket_res(pocket):
     return e.run(x)[:, 0][int(0.1 * SR):]          # the ringing after the burst (the dry burst is over by then)
 rfree, rpocket = rms(pocket_res(0)), rms(pocket_res(1))
 check(0.05 * rfree < rpocket < 0.5 * rfree, "pocket hush: Room notes ring softer in a pocket but still ring (%.6f vs %.4f)" % (rpocket, rfree))
+
+# density memory: in a busy room the chimes start eager, then thin out once a lot has been played lately
+def note_rate(on=1):
+    e = fresh(music_on=1, music_pad=0, music_arp=1, wet=0, music_react=1, gain=1); e.listen("chime_deg"); e.send("density_on", on)
+    rng = np.random.default_rng(3); per_s = []
+    for sec in range(30):
+        x = rng.standard_normal(SR) * 0.003
+        for k in range(3):                                         # three loud bursts a second: clatter, voices
+            i = int((0.05 + 0.33 * k) * SR); n = int(0.15 * SR)
+            x[i:i + n] += rng.standard_normal(n) * 0.3 * np.exp(-np.arange(n) / (0.06 * SR))
+        n0 = len(e.heard["chime_deg"]); e.run(x.astype(np.float32)); per_s.append(len(e.heard["chime_deg"]) - n0)
+    return per_s
+with_mem, without = np.mean(note_rate(1)[10:]), np.mean(note_rate(0)[10:])
+check(with_mem < 0.85 * without,
+      "music: density memory thins a busy room's notes (%.2f a second, %.2f without it)" % (with_mem, without))
 
 # harmony: a held pitch gets an in-key answer a third above; noise and short blips get none
 def hum(freq, secs, amp=0.1, quiet=0.0005, seed=4):
