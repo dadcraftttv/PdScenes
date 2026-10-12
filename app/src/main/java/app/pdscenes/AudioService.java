@@ -478,6 +478,9 @@ public class AudioService extends Service {
                         }
                         logEvent("Caught a " + new String[]{"kick", "snare", "hat"}[role] + " for the found-sound beat" + fsLevels);
                     }
+                    if (role == 3) {
+                        logEvent("Skipped a mic pop" + fsLevels);
+                    }
                     return;
                 }
                 if (TEMPO.equals(source)) {

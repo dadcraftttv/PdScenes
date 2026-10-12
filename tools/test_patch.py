@@ -1407,7 +1407,7 @@ thump = fs_sounds()[0]()
 k = np.arange(int(0.25 * SR)); boom = np.clip(3 * np.sin(2 * np.pi * 90 * k / SR) + np.random.default_rng(5).standard_normal(len(k)), -0.99, 0.99)
 p_t, r_t = found_playback(thump); p_b, r_b = found_playback(boom)
 _, _, popped = fs_catch([(0.5, "k")], 2.0); popped2 = fs_catch_raw([(0.5, boom)], 2.0)
-check(popped == [0] and popped2 == [], "found sounds: a thump is kept, a mic pop (clipped and all lows) is not (%s, %s)" % (popped, popped2))
+check(popped == [0] and popped2 == [3], "found sounds: a thump is kept, a mic pop (clipped and all lows) is not (%s, %s)" % (popped, popped2))
 e = fresh(dry=0, wet=0, beat_level=1, beat_follow=1, beat_when=1, rhythm_src=0)                # (the whole synth kit)
 r_syn = rms(e.run((np.random.default_rng(3).standard_normal(14 * SR) * 0.0005).astype(np.float32))[4 * SR:, 0])
 check(r_b < 1.15 * r_syn and p_b < 0.75 and r_t > 0.45 * r_syn,

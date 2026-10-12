@@ -138,7 +138,7 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   found; 0 synth, 2 both): found mode plays the synth at `FS_PLACEHOLDER` (0.25) until the first catch, then never.
   A mic pop is not kept: louder than `FS_POP_DB` (-6 dBFS) with the lows within 6 dB of the whole (Samuel's
   "explosive" snap logged at +8 dBFS, lows 0, highs -18; real knocks -16 to -42 dB; snaps at the mic -1 to -14 dB but
-  carried by their highs, kept as hats). Each catch's levels go to the event log (`fs_levels`: all, lows, highs).
+  carried by their highs, kept as hats). Each catch's levels go to the event log (`fs_levels`: all, lows, highs), a dropped pop as `fs_caught 3` ("Skipped a mic pop").
   The catcher has its own detector (`fs_det`): in a loud room (average > -35 dBFS) a 6 dB jump counts (else 10,
   like the glitch cloud's, which is unchanged). Its audio is switched (`fsound`,
   on while rhythm_src x beat_level > 0). Reports `fs_caught <role>`: the Now line shows "kit K2 S1 H3", the event

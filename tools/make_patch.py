@@ -627,7 +627,7 @@ def add_found_kit(P, x):
     # (hats loosened to 6 dB after the first phone test caught no hats at all from real taps)
     # a mic pop: louder than FS_POP_DB and carried by its lows (a snap at the mic overloads it into a low thump; on
     # the phone +8 dBFS with all its weight below 150 Hz, where real knocks were -16 to -42) is not kept
-    ex("fs_role", f"if($f1<{FS_MIN_DB},-1,if($f1>{FS_POP_DB}&&$f2-$f1>-6,-1,if($f2-$f1>-6,0,if($f3-$f1>-6&&$f2-$f1<-15,2,1))))", x + 400, y + 220)
+    ex("fs_role", f"if($f1<{FS_MIN_DB},-1,if($f1>{FS_POP_DB}&&$f2-$f1>-6,-2,if($f2-$f1>-6,0,if($f3-$f1>-6&&$f2-$f1<-15,2,1))))", x + 400, y + 220)
     # inlets: $f1 overall (hot, last), $f2 lows, $f3 highs
     P.c("fs_d_t", "fs_max_hi", 2, 0); P.c("fs_max_hi", "fs_role", 0, 2)
     P.c("fs_d_t", "fs_max_lo", 2, 0); P.c("fs_max_lo", "fs_role", 0, 1)
@@ -637,6 +637,9 @@ def add_found_kit(P, x):
     P.obj("fs_lv_pk", "pack f f f", x + 300, y + 250); P.obj("fs_lv_s", "s fs_levels", x + 300, y + 270)
     P.c("fs_all_t", "fs_lv_pk", 1, 0); P.c("fs_max_lo", "fs_lv_pk", 0, 1); P.c("fs_max_hi", "fs_lv_pk", 0, 2); P.c("fs_lv_pk", "fs_lv_s")
     P.obj("fs_keep", "moses 0", x + 400, y + 250); P.c("fs_role", "fs_keep")
+    P.obj("fs_pop", "sel -2", x + 300, y + 290); P.c("fs_keep", "fs_pop", 0, 0)   # (a dropped pop is reported as 3)
+    P.msg("fs_pop3", "3", x + 300, y + 310); P.obj("fs_pop_s", "s fs_caught", x + 300, y + 330)
+    P.c("fs_pop", "fs_pop3"); P.c("fs_pop3", "fs_pop_s")
     if os.environ.get("FS_DEBUG"):
         for nm, src, o in (("go", "fs_go", 0), ("onset", "fs_det_sel", 0), ("role", "fs_role", 0), ("all", "fs_max_all", 0),
                            ("lo", "fs_max_lo", 0), ("hi", "fs_max_hi", 0), ("use", "fs_use", 0)):
