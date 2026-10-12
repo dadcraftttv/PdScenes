@@ -188,6 +188,7 @@ FS_PREROLL_MS = 15                 # ...starting this long before the sound was 
 FS_SLOTS = 5                       # slices kept per role (kick, snare, hat); the oldest is replaced (3 felt samey)
 FS_VAR_SEMI = 1.0                  # each hit: its pitch moved up to this many semitones either way...
 FS_VAR_START = (0.3, 10)           # ...this share of hits starting up to this many ms into the slice (a softer attack)...
+FS_FLOURISH = (25, 25)             # per 1000 found hits: played backwards (swelling up to its attack), at half speed
 FS_VAR_VEL = 0.2                   # ...and its loudness varied by this much (0.9-1.1): no two hits quite the same
 FM_REF_HZ = 600                   # found melody: a caught slice plays at note / this (clipped to FM_RATE)...
 FM_KICK_REF_HZ = 150              # (a kick's slice: about a thump's pitch, so a knock is pitched up to the note,
@@ -756,6 +757,13 @@ def add_found_kit(P, x):
     P.c("fs_fill_rd", "fs_fill_add"); P.c("fs_fill_add", "fs_fill_wr")
     # ---- the found voices: a hit (velocity, decay ms) plays a random filled slot of the role ----
     P.obj("fs_sr", "value fs_srv", x + 900, y); P.c("sr", "fs_sr")
+    # the flourish chances (per 1000 hits), as values the voices read; fs_flourish_set (tests) sets both
+    P.obj("fs_fl_lb", "loadbang", x + 1300, y); P.msg("fs_fl_init", f"{FS_FLOURISH[0]} {FS_FLOURISH[1]}", x + 1300, y + 15)
+    P.obj("fs_fl_set", "r fs_flourish_set", x + 1400, y); P.obj("fs_fl_dup", "t f f", x + 1400, y + 15)
+    P.obj("fs_fl_pk", "pack f f", x + 1400, y + 30); P.c("fs_fl_set", "fs_fl_dup"); P.c("fs_fl_dup", "fs_fl_pk", 1, 1); P.c("fs_fl_dup", "fs_fl_pk", 0, 0)
+    P.obj("fs_fl_up", "unpack f f", x + 1300, y + 45); P.c("fs_fl_lb", "fs_fl_init"); P.c("fs_fl_init", "fs_fl_up"); P.c("fs_fl_pk", "fs_fl_up")
+    P.obj("fs_fl_rv", "value fs_rv", x + 1300, y + 60); P.obj("fs_fl_hf", "value fs_hf", x + 1360, y + 60)
+    P.c("fs_fl_up", "fs_fl_rv", 0, 0); P.c("fs_fl_up", "fs_fl_hf", 1, 0)
     outs = []
     for k, (r, rate, filt, lvl, decay) in enumerate(FS_ROLE_SPEC):
         vx, vy = x + 1000 + 400 * k, y + 600
@@ -785,28 +793,35 @@ def add_found_kit(P, x):
         # the read position: from the slice's start (or a few ms in) to its end, over its length / this hit's rate.
         # Each hit gets its own small pitch, start and loudness differences (random draws: $f2 pitch, $f3 start)
         P.obj(f"fsv_{r}_srv", "value fs_srv", vx + 100, vy + 120)
-        P.obj(f"fsv_{r}_jt", "t f b b b", vx + 100, vy + 125)
+        P.obj(f"fsv_{r}_jt", "t f b b b b", vx + 100, vy + 125)
+        P.obj(f"fsv_{r}_jf", "random 1000", vx + 340, vy + 125)              # (a flourish now and then)
         P.obj(f"fsv_{r}_jp", "random 1000", vx + 160, vy + 125); P.obj(f"fsv_{r}_js", "random 1000", vx + 220, vy + 125)
         P.obj(f"fsv_{r}_jv", "random 1000", vx + 280, vy + 125)
         rt = f"({rate}*pow(2,($f2-500)/500*{FS_VAR_SEMI}/12))"
         off = f"if($f3<{FS_VAR_START[0] * 1000},$f3/{FS_VAR_START[0] * 1000}*{FS_VAR_START[1] / 1000}*$f1,0)"
-        ex(f"fsv_{r}_ix", f"{off}+1 ; $f1*{FS_SLICE_S} ; ($f1*{FS_SLICE_S}-{off})/$f1*1000/{rt}".replace(" ; ", " " + BS + "; "),
-           vx + 100, vy + 140)
+        rev, half = "($f4<fs_rv)", "($f4>=fs_rv&&$f4<fs_rv+fs_hf)"
+        a, b = f"({off}+1)", f"($f1*{FS_SLICE_S})"
+        ex(f"fsv_{r}_ix", f"if({rev},{b},{a}) ; if({rev},{a},{b}) ; ($f1*{FS_SLICE_S}-{off})/$f1*1000/{rt}*if({half},2,1)"
+           .replace(" ; ", " " + BS + "; "), vx + 100, vy + 140)
         P.msg(f"fsv_{r}_ixmsg", f"{BS}$1 {BS}, {BS}$2 {BS}$3", vx, vy + 130)
         P.obj(f"fsv_{r}_ixpk", "pack f f f", vx, vy + 120)
         P.obj(f"fsv_{r}_ixl", "vline~", vx, vy + 145)
         P.c(f"fsv_{r}_ix", f"fsv_{r}_ixpk", 2, 2); P.c(f"fsv_{r}_ix", f"fsv_{r}_ixpk", 1, 1); P.c(f"fsv_{r}_ix", f"fsv_{r}_ixpk", 0, 0)
         P.c(f"fsv_{r}_ixpk", f"fsv_{r}_ixmsg"); P.c(f"fsv_{r}_ixmsg", f"fsv_{r}_ixl"); P.c(f"fsv_{r}_ixl", f"fsv_{r}_rd")
         P.c(f"fsv_{r}_srv", f"fsv_{r}_jt")
+        P.c(f"fsv_{r}_jt", f"fsv_{r}_jf", 4, 0); P.c(f"fsv_{r}_jf", f"fsv_{r}_ix", 0, 3)
         P.c(f"fsv_{r}_jt", f"fsv_{r}_jv", 3, 0); P.c(f"fsv_{r}_jt", f"fsv_{r}_jp", 2, 0); P.c(f"fsv_{r}_jt", f"fsv_{r}_js", 1, 0)
         P.c(f"fsv_{r}_jp", f"fsv_{r}_ix", 0, 1); P.c(f"fsv_{r}_js", f"fsv_{r}_ix", 0, 2); P.c(f"fsv_{r}_jt", f"fsv_{r}_ix", 0, 0)
         # loudness: velocity x the slot's gain x the role's level x this hit's variation; decay from the hit (hats) or the role
         P.obj(f"fsv_{r}_dec", f"f {decay}", vx + 300, vy + 120)
-        ex(f"fsv_{r}_amp", f"$f1*$f2*{lvl}*(1-{FS_VAR_VEL / 2}+{FS_VAR_VEL}*$f4/1000) ; $f3".replace(" ; ", " " + BS + "; "), vx + 200, vy + 140)
-        P.c(f"fsv_{r}_jv", f"fsv_{r}_amp", 0, 3)
-        P.obj(f"fsv_{r}_ampk", "pack f f", vx + 200, vy + 160)
-        P.c(f"fsv_{r}_amp", f"fsv_{r}_ampk", 1, 1); P.c(f"fsv_{r}_amp", f"fsv_{r}_ampk", 0, 0)
-        P.msg(f"fsv_{r}_envm", f"0 {BS}, {BS}$1 2 {BS}, 0 {BS}$2 2", vx + 200, vy + 180)
+        # (a backwards hit swells over its length and stops; a half-speed one fades twice as long: $f5 roll, $f6 length)
+        rv5, hf5 = "($f5<fs_rv)", "($f5>=fs_rv&&$f5<fs_rv+fs_hf)"
+        ex(f"fsv_{r}_amp", f"$f1*$f2*{lvl}*(1-{FS_VAR_VEL / 2}+{FS_VAR_VEL}*$f4/1000) ; if({rv5},$f6*0.9,2) ; "
+                           f"if({rv5},15,$f3*if({hf5},2,1))".replace(" ; ", " " + BS + "; "), vx + 200, vy + 140)
+        P.c(f"fsv_{r}_jv", f"fsv_{r}_amp", 0, 3); P.c(f"fsv_{r}_jf", f"fsv_{r}_amp", 0, 4); P.c(f"fsv_{r}_ix", f"fsv_{r}_amp", 2, 5)
+        P.obj(f"fsv_{r}_ampk", "pack f f f", vx + 200, vy + 160)
+        P.c(f"fsv_{r}_amp", f"fsv_{r}_ampk", 2, 2); P.c(f"fsv_{r}_amp", f"fsv_{r}_ampk", 1, 1); P.c(f"fsv_{r}_amp", f"fsv_{r}_ampk", 0, 0)
+        P.msg(f"fsv_{r}_envm", f"0 {BS}, {BS}$1 {BS}$2 {BS}, 0 {BS}$3 {BS}$2", vx + 200, vy + 180)
         P.obj(f"fsv_{r}_env", "vline~", vx + 200, vy + 200)
         P.c(f"fsv_{r}_ampk", f"fsv_{r}_envm"); P.c(f"fsv_{r}_envm", f"fsv_{r}_env")
         P.c(f"fsv_{r}_gv", f"fsv_{r}_amp", 0, 1); P.c(f"fsv_{r}_dec", f"fsv_{r}_amp", 0, 2)

@@ -141,8 +141,9 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   sets it. **Arrangement moments** (step 3): after each bar's pick, at least `BREAK_MIN_BARS` (8) apart, chance
   `BREAK_CHANCE` (0.2), never on a fill bar, the next bar may be sparse (`rh_brk` 1 hats only, 2 no kick, 3 downbeat
   kick + hats), applied from tick 0 (`rh_brk_next`: the engine picks the next bar before tick 15's own hits).
-  `rh_break` reports. Planned next, agreed: found-sound flourishes (a hit backwards or half
-  speed now and then). Test lesson: Pd seeds every [random] from a process-wide counter, so adding objects reshuffles
+  `rh_break` reports. **Flourishes** (step 4): per 1000 found hits `FS_FLOURISH` (25, 25) play backwards
+  (read end -> start, the envelope swelling over its length then a 15 ms stop) or at half speed (twice as long, fading
+  twice as long); the chances are values `fs_rv`/`fs_hf` (set at load; `fs_flourish_set` sets both, tests). Test lesson: Pd seeds every [random] from a process-wide counter, so adding objects reshuffles
   which ghost snares (0.22, ~1-2%/16th) land where in later tests: count learned snares by their velocity.
   The slot switch is a `[set $1(` message (a `makefilename set ...` symbol was ignored: until Oct 12 every voice
   played fs_00 only, and the snare/hat were silent without a kick). `rhythm_src` ("Beat sounds", default 1 =
