@@ -141,7 +141,8 @@ STOP_RETURN_MS = 800       # walking again brings them straight back
 GROOVE_VEL = 0.45           # groove notes are this share of the arpeggio's loudness...
 GROOVE_FADE_IN_MS = 4000   # ...reached over this long
 # Harmony: a held, clearly pitched sound (humming, whistling, a bird, a horn) gets an in-key note answering it.
-HARM_STABLE_FRAMES = 12    # pitch frames (~11 ms each) the pitch must hold steady before it is answered
+HARM_HOP = 1024            # the pitch tracker looks every this many samples (512 cost twice as much: ~30% of the patch)
+HARM_STABLE_FRAMES = 7     # pitch frames (~21 ms each) the pitch must hold steady before it is answered
 HARM_STEADY_ST = 0.6       # frame to frame wobble allowed, in semitones (singing vibrato passes)
 HARM_ABOVE_DB = 6          # how far above the room's quiet the sound must be
 HARM_HIGH = 76             # a pitch from E5 up (a whistle, a bird) is answered below it; lower ones (voices) above
@@ -435,6 +436,21 @@ def add_switch(P, g, factors, tail_ms, also=()):
     P.c(f"grp_{g}_r", f"grp_{g}_sw")
     for node in also:
         P.c(f"grp_{g}_r", node)
+
+
+def soft_limit(P, n, src, limit, gain=1.0, x=0, y=0):
+    """limit x tanh(src x gain / limit), from plain objects (an [expr~] costs several times more): the rational
+    curve u(27+u^2)/(27+9u^2), within ~2% of tanh, reaching 1 at u = 3 (clipped there). Returns the output."""
+    P.obj(f"{n}_u", f"*~ {gain / limit:.6g}", x, y); P.c(src, f"{n}_u")
+    P.obj(f"{n}_uc", "clip~ -3 3", x, y + 15); P.c(f"{n}_u", f"{n}_uc")
+    P.sig2(f"{n}_u2", "*~", f"{n}_uc", f"{n}_uc", x + 60, y + 30)
+    P.obj(f"{n}_nu", "+~ 27", x, y + 45); P.c(f"{n}_u2", f"{n}_nu")
+    P.sig2(f"{n}_num", "*~", f"{n}_uc", f"{n}_nu", x, y + 60)
+    P.obj(f"{n}_d9", "*~ 9", x + 60, y + 45); P.c(f"{n}_u2", f"{n}_d9")
+    P.obj(f"{n}_den", "+~ 27", x + 60, y + 60); P.c(f"{n}_d9", f"{n}_den")
+    P.sig2(f"{n}_q", "/~", f"{n}_num", f"{n}_den", x, y + 75)
+    P.obj(f"{n}", f"*~ {limit}", x, y + 90); P.c(f"{n}_q", f"{n}")
+    return n
 
 
 def smoothed(P, key, recv, x, y, ramp=30, mult=None):
@@ -775,9 +791,8 @@ def add_found_kit(P, x):
         outs.append(f"fsv_{r}_f")
     P.sig2("fs_ks0", "+~", outs[0], outs[1], x + 1000, y + 900)
     # a soft limit, so no caught sound can jump out of the beat (tanh: gentle below, never above FS_LIMIT)
-    lim = f"{FS_LIMIT}*tanh($v1*{FS_MAKEUP}/{FS_LIMIT})".replace("$", BS + "$")
-    P.obj("fs_ks", "expr~ " + lim, x + 1000, y + 920); P.c("fs_ks0", "fs_ks")
-    P.obj("fs_hat_lim", "expr~ " + lim, x + 1100, y + 920); P.c(outs[2], "fs_hat_lim")
+    soft_limit(P, "fs_ks", "fs_ks0", FS_LIMIT, FS_MAKEUP, x + 1000, y + 920)
+    soft_limit(P, "fs_hat_lim", outs[2], FS_LIMIT, FS_MAKEUP, x + 1100, y + 920)
     return "fs_ks", "fs_hat_lim"
 
 
@@ -1310,11 +1325,12 @@ def add_music(P):
     P.obj("mu_slow_lp", "lop~ 0.6", x + 300, 390)
     P.c("mu_r_level", "mu_raw_sig"); P.c("mu_raw_sig", "mu_slow_lp")
     # Brightness: how often the mic signal crosses zero, as a frequency.
-    P.obj("mu_zc_sign", "expr~ " + "($v1>0)".replace("$", d), x + 450, 300)
+    P.obj("mu_zc_amp", "*~ 1e+09", x + 450, 285)                       # x > 0 -> 1, else 0 (an [expr~] cost more)
+    P.obj("mu_zc_sign", "clip~ 0 1", x + 450, 300); P.c("mu_zc_amp", "mu_zc_sign")
     P.obj("mu_zc_diff", "rzero~ 1", x + 450, 330)
     P.obj("mu_zc_abs", "abs~", x + 450, 360)
     P.obj("mu_zc_lp", "lop~ 1.5", x + 450, 390)
-    P.c("mic_gated", "mu_zc_sign"); P.c("mu_zc_sign", "mu_zc_diff")
+    P.c("mic_gated", "mu_zc_amp"); P.c("mu_zc_sign", "mu_zc_diff")
     P.c("mu_zc_diff", "mu_zc_abs"); P.c("mu_zc_abs", "mu_zc_lp")
     P.obj("mu_half_sr", "/ 2", x + 620, 330)
     P.c("sr", "mu_half_sr")
@@ -1439,7 +1455,17 @@ def add_music(P):
         caught = "(fs_filled[0]+fs_filled[1]+fs_filled[2]>0)"
         ex(f"mu_v{k}_vsyn", f"$f1*if(mel_src[0]==1&&{caught},0,1)", vx, cy + 38)
         P.obj(f"mu_v{k}_vt", "t f f", vx, cy + 34); P.c(f"mu_v{k}_vel", f"mu_v{k}_vt")
-        P.c(f"mu_v{k}_vt", f"mu_v{k}_vsyn", 1, 0); P.c(f"mu_v{k}_vsyn", f"mu_v{k}_pk")
+        P.c(f"mu_v{k}_vt", f"mu_v{k}_vsyn", 1, 0)
+        # its audio runs only while it rings (its own switch~ group chv<k>): on at the note, off after the fade
+        P.obj(f"mu_v{k}_vst", "t f f", vx, cy + 41); P.c(f"mu_v{k}_vsyn", f"mu_v{k}_vst"); P.c(f"mu_v{k}_vst", f"mu_v{k}_pk", 0, 0)
+        P.obj(f"mu_v{k}_von", "moses 0.0001", vx + 30, cy + 41); P.c(f"mu_v{k}_vst", f"mu_v{k}_von", 1, 0)
+        P.obj(f"mu_v{k}_vbt", "t b b", vx + 30, cy + 42); P.c(f"mu_v{k}_von", f"mu_v{k}_vbt", 1, 0)
+        P.msg(f"mu_v{k}_swon", f"{BS}; sw_chv{k} 1", vx + 30, cy + 43); P.c(f"mu_v{k}_vbt", f"mu_v{k}_swon", 1, 0)
+        P.obj(f"mu_v{k}_swdc", "value cdec", vx + 60, cy + 43); P.obj(f"mu_v{k}_swt", "+ 300", vx + 60, cy + 44)
+        P.obj(f"mu_v{k}_swdl", "del", vx + 60, cy + 45); P.msg(f"mu_v{k}_swoff", f"{BS}; sw_chv{k} 0", vx + 60, cy + 46)
+        P.c(f"mu_v{k}_vbt", f"mu_v{k}_swdc", 0, 0); P.c(f"mu_v{k}_swdc", f"mu_v{k}_swt"); P.c(f"mu_v{k}_swt", f"mu_v{k}_swdl")
+        P.c(f"mu_v{k}_swdl", f"mu_v{k}_swoff")
+        P.obj(f"grp_chv{k}_r", f"r sw_chv{k}", 10, 10); P.obj(f"grp_chv{k}_sw", "switch~", 10, 40); P.c(f"grp_chv{k}_r", f"grp_chv{k}_sw")
         P.c(f"mu_v{k}_vt", f"fm{k}_in", 0, 0)
         add_found_note(P, k, vx, cy + 1500, ex, caught)
         P.c(f"mu_v{k}_pk", f"mu_v{k}_env_msg"); P.c(f"mu_v{k}_env_msg", f"mu_v{k}_env")
@@ -1461,8 +1487,7 @@ def add_music(P):
     P.obj("fm_agc_pk", "pack f 20", cx + 900, cy + 1910); P.obj("fm_agc_ln", "line~", cx + 900, cy + 1925)
     P.c("fm_agc", "fm_agc_pk"); P.c("fm_agc_pk", "fm_agc_ln")
     P.sig2("fm_lvl", "*~", facc, "fm_agc_ln", cx + 800, cy + 1940)
-    lim = f"{FM_LIMIT}*tanh($v1/{FM_LIMIT})".replace("$", BS + "$")
-    P.obj("fm_lim", "expr~ " + lim, cx + 800, cy + 1960); P.c("fm_lvl", "fm_lim")
+    soft_limit(P, "fm_lim", "fm_lvl", FM_LIMIT, 1.0, cx + 800, cy + 1960)
     P.sig2("mu_chime_all", "+~", acc, "fm_lim", cx + 600, cy + 370)
     P.obj("mu_chime_scale", "*~ 0.22", cx + 600, cy + 380)
     P.c("mu_chime_all", "mu_chime_scale")
@@ -1873,6 +1898,18 @@ def add_music(P):
         P.obj(f"mu_xf{k}", "line~", px + 400 + 80 * k, 350)
         P.c("mu_r_slot", f"mu_xf{k}_is"); P.c(f"mu_xf{k}_is", f"mu_xf{k}_pk"); P.c(f"mu_xf{k}_pk", f"mu_xf{k}")
         P.c("mu_r_glide", f"mu_xf{k}_pk", 0, 1)
+        # this set's audio runs only while it sounds: on when it takes a chord, off once it has faded out
+        P.obj(f"mu_xf{k}_sel", "sel 1 0", px + 400 + 80 * k, 370); P.c(f"mu_xf{k}_is", f"mu_xf{k}_sel")
+        P.obj(f"mu_xf{k}_ont", "t b b", px + 400 + 80 * k, 385)
+        P.msg(f"mu_xf{k}_swon", f"{BS}; sw_pads{k} 1", px + 400 + 80 * k, 400)
+        P.obj(f"mu_xf{k}_dl", f"del {PAD_GLIDE_MS + 300}", px + 440 + 80 * k, 400)
+        P.msg(f"mu_xf{k}_stop", "stop", px + 440 + 80 * k, 385)
+        P.msg(f"mu_xf{k}_swoff", f"{BS}; sw_pads{k} 0", px + 440 + 80 * k, 415)
+        P.c(f"mu_xf{k}_sel", f"mu_xf{k}_ont", 0, 0); P.c(f"mu_xf{k}_ont", f"mu_xf{k}_stop", 1, 0); P.c(f"mu_xf{k}_stop", f"mu_xf{k}_dl")
+        P.c(f"mu_xf{k}_ont", f"mu_xf{k}_swon", 0, 0)
+        P.c(f"mu_xf{k}_sel", f"mu_xf{k}_dl", 1, 0); P.c(f"mu_xf{k}_dl", f"mu_xf{k}_swoff")
+        P.obj(f"mu_xf{k}_gl", "+ 300", px + 520 + 80 * k, 385); P.c("mu_r_glide", f"mu_xf{k}_gl"); P.c(f"mu_xf{k}_gl", f"mu_xf{k}_dl", 0, 1)
+        P.obj(f"grp_pads{k}_r", f"r sw_pads{k}", 10, 10); P.obj(f"grp_pads{k}_sw", "switch~", 10, 40); P.c(f"grp_pads{k}_r", f"grp_pads{k}_sw")
     pad_sum = None
     offsets = ["+ 0", "+ 2", "+ 4", None]
     for i in range(4):
@@ -2047,7 +2084,7 @@ def add_harmony(P, hx, ex, degree_to_hz):
     pitch that stays steady for a moment, clearly above the room's quiet, counts, so noise and speech blips play
     nothing. Two voices take turns, so a new note never bends the one still fading. Returns the output signal."""
     P.sig2("mu_hm_src", "*~", "mic_gated", "ph_ln", hx, 20)          # quieter in a pocket, like the rest
-    P.obj("mu_hm_sig", "sigmund~ -hop 512 -npts 2048 pitch env", hx, 50)   # env comes out first, then pitch
+    P.obj("mu_hm_sig", f"sigmund~ -hop {HARM_HOP} -npts 2048 pitch env", hx, 50)   # env comes out first, then pitch
     P.c("mu_hm_src", "mu_hm_sig")
     P.obj("mu_hm_thr", "value mthr", hx + 200, 80)
     P.obj("mu_hm_env_t", "t f b", hx + 200, 50)
@@ -2568,8 +2605,7 @@ def add_room_notes(P, rx, ex, degree_to_hz):
     P.obj("rn_gain", f"*~ {RES_GAIN}", rx, 540)
     P.c(acc, "rn_gain")
     # Soft limit: a note sung right on a resonator passes at full strength, so cap the voice gently.
-    P.obj("rn_soft", "expr~ " + f"{RES_MAX}*tanh($v1/{RES_MAX})".replace("$", BS + "$"), rx, 570)
-    P.c("rn_gain", "rn_soft")
+    soft_limit(P, "rn_soft", "rn_gain", RES_MAX, 1.0, rx, 570)
     lvl = smoothed(P, "music_res", "music_res", rx + 300, 540)
     # Fade in whenever the block switches on: its resonators start from rest, and with a sound already going
     # they would jump in with a click once the lookahead buffer fills.
@@ -3350,15 +3386,21 @@ def build():
     add_switch(P, "reverse", ("rvs_on", "rvs_mix"), 300)
     P.group("roomnotes", r"^rn\d*_")
     add_switch(P, "roomnotes", ("music_on", "music_res"), 2500)       # rings run up to ~2 s
+    for k in range(4):                                                  # each synth chime voice: on only while it rings
+        P.group(f"chv{k}", rf"^mu_v{k}_(o1|o2|o3|g2|g3|s12|s|env|out)$")
+    for k in range(2):                                                  # the pad's two crossfade sets: on only while heard
+        P.group(f"pads{k}", rf"^(mu_pad\d_{k}_(o1|o2|s|x)|mu_xf{k})$")
+    P.group("harm", r"^mu_hm")                                          # Harmony's tracker and voices: off at 0
+    add_switch(P, "harm", ("music_on", "music_harm"), 2500)            # (its notes fade over 1.8 s)
     P.group("music", r"^(mu_|ba_)")
     add_switch(P, "music", ("music_on",), 3000)                       # chimes fade over up to 2.6 s
     P.group("gloop", r"^gl_(rec_in|rec|ix|rd|env|s0|out)$")                    # the glitch loop's audio
     add_switch(P, "gloop", ("beat_glitch", "beat_level", "gc_amount"), 3500)
     for k in range(4):                                                  # each found melody voice: on only while it rings
         P.group(f"fmv{k}", rf"^fm{k}_(rd|ix|env|raw|bp|fs1|r1|res|mix|out)$")
-    P.group("fmelody", r"^fm_(acc\d|lim|env|agc_ln|lvl)$")             # the found melody's mix
+    P.group("fmelody", r"^fm_(acc\d|lim(_\w+)?|env|agc_ln|lvl)$")             # the found melody's mix
     add_switch(P, "fmelody", ("music_on", "melody_src"), 3000)
-    P.group("fsound", r"^(fs_(src|wr|rd|rec|lo|hi|env_\w+|ks0|ks|hat_lim)|fsv_\w+_(rd|ixl|env|s|f))$")    # the found-sound kit's audio
+    P.group("fsound", r"^(fs_(src|wr|rd|rec|lo|hi|env_\w+|ks0|ks(_\w+)?|hat_lim(_\w+)?)|fsv_\w+_(rd|ixl|env|s|f))$")    # the found-sound kit's audio
     add_switch(P, "fsound", ("fs_need",), 500)
     P.group("gcv", r"^gc0_")                                           # the glitch voices: on only while playing
     P.group("gcs", r"^gc2_")
