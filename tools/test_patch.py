@@ -1280,6 +1280,13 @@ pl, _ = clock_pulses(wobbly, 12.0, beat_follow=0)
 check(np.std(np.diff(pl[(pl > 3) & (pl < 10)])) > 0.015, "tempo clock: 'your steps' passes the steps straight on, wobble and all (spread %.3f s)"
       % np.std(np.diff(pl[(pl > 3) & (pl < 10)])))
 
+# the clock ticks from the start: standing still from Start there is a beat (Samuel heard none)
+e = fresh(dry=0, wet=0, beat_level=1, beat_follow=1, beat_when=1); e.listen("tick16", "drum_kick", "drum_hat")
+yq = e.run(np.zeros(4 * SR, np.float32))[:, 0]
+n_hits = len(e.heard["drum_kick"]) + len(e.heard["drum_hat"])
+check(len(e.heard["tick16"]) >= 20 and n_hits >= 5 and rms(yq[SR:]) > 0.003,
+      "rhythm: with no step yet it already keeps a soft beat (%d ticks, %d hits in 4 s)" % (len(e.heard["tick16"]), n_hits))
+
 # the pattern engine: bars of kick/snare/hat patterns on the clock's 16ths, varied every bar, softer standing still
 def rhythm_run(walk_s, stand_s, x_stand=None, **over):
     e = fresh(**dict(dict(dry=0, wet=0, beat_level=1, beat_follow=1, beat_when=1), **over))
@@ -1295,7 +1302,7 @@ def rhythm_run(walk_s, stand_s, x_stand=None, **over):
 walk, stand, yw, ys = rhythm_run(32, 10)
 bars = [int(v) for v in walk["rh_bar_patterns"]]
 check(len(walk["tick16"]) == 4 * len(walk["tempo"]) and len(set(bars)) >= 3 and all(a != b for a, b in zip(bars, bars[1:])),
-      "rhythm: 16ths on the clock (%d ticks, %d beats); the kick pattern changes every bar (%s)" % (len(walk["tick16"]), len(walk["tempo"]), bars))
+      "rhythm: 16ths on the clock (%d ticks, %d beats); the kick pattern changes every 2 bars, never repeating (%s)" % (len(walk["tick16"]), len(walk["tempo"]), bars))
 quiet = rms(ys[2 * SR:]) / rms(yw[4 * SR:])
 check(len(stand["drum_kick"]) >= 3 and 0.1 < quiet < 0.5 and max(int(v) for v in stand["rh_bar_patterns"]) <= 2,
       "rhythm: standing still in a quiet room it keeps a soft, sparse beat (%.2f of the walking level, patterns %s)"
@@ -1307,10 +1314,12 @@ check(quiet_at <= 1.5, "rhythm: 'only while walking' goes silent soon after you 
 rng = np.random.default_rng(4); lively = rng.standard_normal(12 * SR) * 0.0005
 for k in range(30):                                                  # voices and clatter: bursts every 0.4 s
     i = int((0.2 + 0.4 * k) * SR); n = int(0.12 * SR); lively[i:i + n] += rng.standard_normal(n) * 0.08
-_, standL, _, ysL = rhythm_run(8, 12, x_stand=lively.astype(np.float32))
-hitsQ = len(stand["drum_hat"]) + len(stand["drum_snare"]) + len(stand["drum_kick"])
+lively = np.tile(lively, 3)                                          # (36 s: patterns are held 2 bars, so enough picks)
+_, standL, _, ysL = rhythm_run(8, 36, x_stand=lively.astype(np.float32))
+_, standQ, _, _ = rhythm_run(8, 36)
+hitsQ = len(standQ["drum_hat"]) + len(standQ["drum_snare"]) + len(standQ["drum_kick"])
 hitsL = len(standL["drum_hat"]) + len(standL["drum_snare"]) + len(standL["drum_kick"])
-check(hitsL / 12 > 1.3 * hitsQ / 10, "rhythm: a lively room gets a busier beat standing still (%.1f vs %.1f hits a second)" % (hitsL / 12, hitsQ / 10))
+check(hitsL / 36 > 1.3 * hitsQ / 36, "rhythm: a lively room gets a busier beat standing still (%.1f vs %.1f hits a second)" % (hitsL / 36, hitsQ / 36))
 
 # input shaping: the gate's own fast meter, hysteresis, hold, attack and release; the compressor's attack and release
 def db_tone(db, secs, f=1000):

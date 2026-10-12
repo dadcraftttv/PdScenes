@@ -172,7 +172,9 @@ HAT_PATS = [
     (.6, .25, .4, .25, .55, .25, .4, .25, .6, .25, .4, .25, .55, .25, 2.45, 0),
     (.6, 0, .4, .3, .55, 0, 2.4, 0, .6, 0, .4, .3, .55, .3, 2.5, 0),
 ]
-FILL_PAT = (.45, .6, .75, .95)     # snare over the last beat of every 4th bar (when the drive is up)
+FILL_PAT = (.45, .6, .75, .95)     # snare over the last beat of every 8th bar (when the drive is up)
+RH_HOLD_BARS = 2                   # a pattern choice lasts this many bars
+RH_FILL_EVERY = 8                  # bars
 CLOCK_MIN_MS, CLOCK_MAX_MS = 375, 750   # beats are folded into 80-160 BPM
 CLOCK_DEFAULT_MS = 600       # 100 BPM before any walking
 CLOCK_PHASE_GAIN = 0.35      # each step moves the next beat this much of the way to it...
@@ -435,6 +437,8 @@ def add_tempo_clock(P):
         P.obj(f"tc_w{k}", f"value tc_{k}", x + 500 + 70 * "PNBLI".index(k), y + 300)
     P.msg("tc_init_msg", f"{CLOCK_DEFAULT_MS}", x + 60, y + 20)
     P.c("tc_lb", "tc_init_msg"); P.c("tc_init_msg", "tc_wP")
+    P.obj("tc_start", "del 50", x + 60, y + 40)                         # ticking from the start (a beat, then every P)
+    P.c("tc_lb", "tc_start")
     # on a step: now, its interval -> new P, new N (fresh walk: a beat right now)
     P.obj("tc_now_t", "t f f b b b b", x + 200, y + 90)                   # read P N B L, store now, then calculate
     P.c("tc_timer", "tc_now_t")
@@ -469,7 +473,7 @@ def add_tempo_clock(P):
     P.c("tc_wait", "tc_del")
     # a beat: B = N, N = N + P, the pulse (while walking) and the tempo, then the next beat
     P.obj("tc_beat", "t b b b b", x, y + 330)
-    P.c("tc_del", "tc_beat")
+    P.c("tc_del", "tc_beat"); P.c("tc_start", "tc_beat")
     P.obj("tc_bN", "value tc_N", x + 80, y + 350); P.obj("tc_bP", "value tc_P", x + 150, y + 350)
     P.obj("tc_bL", "value tc_L", x + 220, y + 350); P.obj("tc_bI", "value tc_I", x + 290, y + 350)
     P.obj("tc_timer2", "timer", x + 360, y + 370)                         # (its own timer: the step path has the other)
@@ -579,7 +583,7 @@ def add_rhythm(P, x):
     P.obj("rh_mode", "f 1", x + 1960, y + 180); P.obj("rh_r_mode", "r beat_follow", x + 1960, y + 160)
     P.c("rh_r_mode", "rh_mode", 0, 1)
     # out: drive ; gain (0 when the pattern engine shouldn't play)
-    ex("rh_dg", "if($f2,0.55+0.45*$f3,0.1+0.5*$f1) ; if($f5,if($f2,1,$f4*(0.35+0.4*$f1)),1)".replace(" ; ", " " + BS + "; "),
+    ex("rh_dg", "if($f2,0.4+0.45*$f3,0.1+0.5*$f1) ; if($f5,if($f2,1,$f4*(0.35+0.4*$f1)),1)".replace(" ; ", " " + BS + "; "),
        x + 1700, y + 210)
     P.c("rh_room_t", "rh_walk_rd", 1, 0); P.c("rh_walk_rd", "rh_dg", 0, 1)
     P.c("rh_room_t", "rh_pace_rd", 1, 0); P.c("rh_pace_rd", "rh_dg", 0, 2)
@@ -603,9 +607,17 @@ def add_rhythm(P, x):
     P.c("rh_on", "rh_t")
     P.obj("rh_bar_sel", "sel 15", x + 300, y + 60)                      # (after tick 15's hits: the next bar's patterns)
     P.c("rh_t", "rh_bar_sel", 1, 0)
+    # (patterns are held for RH_HOLD_BARS bars, Samuel: "slightly too busy/random"; the bar count runs every bar)
+    P.obj("rh_hold", "spigot 1", x + 300, y + 70)
     # new bar: bar count, the patterns, the fill
     P.obj("rh_bar_t", "t b b b b b", x + 300, y + 80)
-    P.c("rh_bar_sel", "rh_bar_t")
+    P.c("rh_bar_sel", "rh_bar_cnt_t")
+    P.obj("rh_bar_cnt_t", "t b b", x + 380, y + 70)
+    P.obj("rh_bar_cnt", "f", x + 460, y + 70); P.obj("rh_bar_cnt_add", "+ 1", x + 500, y + 70)
+    P.c("rh_bar_cnt_t", "rh_bar_cnt", 1, 0); P.c("rh_bar_cnt", "rh_bar_cnt_add"); P.c("rh_bar_cnt_add", "rh_bar_cnt", 0, 1)
+    ex("rh_bar_due", f"$f1%{RH_HOLD_BARS}=={RH_HOLD_BARS - 1}", x + 460, y + 85)
+    P.c("rh_bar_cnt", "rh_bar_due"); P.c("rh_bar_due", "rh_hold", 0, 1)
+    P.c("rh_bar_cnt_t", "rh_hold", 0, 0); P.c("rh_hold", "rh_bar_t")
     P.obj("rh_bar", "f", x + 300, y + 100); P.obj("rh_bar_add", "+ 1", x + 340, y + 100)
     P.c("rh_bar_t", "rh_bar", 4, 0); P.c("rh_bar", "rh_bar_add"); P.c("rh_bar_add", "rh_bar", 0, 1)
     P.obj("rh_dr_rd", "value rh_drive", x + 420, y + 100)
@@ -615,7 +627,8 @@ def add_rhythm(P, x):
     top = len(KICK_PATS) - 1
     pick = lambda r: f"min(max(int($f1*{top}+0.5)+{r}-1,0),{top})"
     ex("rh_pick", f"if({pick('$f2')}==$f6,if($f6<{top},$f6+1,$f6-1),{pick('$f2')}) ; {pick('$f3')} ; {pick('$f4')} ; "
-                  f"($f7%4==3)*($f1>0.35)*($f5<70)".replace(" ; ", " " + BS + "; "), x + 300, y + 130)
+                  f"($f7%{RH_FILL_EVERY // RH_HOLD_BARS}=={RH_FILL_EVERY // RH_HOLD_BARS - 1})*($f1>0.35)*($f5<70)"
+                  .replace(" ; ", " " + BS + "; "), x + 300, y + 130)
     # inlets: $f1 drive (hot, last), $f2-$f4 the lanes' randoms, $f5 fill roll, $f6 last kick pattern, $f7 bar
     P.c("rh_bar_t", "rh_rpk", 3, 0); P.c("rh_rpk", "rh_pick", 0, 1)
     P.c("rh_bar_t", "rh_rps", 3, 0); P.c("rh_rps", "rh_pick", 0, 2)
@@ -639,9 +652,9 @@ def add_rhythm(P, x):
     kv = "rh_kpat[$f2*16+$f1]"
     sv = "rh_spat[$f3*16+$f1]"
     hv = "rh_hpat[$f4*16+$f1]"
-    kick = f"if({kv}>0,{kv}*($f7>=80),($f1%2==0)*($f1>0)*($f7<40+60*$f6)*0.55)"
-    snare = f"if($f5&&$f1>=12,rh_fpat[$f1-12]*(0.75+0.25*$f8/1000),if({sv}>0,{sv},($f8<30+70*$f6)*0.22))"
-    hat = f"if({hv}>=2,{hv}-2,{hv})*($f9>=50) ; if({hv}>=2,240,30+60*$f6)"
+    kick = f"if({kv}>0,{kv}*($f7>=40),($f1%2==0)*($f1>0)*($f7<10+20*$f6)*0.55)"
+    snare = f"if($f5&&$f1>=12,rh_fpat[$f1-12]*(0.75+0.25*$f8/1000),if({sv}>0,{sv},($f8<8+17*$f6)*0.22))"
+    hat = f"if({hv}>=2,{hv}-2,{hv})*($f9>=30) ; if({hv}>=2,240,30+60*$f6)"
     ex("rh_hits", f"{kick} ; {snare} ; {hat}".replace(" ; ", " " + BS + "; "), x, y + 260)
     P.c("rh_t", "rh_r2", 2, 0); P.c("rh_r2", "rh_hits", 0, 8)
     P.c("rh_t", "rh_r1", 3, 0); P.c("rh_r1", "rh_hits", 0, 7)

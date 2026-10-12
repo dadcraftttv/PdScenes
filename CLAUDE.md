@@ -115,6 +115,9 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   level vs a creeping floor). `beat_when` (Walking beat, noPreset): 1 = Always (default; standing still at
   0.35-0.75 of the level, Samuel: "the rhythm should be constant... always making a rhythm out of what it hears"),
   0 = only while walking (the clock's `clock_walking` turns it off, 150 ms fade, ~0.75 s after the last step).
+  Calmed after Samuel's first walk ("slightly too busy/random"): a choice holds `RH_HOLD_BARS` (2) bars, drops 4%,
+  extra kicks (1-3%/8th) and ghost snares (~1-2%/16th) rarer, fills every `RH_FILL_EVERY` (8) bars, walking drive
+  0.4 + 0.45 x pace. The clock now starts ticking at load (50 ms, then 100 BPM), so standing still from Start has a pulse.
   Only with `beat_follow` 1; "Your steps" keeps the old one-hit-per-step drums. The level moves only on real changes
   (a ramp restarted every 100 ms never arrived). Tests hear `drum_kick/snare/hat` and `rh_bar_patterns`.
   Next (C2/C3): found sounds from the mic become the kit; synth drums stay as the fallback.
