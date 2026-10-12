@@ -304,6 +304,15 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
 - **Switchable DSP:** make_patch.py groups reverb, pitch, chorus, flanger, phaser, reverse echo, Room notes and music
   into `[switch~]` subpatches (`Patch.group` + `add_switch`), on while their level > 0, off 3x smoothing + tail after.
   Room notes fade in 200 ms on switch-on. Phone: music on ~39% of a core on the audio thread, music off ~18%.
+- **CPU (Oct 12, Samuel: "is there any way we can optimize it"):** measured by stripping one object type at a time
+  (desktop, everything on): `sigmund~` was ~32% of the patch, oscillators ~13%, `vcf~` ~10%, `delread4~` ~6% (all
+  moving delays, kept), `expr~` ~3%. Now: Harmony's tracker hops 1024 (`HARM_HOP`, 7 steady frames ~150 ms; an
+  80 ms blip still plays nothing) and Harmony is its own group `harm` (music_on x music_harm); each synth chime voice
+  is a group `chv<k>` (on at its note, off cdec + 300 ms later), each pad crossfade set a group `pads<k>` (with its
+  `mu_xf<k>` ramp: leaving the ramp in the music group made a DSP loop between groups, "DSP loop detected"), the
+  limiters are `soft_limit` (rational tanh from plain objects) and the zero-crossing sign is `*~ 1e9` + `clip~`.
+  Result: -34% everything on, -49% with Harmony 0. Room notes stay always on (with react < 1 their input never
+  closes). The 200 Hz accelerometer (~7.5% of a core, own thread) is kept for step timing.
 - Presets store: sliders, movers, music pad/notes/tone/follow, beat, dry. A slider kept out of presets keeps its mover out too
   (`Params.withMovers`), or loading a preset or world switched it off. Not stored: gain/gate/compressor, smoothing/nudge,
   music on/key/scale, locks, worlds choices, audio device, scenes, appearance.
