@@ -133,7 +133,7 @@ Plan first, agreed with Samuel, then build; test on the phone after every step. 
     1. **(BUILT 2026-10-12, needs Samuel's walk) Tempo clock** (step B): its own steady beat, nudged by each footstep (phase-locked, like following a drummer),
        so a grid with subdivisions exists, uneven steps don't throw it, and it holds (or settles to a default) when
        you stop. Fold very slow paces up into a musical range. Useful on its own: drums, chimes and arpeggio on it.
-    2. **Hit catcher:** on a sudden sound, copy a short slice from the RAM buffer into a small kit (never to disk),
+    2. **(BUILT 2026-10-12 with C3, the found voices; needs Samuel's ears) Hit catcher:** on a sudden sound, copy a short slice from the RAM buffer into a small kit (never to disk),
        sorted by simple traits (low and thumpy -> kick, mid and noisy -> snare, high and short -> hat), keeping the
        best few recent ones per role. Pocket hush stays in front of it. In a pocket, footfall thumps will be caught and
        land on the tempo: maybe natural kicks, maybe mush.

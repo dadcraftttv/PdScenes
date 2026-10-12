@@ -35,7 +35,7 @@ DEFAULTS = [
     ("phaser_on", 1), ("phaser_mix", 0), ("phaser_rate", 0.4), ("phaser_depth", 0.7), ("phaser_fb", 0.4),
     ("beat_on", 1), ("beat_level", 0), ("beat_hats", 0.5), ("beat_snare", 0.6), ("beat_pitch", 55),
     ("music_on", 0), ("music_key", 0), ("music_scale", 0), ("music_pad", 0.33), ("music_arp", 0.4),
-    ("music_tone", 0.5), ("music_react", 0.8), ("music_res", 0.8), ("music_harm", 0.6), ("beat_follow", 1), ("beat_when", 1), ("gate_attack", 5), ("gate_hold", 0), ("gate_release", 80), ("comp_attack", 40),
+    ("music_tone", 0.5), ("music_react", 0.8), ("music_res", 0.8), ("music_harm", 0.6), ("beat_follow", 1), ("beat_when", 1), ("rhythm_src", 1), ("gate_attack", 5), ("gate_hold", 0), ("gate_release", 80), ("comp_attack", 40),
     ("comp_release", 40), ("music_drift", 1), ("echo_scatter", 0.5), ("gc_amount", 0), ("gc_level", 0.7), ("gc_pct_stutter", 35), ("gc_pct_reverse", 25),
     ("gc_pct_shuffle", 20), ("gc_pct_stretch", 20), ("music_pad_reg", 2), ("pocket_hush", 0.5), ("pocket_guard", 0.6),
 ]
@@ -174,6 +174,16 @@ HAT_PATS = [
 ]
 FILL_PAT = (.45, .6, .75, .95)     # snare over the last beat of every 8th bar (when the drive is up)
 RH_HOLD_BARS = 2                   # a pattern choice lasts this many bars
+# Found-sound kit (roadmap 16 C2/C3): sudden sounds are caught (memory only) and become the drums.
+FS_SLICE_S = 0.25                  # a caught slice...
+FS_PREROLL_MS = 15                 # ...starting this long before the sound was noticed (keeps its attack)
+FS_SLOTS = 3                       # slices kept per role (kick, snare, hat); the oldest is replaced
+FS_MIN_DB = 55                     # quieter than this (-45 dBFS at its loudest) is not worth keeping
+FS_ROLE_SPEC = (                   # role: playback rate (pitch), filter, level, decay ms
+    ("k", 0.8, "lop~ 1800", 1.0, 260),
+    ("s", 1.0, "hip~ 160", 0.8, 200),
+    ("h", 1.15, "hip~ 4000", 0.7, 90),
+)
 RH_FILL_EVERY = 8                  # bars
 CLOCK_MIN_MS, CLOCK_MAX_MS = 375, 750   # beats are folded into 80-160 BPM
 CLOCK_DEFAULT_MS = 600       # 100 BPM before any walking
@@ -531,6 +541,161 @@ def add_tempo_clock(P):
     P.c("tc_clock_on", "tc_pulse_s"); P.c("tc_steps_on", "tc_pulse_s")
 
 
+def add_found_kit(P, x):
+    """C2, the hit catcher: on a sudden sound (the glitch cloud's detector) a FS_SLICE_S slice of the hushed mic,
+    from FS_PREROLL_MS before it was noticed, is recorded into a staging table while its lows, highs and level are
+    measured; then it is filed as kick (mostly low), hat (mostly high and little low) or snare, copied into that role's
+    next slot (FS_SLOTS per role, round robin) with a gain that levels it. Memory only. C3, the found voices: one
+    voice per role plays a random filled slot of its role at its rate through its filter, when the pattern engine
+    asks (rh_* below decides synth or found). Reports catches on fs_caught (0 kick, 1 snare, 2 hat)."""
+    y = 1100
+    def ex(name, text, xx, yy):
+        return P.obj(name, "expr " + text.replace(",", BS + ",").replace("$", BS + "$"), xx, yy)
+    n = int(FS_SLICE_S * 48000) + 2000                                  # samples (room for 48 kHz)
+    P.obj("fs_stage_t", f"table fs_stage {n}", x, y)
+    for k in range(len(FS_ROLE_SPEC)):                                     # fs_<role><slot>: fs_00 .. fs_22
+        for j in range(FS_SLOTS):
+            P.obj(f"fs_tab_{k}{j}", f"table fs_{k}{j} {n}", x + 100 + 60 * j, y + 20 * k)
+    P.obj("fs_gains_t", f"table fs_gains {3 * FS_SLOTS}", x + 300, y)
+    P.obj("fs_filled_t", "table fs_filled 3", x + 300, y + 20)
+    # ---- recording: the mic from FS_PREROLL_MS ago into the staging table ----
+    P.sig2("fs_src", "*~", "mic_gated", "ph_ln", x, y + 80)
+    P.obj("fs_wr", "delwrite~ fs_buf 100", x, y + 100); P.c("fs_src", "fs_wr")
+    P.obj("fs_rd", f"delread~ fs_buf {FS_PREROLL_MS}", x, y + 120)
+    P.obj("fs_rec", "tabwrite~ fs_stage", x, y + 140); P.c("fs_rd", "fs_rec")
+    # measuring as it records: overall, lows and highs, each's loudest moment (dB, 100 = full scale)
+    P.obj("fs_lo", "lop~ 150", x + 100, y + 120); P.obj("fs_hi", "hip~ 4000", x + 200, y + 120)
+    P.c("fs_rd", "fs_lo"); P.c("fs_rd", "fs_hi")
+    for k, (nm, src) in enumerate((("all", "fs_rd"), ("lo", "fs_lo"), ("hi", "fs_hi"))):
+        P.obj(f"fs_env_{nm}", "env~ 512 128", x + 100 * k, y + 160); P.c(src, f"fs_env_{nm}")
+        P.obj(f"fs_max_{nm}", "f", x + 100 * k, y + 200)
+        ex(f"fs_mx_{nm}", "max($f1,$f2)", x + 100 * k, y + 180)
+        P.c(f"fs_env_{nm}", f"fs_mx_{nm}")
+        P.c(f"fs_mx_{nm}", f"fs_max_{nm}", 0, 1); P.c(f"fs_mx_{nm}", f"fs_mx_{nm}", 0, 1)   # (the running maximum)
+    # ---- a sudden sound: if not already recording and the found kit is in use, record ----
+    P.obj("fs_on", "spigot 1", x + 400, y + 80)                          # (closed while recording)
+    P.obj("fs_use", "spigot 0", x + 400, y + 60)                         # (only when found sounds are used)
+    P.obj("fs_r_src", "r rhythm_src", x + 500, y + 40); P.obj("fs_use_v", "> 0", x + 500, y + 60)
+    P.c("fs_r_src", "fs_use_v"); P.c("fs_use_v", "fs_use", 0, 1)
+    P.c("gc_det_sel", "fs_use"); P.c("fs_use", "fs_on")
+    P.obj("fs_go", "t b b b b", x + 400, y + 100)
+    P.c("fs_on", "fs_go")
+    P.msg("fs_closed", "0", x + 480, y + 120); P.c("fs_go", "fs_closed", 3, 0); P.c("fs_closed", "fs_on", 0, 1)
+    P.msg("fs_reset", "0", x + 540, y + 120)
+    for nm in ("all", "lo", "hi"):
+        P.c("fs_reset", f"fs_max_{nm}", 0, 1); P.c("fs_reset", f"fs_mx_{nm}", 0, 1)
+    P.c("fs_go", "fs_reset", 2, 0)
+    P.c("fs_go", "fs_rec", 1, 0)                                          # start recording
+    P.obj("fs_done", f"del {int(FS_SLICE_S * 1000) + 10}", x + 400, y + 140); P.c("fs_go", "fs_done", 0, 0)
+    # ---- done: which role, worth keeping? ----
+    P.obj("fs_d_t", "t b b b b", x + 400, y + 170)
+    P.c("fs_done", "fs_d_t")
+    P.msg("fs_open", "1", x + 600, y + 170); P.c("fs_d_t", "fs_open", 0, 0); P.c("fs_open", "fs_on", 0, 1)
+    # kick: the lows carry it; hat: nearly all of it bright (within 3 dB) and little low; anything else is a snare
+    ex("fs_role", f"if($f1<{FS_MIN_DB},-1,if($f2-$f1>-6,0,if($f3-$f1>-3&&$f2-$f1<-15,2,1)))", x + 400, y + 220)
+    # inlets: $f1 overall (hot, last), $f2 lows, $f3 highs
+    P.c("fs_d_t", "fs_max_hi", 2, 0); P.c("fs_max_hi", "fs_role", 0, 2)
+    P.c("fs_d_t", "fs_max_lo", 2, 0); P.c("fs_max_lo", "fs_role", 0, 1)
+    P.c("fs_d_t", "fs_max_all", 1, 0); P.c("fs_max_all", "fs_role", 0, 0)
+    P.obj("fs_keep", "moses 0", x + 400, y + 250); P.c("fs_role", "fs_keep")
+    if os.environ.get("FS_DEBUG"):
+        for nm, src, o in (("go", "fs_go", 0), ("onset", "gc_det_sel", 0), ("role", "fs_role", 0), ("all", "fs_max_all", 0),
+                           ("lo", "fs_max_lo", 0), ("hi", "fs_max_hi", 0), ("use", "fs_use", 0)):
+            P.obj(f"fsdbg_{nm}", f"s fsdbg_{nm}", x + 900, y + 200 + 20 * len(nm)); P.c(src, f"fsdbg_{nm}", o, 0)
+    # ---- file it: the role's next slot, the level-matching gain, the copy ----
+    P.obj("fs_k_t", "t f f f f", x + 400, y + 280)
+    P.c("fs_keep", "fs_k_t", 1, 0)
+    P.obj("fs_s_r", "s fs_caught", x + 700, y + 280); P.c("fs_k_t", "fs_s_r", 3, 0)
+    for k in range(3):
+        P.obj(f"fs_rr{k}", "f", x + 500 + 60 * k, y + 330)
+        P.obj(f"fs_rr{k}_add", "+ 1", x + 500 + 60 * k, y + 350)
+        P.obj(f"fs_rr{k}_mod", f"mod {FS_SLOTS}", x + 500 + 60 * k, y + 370)
+        P.c(f"fs_rr{k}", f"fs_rr{k}_add"); P.c(f"fs_rr{k}_add", f"fs_rr{k}_mod"); P.c(f"fs_rr{k}_mod", f"fs_rr{k}", 0, 1)
+    P.obj("fs_role_sel", "sel 0 1 2", x + 500, y + 300); P.c("fs_k_t", "fs_role_sel", 2, 0)
+    for k in range(3):
+        P.c("fs_role_sel", f"fs_rr{k}", k, 0)
+        P.obj(f"fs_slot{k}", f"+ {k * FS_SLOTS}", x + 500 + 60 * k, y + 390); P.c(f"fs_rr{k}", f"fs_slot{k}")
+    P.obj("fs_slot", "t f b b f", x + 500, y + 420)                       # slot for the gain, min, max, then the copy
+    for k in range(3):
+        P.c(f"fs_slot{k}", "fs_slot")
+    # the slice's loudest sample either way -> a gain that brings it to 0.5
+    P.obj("fs_peak", "array max fs_stage", x + 700, y + 420)
+    P.obj("fs_low", "array min fs_stage", x + 800, y + 420)
+    ex("fs_gain", "0.5/max(max(abs($f1),abs($f2)),0.01)", x + 700, y + 440)
+    P.obj("fs_g_wr", "tabwrite fs_gains", x + 700, y + 460)
+    P.c("fs_slot", "fs_g_wr", 3, 1)
+    P.c("fs_slot", "fs_low", 2, 0); P.c("fs_low", "fs_gain", 0, 1)
+    P.c("fs_slot", "fs_peak", 1, 0); P.c("fs_peak", "fs_gain"); P.c("fs_gain", "fs_g_wr")
+    # copy the staging table into the slot's table
+    ex("fs_name_i", f"int($f1/{FS_SLOTS})*10+$f1%{FS_SLOTS}", x + 500, y + 450)
+    P.obj("fs_name", "makefilename fs_%02d", x + 500, y + 470)
+    P.c("fs_slot", "fs_name_i", 0, 0); P.c("fs_name_i", "fs_name")
+    P.obj("fs_get", "array get fs_stage", x + 500, y + 510)
+    P.obj("fs_set", "array set fs_00", x + 500, y + 540)
+    P.obj("fs_name_t", "t b s", x + 500, y + 490)
+    P.c("fs_name", "fs_name_t"); P.c("fs_name_t", "fs_set", 1, 2); P.c("fs_name_t", "fs_get", 0, 0)
+    P.c("fs_get", "fs_set")
+    # how many slots each role has filled (for the fallback and the screen)
+    P.obj("fs_fill_rd", "tabread fs_filled", x + 700, y + 300)
+    ex("fs_fill_add", f"min($f1+1,{FS_SLOTS})", x + 700, y + 320)
+    P.obj("fs_fill_wr", "tabwrite fs_filled", x + 700, y + 340)
+    P.obj("fs_fill_t", "t f f", x + 640, y + 280)
+    P.c("fs_k_t", "fs_fill_t", 1, 0); P.c("fs_fill_t", "fs_fill_wr", 1, 1); P.c("fs_fill_t", "fs_fill_rd", 0, 0)
+    P.c("fs_fill_rd", "fs_fill_add"); P.c("fs_fill_add", "fs_fill_wr")
+    # ---- the found voices: a hit (velocity, decay ms) plays a random filled slot of the role ----
+    P.obj("fs_sr", "value fs_srv", x + 900, y); P.c("sr", "fs_sr")
+    outs = []
+    for k, (r, rate, filt, lvl, decay) in enumerate(FS_ROLE_SPEC):
+        vx, vy = x + 1000 + 400 * k, y + 600
+        P.obj(f"fsv_{r}_in", "t f b b", vx, vy)                            # velocity in (decay set beforehand)
+        P.obj(f"fsv_{r}_n", "tabread fs_filled", vx + 100, vy + 20)
+        P.msg(f"fsv_{r}_k", str(k), vx + 100, vy)
+        P.c(f"fsv_{r}_in", f"fsv_{r}_k", 2, 0); P.c(f"fsv_{r}_k", f"fsv_{r}_n")
+        P.obj(f"fsv_{r}_rnd", "random 1000", vx + 180, vy + 20)
+        P.c(f"fsv_{r}_in", f"fsv_{r}_rnd", 1, 0)
+        ex(f"fsv_{r}_pick", f"{k * FS_SLOTS}+int($f1*max($f2,1)/1000)", vx + 180, vy + 40)
+        P.c(f"fsv_{r}_n", f"fsv_{r}_pick", 0, 1); P.c(f"fsv_{r}_rnd", f"fsv_{r}_pick")
+        P.obj(f"fsv_{r}_slot", "t f f", vx + 180, vy + 60); P.c(f"fsv_{r}_pick", f"fsv_{r}_slot")
+        P.obj(f"fsv_{r}_g", "tabread fs_gains", vx + 260, vy + 80); P.c(f"fsv_{r}_slot", f"fsv_{r}_g", 1, 0)
+        P.obj(f"fsv_{r}_gv", "f 1", vx + 260, vy + 100); P.c(f"fsv_{r}_g", f"fsv_{r}_gv", 0, 1)
+        ex(f"fsv_{r}_ni", f"int($f1/{FS_SLOTS})*10+$f1%{FS_SLOTS}", vx + 180, vy + 80)
+        P.obj(f"fsv_{r}_name", "makefilename set fs_%02d", vx + 180, vy + 100)
+        P.c(f"fsv_{r}_slot", f"fsv_{r}_ni", 0, 0); P.c(f"fsv_{r}_ni", f"fsv_{r}_name")
+        P.obj(f"fsv_{r}_rd", "tabread4~ fs_00", vx, vy + 160)
+        P.c(f"fsv_{r}_name", f"fsv_{r}_rd")                                 # (a "set fs_NN" message)
+        # the read position: 0 -> the slice's samples, over its length / rate
+        P.obj(f"fsv_{r}_srv", "value fs_srv", vx + 100, vy + 120)
+        ex(f"fsv_{r}_ix", f"$f1*{FS_SLICE_S} ; {FS_SLICE_S * 1000}/{rate}".replace(" ; ", " " + BS + "; "), vx + 100, vy + 140)
+        P.msg(f"fsv_{r}_ixmsg", f"1 {BS}, {BS}$1 {BS}$2", vx, vy + 130)
+        P.obj(f"fsv_{r}_ixpk", "pack f f", vx, vy + 120)
+        P.obj(f"fsv_{r}_ixl", "vline~", vx, vy + 145)
+        P.c(f"fsv_{r}_ix", f"fsv_{r}_ixpk", 1, 1); P.c(f"fsv_{r}_ix", f"fsv_{r}_ixpk", 0, 0)
+        P.c(f"fsv_{r}_ixpk", f"fsv_{r}_ixmsg"); P.c(f"fsv_{r}_ixmsg", f"fsv_{r}_ixl"); P.c(f"fsv_{r}_ixl", f"fsv_{r}_rd")
+        P.c(f"fsv_{r}_srv", f"fsv_{r}_ix", 0, 0)
+        # loudness: velocity x the slot's gain x the role's level; decay from the hit (hats) or the role
+        P.obj(f"fsv_{r}_dec", f"f {decay}", vx + 300, vy + 120)
+        ex(f"fsv_{r}_amp", f"$f1*$f2*{lvl} ; $f3".replace(" ; ", " " + BS + "; "), vx + 200, vy + 140)
+        P.obj(f"fsv_{r}_ampk", "pack f f", vx + 200, vy + 160)
+        P.c(f"fsv_{r}_amp", f"fsv_{r}_ampk", 1, 1); P.c(f"fsv_{r}_amp", f"fsv_{r}_ampk", 0, 0)
+        P.msg(f"fsv_{r}_envm", f"0 {BS}, {BS}$1 2 {BS}, 0 {BS}$2 2", vx + 200, vy + 180)
+        P.obj(f"fsv_{r}_env", "vline~", vx + 200, vy + 200)
+        P.c(f"fsv_{r}_ampk", f"fsv_{r}_envm"); P.c(f"fsv_{r}_envm", f"fsv_{r}_env")
+        P.c(f"fsv_{r}_gv", f"fsv_{r}_amp", 0, 1); P.c(f"fsv_{r}_dec", f"fsv_{r}_amp", 0, 2)
+        # order on a hit: count + pick the slot (sets table and gain), then position, then loudness
+        P.obj(f"fsv_{r}_go", "t f b b b", vx, vy + 80)
+        P.c(f"fsv_{r}_in", f"fsv_{r}_go", 0, 0)
+        P.c(f"fsv_{r}_go", f"fsv_{r}_dec", 3, 0)                             # (bang: this hit's decay)
+        P.c(f"fsv_{r}_go", f"fsv_{r}_gv", 2, 0)                              # (bang: the gain read just above)
+        P.c(f"fsv_{r}_go", f"fsv_{r}_srv", 1, 0)                             # (bang: the read position starts)
+        P.c(f"fsv_{r}_go", f"fsv_{r}_amp", 0, 0)
+        P.obj(f"fsv_{r}_f", filt, vx, vy + 220)
+        P.sig2(f"fsv_{r}_s", "*~", f"fsv_{r}_rd", f"fsv_{r}_env", vx, vy + 190)
+        P.c(f"fsv_{r}_s", f"fsv_{r}_f")
+        outs.append(f"fsv_{r}_f")
+    P.sig2("fs_ks", "+~", outs[0], outs[1], x + 1000, y + 900)
+    return "fs_ks", outs[2]
+
+
 def add_rhythm(P, x):
     """The pattern engine (roadmap 16, step C1): on the tempo clock's 16th ticks it plays bars from KICK/SNARE/HAT_PATS
     on the drum voices. Each bar picks per lane a pattern near the drive (or a neighbour), the kick never the same
@@ -663,15 +828,41 @@ def add_rhythm(P, x):
     for k, nm in enumerate(("kp", "sp", "hp", "fill")):
         P.c("rh_t", f"rh_rd_{nm}", 5, 0); P.c(f"rh_rd_{nm}", "rh_hits", 0, k + 1)
     P.c("rh_t", "rh_hits", 0, 0)
-    # hits -> voices (the hat's decay first)
-    P.obj("rh_k_ok", "moses 0.001", x, y + 300); P.c("rh_hits", "rh_k_ok", 0, 0); P.c("rh_k_ok", "kick_in", 1, 0)
-    P.obj("rh_s_ok", "moses 0.001", x + 100, y + 300); P.c("rh_hits", "rh_s_ok", 1, 0); P.c("rh_s_ok", "snare_in", 1, 0)
+    # hits -> voices: per role the synth drum, the found sound, or both ("Beat sounds", rhythm_src 0 synth, 1 found,
+    # 2 both); a role with nothing caught yet falls back to the synth
+    P.obj("rh_src", "f 1", x + 600, y + 280); P.obj("rh_r_src", "r rhythm_src", x + 600, y + 260)
+    P.c("rh_r_src", "rh_src", 0, 1)
+    P.obj("rh_k_ok", "moses 0.001", x, y + 300); P.c("rh_hits", "rh_k_ok", 0, 0)
+    P.obj("rh_s_ok", "moses 0.001", x + 100, y + 300); P.c("rh_hits", "rh_s_ok", 1, 0)
     P.obj("rh_h_pk", "pack f f", x + 200, y + 300)
     P.c("rh_hits", "rh_h_pk", 3, 1); P.c("rh_hits", "rh_h_pk", 2, 0)
     P.obj("rh_h_ok", "route 0", x + 200, y + 320); P.c("rh_h_pk", "rh_h_ok")
     P.obj("rh_h_v", "unpack f f", x + 260, y + 340); P.c("rh_h_ok", "rh_h_v", 1, 0)
-    P.obj("rh_h_pk2", "pack f f", x + 260, y + 360)
-    P.c("rh_h_v", "rh_h_pk2", 1, 1); P.c("rh_h_v", "rh_h_pk2", 0, 0); P.c("rh_h_pk2", "h_amp_msg")
+    for k, (lane, src, synth_in, found_in) in enumerate((("k", "rh_k_ok", "kick_in", "fsv_k_in"),
+                                                          ("s", "rh_s_ok", "snare_in", "fsv_s_in"),
+                                                          ("h", "rh_h_v", None, "fsv_h_in"))):
+        rx = x + 700 + 250 * k
+        P.obj(f"rh_{lane}r_t", "t f b b", rx, y + 380)
+        P.c(src, f"rh_{lane}r_t", 1 if lane != "h" else 0, 0)
+        P.msg(f"rh_{lane}r_k", str(k), rx + 80, y + 380); P.obj(f"rh_{lane}r_n", "tabread fs_filled", rx + 80, y + 400)
+        P.obj(f"rh_{lane}r_src", "f", rx + 160, y + 400); P.c("rh_r_src", f"rh_{lane}r_src", 0, 1)
+        P.obj(f"rh_{lane}r_init", "loadbang", rx + 160, y + 360); P.msg(f"rh_{lane}r_init1", "1", rx + 160, y + 370)
+        P.c(f"rh_{lane}r_init", f"rh_{lane}r_init1"); P.c(f"rh_{lane}r_init1", f"rh_{lane}r_src", 0, 1)
+        P.c(f"rh_{lane}r_t", f"rh_{lane}r_k", 2, 0); P.c(f"rh_{lane}r_k", f"rh_{lane}r_n")
+        P.c(f"rh_{lane}r_t", f"rh_{lane}r_src", 1, 0)
+        ex(f"rh_{lane}r", "if($f2==0||$f2==2||$f3<1,$f1,0) ; if($f2>=1&&$f3>=1,$f1,0)".replace(" ; ", " " + BS + "; "),
+           rx, y + 420)
+        P.c(f"rh_{lane}r_n", f"rh_{lane}r", 0, 2); P.c(f"rh_{lane}r_src", f"rh_{lane}r", 0, 1)
+        P.c(f"rh_{lane}r_t", f"rh_{lane}r", 0, 0)
+        P.obj(f"rh_{lane}r_syn", "moses 0.001", rx, y + 450); P.obj(f"rh_{lane}r_fnd", "moses 0.001", rx + 100, y + 450)
+        P.c(f"rh_{lane}r", f"rh_{lane}r_syn", 0, 0); P.c(f"rh_{lane}r", f"rh_{lane}r_fnd", 1, 0)
+        if lane == "h":
+            P.obj("rh_h_pk2", "pack f f", rx, y + 480)
+            P.c("rh_h_v", "rh_h_pk2", 1, 1); P.c("rh_h_v", "fsv_h_dec", 1, 1)   # (the decay comes out of unpack first)
+            P.c("rh_hr_syn", "rh_h_pk2", 1, 0); P.c("rh_h_pk2", "h_amp_msg")
+            P.c("rh_hr_fnd", "fsv_h_in", 1, 0)
+        else:
+            P.c(f"rh_{lane}r_syn", synth_in, 1, 0); P.c(f"rh_{lane}r_fnd", found_in, 1, 0)
     for k, lane in enumerate(("kick", "snare", "hat")):
         P.obj(f"rh_s_{lane}", f"s drum_{lane}", x + 400 + 70 * k, y + 330)
     P.c("rh_k_ok", "rh_s_kick", 1, 0); P.c("rh_s_ok", "rh_s_snare", 1, 0); P.c("rh_h_v", "rh_s_hat", 0, 0)
@@ -773,8 +964,12 @@ def add_beat(P):
     P.obj("ks_pk", "pack f 5", x + 1200, 200)
     P.obj("ks_gain", "line~", x + 1200, 230)
     P.c("ks_r_str", "ks_calc"); P.c("ks_calc", "ks_pk"); P.c("ks_pk", "ks_gain")
-    P.sig2("beat_kick_snare", "*~", "beat_ks0", "ks_gain", x, 500)   # a harder step lifts kick and snare a little
-    P.sig2("beat_sum0", "+~", "beat_kick_snare", "hat", x, 530)
+    fs_ks, fs_hat = add_found_kit(P, x + 3000)
+    P.sig2("beat_ks1", "+~", "beat_ks0", fs_ks, x, 490)                 # the found kick and snare
+    P.sig2("beat_kick_snare", "*~", "beat_ks1", "ks_gain", x, 500)   # a harder step lifts kick and snare a little
+    P.sig2("fs_hat_l", "*~", fs_hat, hats, x + 900, 400)
+    P.sig2("beat_hats_all", "+~", "hat", "fs_hat_l", x + 750, 410)
+    P.sig2("beat_sum0", "+~", "beat_kick_snare", "beat_hats_all", x, 530)
     P.sig2("beat_sum", "*~", "beat_sum0", "rh_gain", x, 535)            # softer standing still (the pattern engine)
     lvl = smoothed(P, "beat_level", "beat_level", x + 1050, 20)
     bon = smoothed(P, "beat_on", "beat_on", x + 1150, 20)
@@ -2809,6 +3004,8 @@ def build():
     add_switch(P, "roomnotes", ("music_on", "music_res"), 2500)       # rings run up to ~2 s
     P.group("music", r"^(mu_|ba_)")
     add_switch(P, "music", ("music_on",), 3000)                       # chimes fade over up to 2.6 s
+    P.group("fsound", r"^(fs_(src|wr|rd|rec|lo|hi|env_\w+)|fsv_\w+_(rd|ixl|env|s|f))$")    # the found-sound kit's audio
+    add_switch(P, "fsound", ("rhythm_src", "beat_level"), 500)
     P.group("gcv", r"^gc0_")                                           # the glitch voices: on only while playing
     P.group("gcs", r"^gc2_")
     P.group("gcloud", r"^gc\d*_(?!r_amt$|amt$|amt_rd$|clk_|rest|cool|m_t$|det|slow|roll|pass|ons_t$|timer$|flag|trig$|ask$|walk|step|half|pend|beat_t$|fire$|mode|en\d$|rn\d$|el2?$|st2$|st_rd$|stepms|par$|pack$|wait|vc|route$|dbg|kind$|spar$|spack$)")

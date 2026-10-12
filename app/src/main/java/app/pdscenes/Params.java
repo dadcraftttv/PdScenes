@@ -121,6 +121,9 @@ final class Params {
             new Param("beat_when", "Beat plays", 0f, 1f, 1f, "", Param.Curve.LINEAR)
                     .choices("Only while walking", "Always (softly when you stand still)")
                     .inSection("beat").noPreset().resetWhenAbsent(),
+            new Param("rhythm_src", "Beat sounds", 0f, 2f, 1f, "", Param.Curve.LINEAR)
+                    .choices("Synth drums", "Found sounds (made from what the mic hears)", "Both")
+                    .inSection("beat").noPreset().resetWhenAbsent(),
             new Param("beat_level", "Beat level (0 = off)", 0f, 1f, 0f, "",
                     Param.Curve.LINEAR).inSection("beat").rand(0f, 0.7f).resetWhenAbsent(),
             new Param("beat_hats", "Hi-hat level", 0f, 1f, 0.5f, "", Param.Curve.LINEAR)

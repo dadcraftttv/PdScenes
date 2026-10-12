@@ -90,8 +90,18 @@ public class AudioService extends Service {
     /** The patch's tempo clock reports its tempo on each beat. */
     private static final String TEMPO = "tempo";
     private static volatile float tempoBpm;
+    /** The found-sound kit: how many kicks, snares and hats have been caught (the patch keeps the latest 3 of each). */
+    private static final String FS_CAUGHT = "fs_caught";
+    private static final int[] kitCaught = new int[3];
     private final MotifMemory motif = new MotifMemory(new java.util.Random());
     private final NoteRegister noteRegister = new NoteRegister();
+    /** Kicks, snares and hats in the found-sound kit now (0-3 each). */
+    static int[] kit() {
+        synchronized (kitCaught) {
+            return new int[]{Math.min(kitCaught[0], 3), Math.min(kitCaught[1], 3), Math.min(kitCaught[2], 3)};
+        }
+    }
+
     /** The tempo clock's tempo (beats a minute), 0 before the first beat. */
     static float tempo() {
         return tempoBpm;
@@ -456,6 +466,16 @@ public class AudioService extends Service {
 
             @Override
             public void receiveFloat(String source, float x) {
+                if (FS_CAUGHT.equals(source)) {
+                    int role = Math.round(x);
+                    if (role >= 0 && role < 3) {
+                        synchronized (kitCaught) {
+                            kitCaught[role]++;
+                        }
+                        logEvent("Caught a " + new String[]{"kick", "snare", "hat"}[role] + " for the found-sound beat");
+                    }
+                    return;
+                }
                 if (TEMPO.equals(source)) {
                     tempoBpm = x;
                     return;
@@ -489,6 +509,10 @@ public class AudioService extends Service {
         PdBase.subscribe(HARMONY_RECEIVER);
         PdBase.subscribe(CHIME_NOTE);
         PdBase.subscribe(TEMPO);
+        PdBase.subscribe(FS_CAUGHT);
+        synchronized (kitCaught) {
+            java.util.Arrays.fill(kitCaught, 0);   // a fresh patch starts with an empty kit
+        }
         PdBase.subscribe(SceneEvents.REQUEST_RECEIVER);
 
         // Must come before initAudio. DEFAULT_ID lets Android choose ("Automatic").

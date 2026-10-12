@@ -1321,6 +1321,44 @@ hitsQ = len(standQ["drum_hat"]) + len(standQ["drum_snare"]) + len(standQ["drum_k
 hitsL = len(standL["drum_hat"]) + len(standL["drum_snare"]) + len(standL["drum_kick"])
 check(hitsL / 36 > 1.3 * hitsQ / 36, "rhythm: a lively room gets a busier beat standing still (%.1f vs %.1f hits a second)" % (hitsL / 36, hitsQ / 36))
 
+# found sounds: sudden sounds are caught and filed as kick / snare / hat, and the patterns play them
+def fs_sounds(seed=2):
+    rng = np.random.default_rng(seed)
+    def thump(f=150):
+        k = np.arange(int(0.2 * SR)); return 0.6 * np.sin(2 * np.pi * f * k / SR) * np.exp(-k / (0.05 * SR))
+    def clap():                                            # noise band-passed around 1-3 kHz, like a real clap
+        k = int(0.12 * SR); S = np.fft.rfft(rng.standard_normal(k)); f = np.fft.rfftfreq(k, 1 / SR)
+        S[(f < 800) | (f > 3500)] = 0; x = np.fft.irfft(S, k); return 0.5 * x / np.max(np.abs(x)) * np.exp(-np.arange(k) / (0.03 * SR))
+    def tick():
+        k = np.arange(int(0.03 * SR)); x = rng.standard_normal(len(k)) * np.exp(-k / (0.004 * SR)); return 0.4 * np.diff(np.concatenate([[0], x]))
+    return thump, clap, tick
+def fs_catch(events, total, **over):
+    thump, clap, tick = fs_sounds()
+    x = (np.random.default_rng(3).standard_normal(int(total * SR)) * 0.0005).astype(np.float32)
+    for t, f in events:
+        s = {"k": thump, "s": clap, "h": tick}[f](); i = int(t * SR); x[i:i + len(s)] += s.astype(np.float32)
+    e = fresh(**dict(dict(dry=0, wet=0, beat_level=1, beat_follow=1, beat_when=1, rhythm_src=1), **over))
+    e.listen("fs_caught", "drum_kick")
+    return e, e.run(x)[:, 0], [int(v) for v in e.heard["fs_caught"]]
+e, y, caught = fs_catch([(1.0, "k"), (2.0, "s"), (3.0, "h"), (4.0, "k"), (5.0, "s"), (6.0, "h")], 7.0)
+check(caught == [0, 1, 2, 0, 1, 2], "found sounds: a thump is caught as a kick, a clap as a snare, a tick as a hat (%s)" % caught)
+e, y, caught = fs_catch([(1.0 + 0.6 * k, "k") for k in range(5)], 5.0)
+check(len(caught) == 5, "found sounds: every thump is caught (%d), the kit keeps the latest %d of them" % (len(caught), 3))
+_, _, none = fs_catch([], 4.0)
+check(not none, "found sounds: a quiet room catches nothing (%s)" % none)
+# the patterns play the caught sound: a 150 Hz thump comes back as kicks at 150 x 0.8 = 120 Hz; the synth kick is lower
+def kick_tones(src, catch):
+    ev = [(0.5, "k")] if catch else []
+    e, y, _ = fs_catch(ev, 14.0, rhythm_src=src, beat_snare=0, beat_hats=0, beat_pitch=55)
+    tail = y[4 * SR:]
+    return tone_level(tail, 120), tone_level(tail, 55), rms(tail)
+f120, f55, _ = kick_tones(1, True)
+s120, s55, _ = kick_tones(0, True)
+_, _, fallback = kick_tones(1, False)
+check(f120 > 3 * s120 and s55 > 3 * f55 and fallback > 0.002,
+      "found sounds: the kicks play the caught thump (120 Hz %.4f vs synth %.4f; synth 55 Hz %.4f vs %.4f), nothing caught -> synth (rms %.4f)"
+      % (f120, s120, s55, f55, fallback))
+
 # input shaping: the gate's own fast meter, hysteresis, hold, attack and release; the compressor's attack and release
 def db_tone(db, secs, f=1000):
     return sine(f, np.sqrt(2) * 10 ** (db / 20), secs)
