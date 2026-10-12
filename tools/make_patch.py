@@ -227,6 +227,8 @@ FS_ROLE_SPEC = (                   # role: playback rate (pitch), filter, level,
     ("h", 1.3, "hip~ 1500", 0.7, 90),
 )
 RH_FILL_EVERY = 8                  # bars
+BREAK_MIN_BARS = 8                 # arrangement moments: at least this many bars between sparse bars...
+BREAK_CHANCE = 0.2                 # ...then this chance each bar (not on a fill bar): hats only, no kick, or downbeat only
 SWING_CHOICES = (0, 0.08, 0.14, 0.2, 0.26)   # swing: off-beat 16ths this share of a 16th late, a new pick every...
 SWING_EVERY_BARS = 8               # ...this many bars (Samuel: "a little too predictable"), glided toward...
 SWING_GLIDE = 0.4                  # ...by this much each bar
@@ -1330,9 +1332,25 @@ def add_rhythm(P, x):
     P.obj("rh_hold", "spigot 1", x + 300, y + 70)
     # new bar: bar count, the patterns, the fill
     P.obj("rh_bar_t", "t b b b b b", x + 300, y + 80)
-    P.c("rh_bar_sel", "rh_bar_cnt_t")
+    P.obj("rh_bar_st", "t b b b", x + 300, y + 65); P.c("rh_bar_sel", "rh_bar_st")
+    P.c("rh_bar_st", "rh_bar_cnt_t", 2, 0)
+    # arrangement moments: after the patterns are picked, maybe the next bar is a sparse one (rh_brk: 0 none, 1 hats
+    # only, 2 no kick, 3 the downbeat kick and the hats), at least BREAK_MIN_BARS apart and never on a fill bar
+    P.obj("rh_brk_t", "t b b", x - 300, y + 130); P.c("rh_bar_st", "rh_brk_t", 0, 0)
+    P.obj("rh_brk_r", "random 1000", x - 300, y + 145); P.obj("rh_brk_k", "random 3", x - 200, y + 145)
+    ex("rh_brk_e", f"if(rh_bsince>={BREAK_MIN_BARS}&&$f1<{int(BREAK_CHANCE * 1000)}&&rh_fill==0,1+$f2,0)", x - 300, y + 160)
+    P.c("rh_brk_t", "rh_brk_k", 1, 0); P.c("rh_brk_k", "rh_brk_e", 0, 1); P.c("rh_brk_t", "rh_brk_r", 0, 0); P.c("rh_brk_r", "rh_brk_e")
+    P.obj("rh_brk_o", "t f f f", x - 300, y + 175); P.c("rh_brk_e", "rh_brk_o")
+    P.obj("rh_brk_v", "value rh_brk_next", x - 300, y + 190); P.c("rh_brk_o", "rh_brk_v", 2, 0)
+    # (the next bar's patterns are picked before tick 15's own hits: the break starts exactly at tick 0 instead)
+    P.obj("rh_brk_t0", "sel 0", x - 400, y + 60); P.c("rh_t", "rh_brk_t0", 1, 0)
+    P.obj("rh_brk_nx", "value rh_brk_next", x - 400, y + 75); P.obj("rh_brk_now", "value rh_brk", x - 400, y + 90)
+    P.c("rh_brk_t0", "rh_brk_nx"); P.c("rh_brk_nx", "rh_brk_now")
+    ex("rh_bs_e", "if($f1>0,0,rh_bsince+1)", x - 200, y + 190); P.c("rh_brk_o", "rh_bs_e", 1, 0)
+    P.obj("rh_bs_v", "value rh_bsince", x - 200, y + 205); P.c("rh_bs_e", "rh_bs_v")
+    P.obj("rh_brk_s", "s rh_break", x - 300, y + 205); P.c("rh_brk_o", "rh_brk_s", 0, 0)    # (for the tests)
     # the learned groove fades every bar (48 spots x FS_HEARD_KEEP)
-    P.obj("rh_hd_fade", "t b", x + 600, y + 40); P.c("rh_bar_sel", "rh_hd_fade")
+    P.obj("rh_hd_fade", "t b", x + 600, y + 40); P.c("rh_bar_st", "rh_hd_fade", 1, 0)
     P.msg("rh_hd_48", "48", x + 600, y + 55); P.obj("rh_hd_until", "until", x + 600, y + 70)
     P.obj("rh_hd_i", "f", x + 600, y + 85); P.obj("rh_hd_inc", "+ 1", x + 640, y + 85)
     P.msg("rh_hd_0", "0", x + 680, y + 55)
@@ -1389,6 +1407,9 @@ def add_rhythm(P, x):
     # the learned groove (C4): a spot where a sound was caught lately plays that role too, as loud as it's remembered
     learn = lambda k: f"(rh_heard[{16 * k}+$f1]>={FS_HEARD_MIN})*rh_heard[{16 * k}+$f1]*0.9"
     kick, snare = f"max({kick},{learn(0)})", f"max({snare},{learn(1)})"
+    # an arrangement moment (rh_brk) thins this bar out
+    kick = f"({kick})*if(rh_brk==1||rh_brk==2,0,if(rh_brk==3,$f1==0,1))"
+    snare = f"({snare})*if(rh_brk==1||rh_brk==3,0,1)"
     hat = f"max({hat},{learn(2)}) ; if({hv}>=2,240,30+60*$f6)"
     ex("rh_hits", f"{kick} ; {snare} ; {hat}".replace(" ; ", " " + BS + "; "), x, y + 260)
     P.c("rh_t", "rh_r2", 2, 0); P.c("rh_r2", "rh_hits", 0, 8)

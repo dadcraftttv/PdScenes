@@ -963,8 +963,9 @@ for k in range(10):
     walk_t += [k * 0.5] * (len(e.heard["chime_deg"]) - n)
     walk_t += [k * 0.5 + t for t in note_times(e, clap_at(0.5, claps.get(k), seed=k))]
 off = [round((t % 0.5) / 0.5 * 2) % 2 if min(t % 0.5, 0.5 - t % 0.5, abs(t % 0.5 - 0.25)) < 0.006 else None for t in walk_t]
-check(still and 0.3 < still[0] < 0.36,
-      "music: standing still, a clap's chime plays at once (%.0f ms after)" % ((still[0] - 0.3) * 1000 if still else -1))
+after = [t for t in still if t > 0.3]                                   # (a still-pattern chime may come before the clap)
+check(after and after[0] < 0.36,
+      "music: standing still, a clap's chime plays at once (%.0f ms after)" % ((after[0] - 0.3) * 1000 if after else -1))
 check(None not in off and any(abs(t - 2.75) < 0.006 for t in walk_t) and 4.5 in walk_t and not any(4.35 < t < 4.5 for t in walk_t),
       "music: walking, chimes fall on steps or half-steps (%d notes; clap at 2.58 s chimed at %s, clap at 4.35 s waited for the 4.5 s step)"
       % (len(walk_t), [round(t, 3) for t in walk_t if 2.5 < t < 3.0]))
@@ -1650,6 +1651,40 @@ _, drift = swing_lags(None, steps=150)
 dv = sorted({round(v, 2) for v in drift})
 check(len(drift) >= 20 and max(drift) <= 0.27 and max(drift) - min(drift) > 0.05,
       "swing: it drifts every few bars between straight and lazy (%d bars, %.2f-%.2f)" % (len(drift), min(drift), max(drift)))
+
+# arrangement moments: now and then (at least 8 bars apart) a sparse bar: hats only, no kick, or the downbeat only
+def breaks_run(steps=150, interval=0.4):
+    e = fresh(dry=0, wet=0, beat_level=1, beat_follow=1, beat_when=1, rhythm_src=0)
+    e.listen("tick16", "drum_kick", "drum_snare", "rh_break")
+    bar, last_tick, kinds, per_bar, seen = -1, -1, {}, {}, {"tick16": 0, "drum_kick": 0, "drum_snare": 0, "rh_break": 0}
+    pending = None
+    for st in range(steps):
+        e.send("step", interval)
+        for _ in range(int(interval * SR) // 64):
+            e.run(np.zeros(64, np.float32))
+            for v in e.heard["rh_break"][seen["rh_break"]:]:
+                pending = int(v)                                            # (decided after tick 15: the next bar)
+            seen["rh_break"] = len(e.heard["rh_break"])
+            for v in e.heard["tick16"][seen["tick16"]:]:
+                if int(v) == 0:
+                    bar += 1; kinds[bar] = pending or 0; pending = None
+                last_tick = int(v)
+            seen["tick16"] = len(e.heard["tick16"])
+            for k in ("drum_kick", "drum_snare"):
+                for v in e.heard[k][seen[k]:]:
+                    if v > 0 and bar >= 0:
+                        per_bar.setdefault(bar, []).append((k, last_tick))
+                seen[k] = len(e.heard[k])
+    return kinds, per_bar, bar
+kinds, per_bar, nbars = breaks_run()
+brk = [b for b, k in kinds.items() if k > 0]
+ok_kind = all((kinds[b] == 1 and not per_bar.get(b)) or (kinds[b] == 2 and not any(k == "drum_kick" for k, _ in per_bar.get(b, [])))
+              or (kinds[b] == 3 and all((k, t) == ("drum_kick", 0) for k, t in per_bar.get(b, []))) for b in brk)
+gaps = [b - a for a, b in zip(brk, brk[1:])]
+busy = sum(1 for b in range(nbars) if b not in brk and per_bar.get(b))
+check(len(brk) >= 2 and ok_kind and all(g >= 9 for g in gaps) and busy >= nbars - len(brk) - 2,
+      "arrangement: now and then a sparse bar (%d in %d bars, kinds %s, at bars %s), each as thin as its kind, then the groove"
+      % (len(brk), nbars, [kinds[b] for b in brk], brk))
 
 # the learned groove (C4): claps on one off-beat spot teach the snare that spot; a few quiet bars later it's gone
 def learned_spots(clap_bars, bars, spot=6):

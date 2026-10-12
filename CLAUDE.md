@@ -138,7 +138,10 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   the pattern engine `rh_sw` of a 16th late (`[pipe]` before `rh_on`; the clock's own tick16 stays straight, so
   chimes, the learned groove and glitch loops keep to it); every `SWING_EVERY_BARS` (8) a new amount from
   `SWING_CHOICES` (0-0.26) is glided to by `SWING_GLIDE` (0.4) per bar; `rh_swing` reports, `rh_swing_set` (tests)
-  sets it. Planned next, agreed: arrangement moments (sparse bars), found-sound flourishes (a hit backwards or half
+  sets it. **Arrangement moments** (step 3): after each bar's pick, at least `BREAK_MIN_BARS` (8) apart, chance
+  `BREAK_CHANCE` (0.2), never on a fill bar, the next bar may be sparse (`rh_brk` 1 hats only, 2 no kick, 3 downbeat
+  kick + hats), applied from tick 0 (`rh_brk_next`: the engine picks the next bar before tick 15's own hits).
+  `rh_break` reports. Planned next, agreed: found-sound flourishes (a hit backwards or half
   speed now and then). Test lesson: Pd seeds every [random] from a process-wide counter, so adding objects reshuffles
   which ghost snares (0.22, ~1-2%/16th) land where in later tests: count learned snares by their velocity.
   The slot switch is a `[set $1(` message (a `makefilename set ...` symbol was ignored: until Oct 12 every voice
