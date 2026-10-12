@@ -982,6 +982,7 @@ public class MainActivity extends Activity {
             sw.setText(p.label);
             sw.setTextSize(16);
             sw.setPadding(0, dp(16), 0, 0);
+            sw.setChecked(ParamStore.get(p.id) >= 0.5f);   // right from the start (folded rows aren't refreshed)
             sw.setOnClickListener(v -> {
                 ParamStore.set(p.id, sw.isChecked() ? 1f : 0f);
                 updateMoverUi();   // a section's movers switch greys its mover controls in or out
@@ -1016,6 +1017,9 @@ public class MainActivity extends Activity {
 
         SeekBar slider = new SeekBar(this);
         slider.setMax(1000);
+        float v0 = ParamStore.get(p.id);                  // right from the start (folded rows aren't refreshed)
+        slider.setProgress(Math.round(p.toNorm(v0) * 1000f));
+        label.setText(valueText(p, v0));
         parent.addView(slider);
         rows.add(new Row(p, label, slider, null, null));
 
@@ -1055,6 +1059,9 @@ public class MainActivity extends Activity {
                 this, android.R.layout.simple_spinner_item, p.choices);
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinner.setAdapter(adapter);
+        // Select the stored choice BEFORE listening: a Spinner reports its first entry as "selected" when it is first
+        // laid out, and a folded row isn't refreshed, so that once saved C major over the user's key and scale.
+        spinner.setSelection(Math.round(ParamStore.get(p.id)), false);
         spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parentView, View v, int position, long id) {
