@@ -51,7 +51,7 @@ def fresh(**over):
                 phaser_on=1, phaser_mix=0, phaser_rate=0.4, phaser_depth=0.7, phaser_fb=0.4,
                 beat_on=1, beat_level=0, beat_hats=0.5, beat_snare=0.6, beat_pitch=55,
                 music_on=0, music_key=0, music_scale=0, music_pad=0.33, music_arp=0.4,
-                music_tone=0.5, music_react=0.8, music_res=0.8, music_harm=0, echo_scatter=0, beat_follow=0, music_pad_reg=2, pocket_hush=0.5, pocket_guard=0.6, melody_src=0, harm_src=0)
+                music_tone=0.5, music_react=0.8, music_res=0.8, music_harm=0, echo_scatter=0, beat_follow=0, music_pad_reg=2, pocket_hush=0.5, pocket_guard=0.6, melody_src=0, harm_src=0, pad_src=0, bass_src=0)
     base.update(over)
     for k, v in base.items():
         e.send(k, v)
@@ -77,7 +77,7 @@ check(not bad, "patch loads with no Pd errors" + (": %s" % bad if bad else ""))
 
 jp = java_params()
 patch_text = open(PATCH).read()
-receivers = set(re.findall(r"#X obj \d+ \d+ r (\w+);", patch_text)) - {"step", "scale_n", "pad_glide", "mic_level", "pad_slot", "pool_n", "pool_x", "pocket", "pocket_down", "duck", "step_strength", "step_hit", "beat_sure", "groove", "gc_mode", "gc_try", "density_on", "motif", "drift_now", "drift_set", "drift_n", "music_register", "music_warm", "pulse", "tick16", "clock_walking", "gc_mode", "fs_need", "harm_organ"} - {r for r in re.findall(r"#X obj \d+ \d+ r (sw_\w+);", open(PATCH).read())}   # events and internal links, not settings
+receivers = set(re.findall(r"#X obj \d+ \d+ r (\w+);", patch_text)) - {"step", "scale_n", "pad_glide", "mic_level", "pad_slot", "pool_n", "pool_x", "pocket", "pocket_down", "duck", "step_strength", "step_hit", "beat_sure", "groove", "gc_mode", "gc_try", "density_on", "motif", "drift_now", "drift_set", "drift_n", "music_register", "music_warm", "pulse", "tick16", "clock_walking", "gc_mode", "fs_need", "harm_organ", "fpad_need", "harm_run", "fpad_kick", "fpad_caught"} - {r for r in re.findall(r"#X obj \d+ \d+ r (sw_\w+);", open(PATCH).read())}   # events and internal links, not settings
 pd_ids = {i for i, _, nopd in jp if not nopd}
 check(len(jp) >= 10, "parsed %d params from Params.java" % len(jp))
 check(pd_ids == receivers, "Params.java ids == patch receivers (java-only %s, patch-only %s)"
@@ -1406,12 +1406,16 @@ def kick_tones(src, catch):
     ev = [(0.5, "k")] if catch else []
     e, y, _ = fs_catch(ev, 14.0, rhythm_src=src, beat_snare=0, beat_hats=0, beat_pitch=55)
     tail = y[4 * SR:]
-    return tone_level(tail, 120), tone_level(tail, 55), rms(tail)
+    # (energy in a band, not a projection on one frequency: kicks at random times have random phases and can cancel)
+    S_ = np.abs(np.fft.rfft(tail)) / len(tail); fr = np.fft.rfftfreq(len(tail), 1 / SR)
+    band_e = lambda lo, hi: float(np.sqrt(np.sum(S_[(fr >= lo) & (fr < hi)] ** 2)))
+    return band_e(110, 130), band_e(45, 65), rms(tail)
 f120, f55, _ = kick_tones(1, True)
 s120, s55, _ = kick_tones(0, True)
 _, _, fallback = kick_tones(1, False)
 _, _, synth_full = kick_tones(0, False)
-check(f120 > 3 * s120 and s55 > 3 * f55 and 0.1 * synth_full < fallback < 0.4 * synth_full,
+# (each against itself: the synth kick's pitch drop also sweeps through 120 Hz)
+check(f120 > 3 * f55 and s55 > 1.5 * s120 and 0.1 * synth_full < fallback < 0.4 * synth_full,
       "found sounds: the kicks play the caught thump (120 Hz %.4f vs synth %.4f; synth 55 Hz %.4f vs %.4f), nothing caught -> "
       "the synth faintly (rms %.4f vs %.4f)" % (f120, s120, s55, f55, fallback, synth_full))
 # one catch makes the whole kit found: a lone clap (a snare) also plays as the kick and hat, the synth stays silent
@@ -1493,6 +1497,46 @@ yb, _, _, _ = voice_harmony(2); yo, _, _, sw_o = voice_harmony(0); held_b, held_
 check(not sw_o and tone_level(held_o, f_v) < 0.2 * tone_level(held_v, f_v) and tone_level(held_b, f_v) > 0.5 * tone_level(held_v, f_v)
       and tone_level(held_b, 3 * f_org) > 0.5 * tone_level(held_o, 3 * f_org),
       "harmony sound: Organ plays no voice copy, Both plays the copy and the organ")
+
+# found pad: a held hum is kept with its pitch; from the next chord change the pad's chord is sung by it (each note
+# folded within a tritone of the hum, its overtones carried), as loud as the synth pad; until then the synth plays.
+# Noise and short blips are not kept; with the synth pad and Harmony at 0 nothing is even tracked.
+def pad_peaks(y, n=8):
+    S_ = np.abs(np.fft.rfft(y * np.hanning(len(y)))); fr = np.fft.rfftfreq(len(y), 1 / SR); S_[fr < 60] = 0; out = []
+    for i in np.argsort(S_)[::-1]:
+        if all(abs(fr[i] - f) > 4 for f in out): out.append(float(fr[i]))
+        if len(out) >= n: break
+    return out
+def found_pad(x, src, secs=14, **over):
+    e = fresh(**dict(dict(music_on=1, music_pad=1, music_pad_reg=1, music_arp=0, music_res=0, music_harm=0, wet=0, pad_src=src), **over))
+    e.listen("fpad_caught", "pad_chord", "harm_deg", "sw_fbass")
+    y = e.run(np.concatenate([x, np.zeros(secs * SR, np.float32)]))[:, 0]
+    return y, e.heard["fpad_caught"], [int(v) for v in e.heard["pad_chord"]], e.heard["harm_deg"], e.heard["sw_fbass"]
+yf, cf, chords_f, _, _ = found_pad(hum(220, 1.5), 1)
+ys, cs, chords_s, hd_s, _ = found_pad(hum(220, 1.5), 0)
+seg_f, seg_s = yf[9 * SR:12 * SR], ys[9 * SR:12 * SR]
+pk = pad_peaks(seg_f, 8)
+pcs = {round(12 * np.log2(f / 440)) % 12 for f in pk[:4]}                 # (the 4 strongest: the chord's notes)
+chord_pc = {(SCALE_IV[0][(chords_f[0] + d) % 7]) % 12 for d in (0, 2, 4)} if chords_f else set()
+key_pc = {(p - 9) % 12 for p in chord_pc}                                 # (relative to A = 440 Hz)
+ovt = sum(1 for f in pk if any(abs(f - m * g) < 4 for g in pk for m in (2, 3) if g < f))
+check(len(cf) == 1 and abs(cf[0] - 57) < 0.5 and pcs <= key_pc and len(pcs) == 3 and ovt >= 2
+      and 0.6 * rms(seg_s) < rms(seg_f) < 1.5 * rms(seg_s),
+      "found pad: a hummed A3 is kept (%s) and sings the next chord (%s, the chord's 3 notes; %d overtones among the peaks), "
+      "as loud as the synth pad (%.4f vs %.4f)" % (cf, sorted(pcs), ovt, rms(seg_f), rms(seg_s)))
+check(0.7 * rms(ys[4 * SR:6 * SR]) < rms(yf[4 * SR:6 * SR]) < 1.4 * rms(ys[4 * SR:6 * SR]) and not cs and not hd_s,
+      "found pad: until the next chord change the synth pad plays on (%.4f vs %.4f); with the synth pad and Harmony at 0 "
+      "nothing is tracked (%s)" % (rms(yf[4 * SR:6 * SR]), rms(ys[4 * SR:6 * SR]), hd_s))
+_, c_noise, _, _, _ = found_pad(noise, 1, secs=2); _, c_blip, _, _, _ = found_pad(hum(330, 0.08), 1, secs=2)
+_, c_short, _, _, _ = found_pad(hum(220, 0.3), 1, secs=2)
+check(not c_noise and not c_blip and not c_short, "found pad: noise, a blip and a hum shorter than a take are not kept (%s %s %s)"
+      % (c_noise, c_blip, c_short))
+yb0, _, _, _, _ = found_pad(hum(220, 1.5), 1, secs=10, music_pad_reg=0, bass_src=0)
+yb1, _, _, _, swb = found_pad(hum(220, 1.5), 1, secs=10, music_pad_reg=0, bass_src=1)
+b0, b1 = rms(yb0[5 * SR:12 * SR]), rms(yb1[5 * SR:12 * SR]); pkb = pad_peaks(yb1[5 * SR:12 * SR], 3)
+check(swb == [1] and 0.6 * b0 < b1 < 1.5 * b0 and min(pkb) < 135,
+      "found bass: on a take it plays the bass from it (%s Hz), about as loud as the synth bass (%.4f vs %.4f)"
+      % ([round(f) for f in pkb], b1, b0))
 
 # found melody: the melody's notes play a caught sound striking resonators tuned to the note, in key, about as loud as
 # the synth chimes; before anything is caught, "Found" plays the synth chimes; catching runs for it with the beat off
@@ -1656,14 +1700,19 @@ steady = (0.3 * np.sin(2 * np.pi * 1000 * t3)).astype(np.float32)
 def centroid(seg):
     sp = np.abs(np.fft.rfft(seg * np.hanning(len(seg)))); f = np.fft.rfftfreq(len(seg), 1 / SR)
     return float(np.sum(sp * f) / max(np.sum(sp), 1e-12))
-def glitch_part(y, at=3.0, thr=0.01):
-    """Where the glitch plays: from its first sound after the burst to its last."""
+def glitch_part(y, at=3.0, thr=0.01, gap=0.05):
+    """Where the first glitch plays: from its first sound after the burst until it goes quiet for `gap` s (a free-clock
+    glitch may follow later, depending on the random state the earlier tests leave)."""
     a = np.abs(y[int(at * SR):]); idx = np.nonzero(a > thr)[0]
-    return (y[int(at * SR) + idx[0]:int(at * SR) + idx[-1]], idx[0] / SR) if len(idx) else (np.zeros(1), None)
+    if not len(idx):
+        return np.zeros(1), None
+    jumps = np.nonzero(np.diff(idx) > gap * SR)[0]
+    end = idx[jumps[0]] if len(jumps) else idx[-1]
+    return y[int(at * SR) + idx[0]:int(at * SR) + end], idx[0] / SR
 y0, m0 = gc_run(burst_in(chirp), gc_amount=0)
 check(rms(y0) < 1e-4 and not m0, "glitch cloud: Amount 0 plays nothing (%.6f, %s)" % (rms(y0), m0))
 y, m = gc_run(burst_in(chirp), "gc_pct_reverse"); g, _ = glitch_part(y); q = len(g) // 4
-check(m[:1] == [1] and len(g) > 0.2 * SR and centroid(g[:q]) > 1.3 * centroid(g[-q:]),
+check(m[:1] == [1] and len(g) > 0.1 * SR and centroid(g[:q]) > 1.3 * centroid(g[-q:]),      # (2L: 0.12-0.36 s)
       "glitch cloud: reverse plays a rising sound falling (centroid %.0f -> %.0f Hz, %s)" % (centroid(g[:q]), centroid(g[-q:]), m))
 zc = lambda v: np.mean(np.abs(np.diff(np.sign(v)))) * SR / 2
 y, m = gc_run(burst_in(steady), "gc_pct_stutter"); g, _ = glitch_part(y)

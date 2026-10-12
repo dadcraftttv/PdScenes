@@ -155,6 +155,12 @@ final class Params {
             new Param("music_pad_reg", "Pad register", 0f, 2f, 2f, "", Param.Curve.LINEAR)
                     .choices("Low (bass)", "Mid", "Both")
                     .inSection("music").noPreset().resetWhenAbsent(),
+            new Param("pad_src", "Pad sounds", 0f, 2f, 1f, "", Param.Curve.LINEAR)
+                    .choices("Synth", "Found sounds (a held hum or voice, stretched)", "Both")
+                    .inSection("music").noPreset().resetWhenAbsent(),
+            new Param("bass_src", "Bass sound", 0f, 1f, 0f, "", Param.Curve.LINEAR)
+                    .choices("Synth", "Found sounds (a held hum or voice, pitched down)")
+                    .inSection("music").noPreset().resetWhenAbsent(),
             new Param("music_arp", "Notes and chimes level", 0f, 1f, 0.4f, "", Param.Curve.LINEAR)
                     .inSection("music").rand(0f, 0.8f).resetWhenAbsent(),
             new Param("melody_src", "Melody sounds", 0f, 2f, 1f, "", Param.Curve.LINEAR)

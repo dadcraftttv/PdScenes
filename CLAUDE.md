@@ -232,6 +232,22 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   (400; the organ's 1.8 s would shift the room too long) + window + 100 later. `HV_GAIN` 0.7 x Harmony. The organ
   voices are group `horgan` (music_on x music_harm x `harm_organ` = harm_src != 1). Tests use harm_src 0 unless
   they test it.
+  **Found pad / bass** (Samuel, Oct 12; `add_found_pad`; "Pad sounds" `pad_src` Synth / Found (default) / Both,
+  "Bass sound" `bass_src` Synth (default) / Found, Music, noPreset): when the Harmony tracker hears a steady pitch
+  (its note-on), a `FP_TAKE_S` (0.6 s) take from `FP_PREROLL_MS` (180) earlier is recorded from `hv_buf` (group
+  `fprec`) and kept if the note is still held at its end, with its pitch (`fpad_f0`), a peak gain (`fpad_g`), in
+  `FP_SLOTS` (2) round-robin tables `fpad_<n>` (`fpad_n`: count, newest); never in a pocket. Each pad set
+  (`fpad<k>` groups, 4 voices `fp<k><i>_*`) takes the newest take when it takes its chord; each voice is two
+  `FP_GRAIN_MS` (120) grains, a new one every half grain, starting a whole number of the take's periods from where
+  the playing grain is (so a steady note stays steady), wandering in `FP_LOOP_S`, rate = chord note / take pitch
+  folded within a tritone (`FP_GAIN` 0.075: as loud as the synth pad). Each set's sound (synth or found, `fpw_m`)
+  is latched at its chord change (a new take joins at the next one; a fading set is never cut; a Pad sounds change
+  re-latches at once); the switches (`fpw_*`: active x register != Low x mode) run only what is heard, so with Pad
+  register Low no pad set runs. The found bass (`fb_*`, group `fbass`) is one such voice on the bass note, not
+  folded, `FB_GAIN` 2.8; it starts on the current note when switched on; the synth bass gives way. The tracker and
+  detection now run while Harmony is up OR a found pad/bass wants takes (`harm_run`; the voice harmony still only
+  while Harmony > 0). The event log says "Kept a held note for the found pad (A3)". The found bass has faint grain
+  sidebands (~16 dB down) when pulled far down; untested on the phone.
   **Density memory** (roadmap 8, no slider): `value mdens` = notes played lately (a chime +1, an arpeggio note +0.3
   so the walking bed doesn't silence chimes on the beat), fading over 8 s. Sudden-sound and still-pattern chimes play
   with chance 1/(1+(mdens/10)^2); the arpeggio rests up to 30% more past 16. Busy test room: 1.45 -> 1.0 notes/s.

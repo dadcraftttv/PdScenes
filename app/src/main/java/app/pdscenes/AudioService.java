@@ -95,6 +95,8 @@ public class AudioService extends Service {
     private static final int[] kitCaught = new int[3];
     /** The last judged slice's levels (dBFS: all, lows, highs), logged with its catch. */
     private static final String FS_LEVELS = "fs_levels";
+    /** The found pad kept a held note (its pitch, MIDI). */
+    private static final String FPAD_CAUGHT = "fpad_caught";
     private volatile String fsLevels = "";
     private final MotifMemory motif = new MotifMemory(new java.util.Random());
     private final NoteRegister noteRegister = new NoteRegister();
@@ -483,6 +485,12 @@ public class AudioService extends Service {
                     }
                     return;
                 }
+                if (FPAD_CAUGHT.equals(source)) {
+                    String[] names = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
+                    int midi = Math.round(x);
+                    logEvent("Kept a held note for the found pad (" + names[((midi % 12) + 12) % 12] + (midi / 12 - 1) + ")");
+                    return;
+                }
                 if (TEMPO.equals(source)) {
                     tempoBpm = x;
                     return;
@@ -528,6 +536,7 @@ public class AudioService extends Service {
         PdBase.subscribe(TEMPO);
         PdBase.subscribe(FS_CAUGHT);
         PdBase.subscribe(FS_LEVELS);
+        PdBase.subscribe(FPAD_CAUGHT);
         synchronized (kitCaught) {
             java.util.Arrays.fill(kitCaught, 0);   // a fresh patch starts with an empty kit
         }
