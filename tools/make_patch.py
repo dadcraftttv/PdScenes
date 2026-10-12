@@ -141,7 +141,8 @@ STOP_RETURN_MS = 800       # walking again brings them straight back
 GROOVE_VEL = 0.45           # groove notes are this share of the arpeggio's loudness...
 GROOVE_FADE_IN_MS = 4000   # ...reached over this long
 # Harmony: a held, clearly pitched sound (humming, whistling, a bird, a horn) gets an in-key note answering it.
-HARM_HOP = 1024            # the pitch tracker looks every this many samples (512 cost twice as much: ~30% of the patch)
+HARM_HOP = 512             # the pitch tracker looks every this many samples, at half the sample rate (its own group
+HARM_NPTS = 1024           # "harmsig"): ~21 ms frames over ~43 ms windows. At full rate with hop 512 it was ~30% of the patch
 HARM_STABLE_FRAMES = 7     # pitch frames (~21 ms each) the pitch must hold steady before it is answered
 HARM_STEADY_ST = 0.6       # frame to frame wobble allowed, in semitones (singing vibrato passes)
 HARM_ABOVE_DB = 6          # how far above the room's quiet the sound must be
@@ -397,7 +398,7 @@ class Patch:
         return "\n".join(out) + "\n"
 
 
-def add_switch(P, g, factors, tail_ms, also=()):
+def add_switch(P, g, factors, tail_ms, also=(), block=""):
     """Switches block g's DSP on while the product of the receivers `factors` is above 0, and off again
     3 x smoothing + tail_ms after it drops to 0 (so fades and ring-outs finish first). `also` are nodes
     that get the same 0/1 (e.g. a metro that only feeds the block)."""
@@ -432,7 +433,7 @@ def add_switch(P, g, factors, tail_ms, also=()):
     P.c("r_smooth", f"{n}_wait"); P.c(f"{n}_wait", f"{n}_del", 0, 1)
     # inside the block
     P.obj(f"grp_{g}_r", f"r sw_{g}", 10, 10)
-    P.obj(f"grp_{g}_sw", "switch~", 10, 40)
+    P.obj(f"grp_{g}_sw", ("switch~ " + block).strip(), 10, 40)
     P.c(f"grp_{g}_r", f"grp_{g}_sw")
     for node in also:
         P.c(f"grp_{g}_r", node)
@@ -2084,8 +2085,9 @@ def add_harmony(P, hx, ex, degree_to_hz):
     pitch that stays steady for a moment, clearly above the room's quiet, counts, so noise and speech blips play
     nothing. Two voices take turns, so a new note never bends the one still fading. Returns the output signal."""
     P.sig2("mu_hm_src", "*~", "mic_gated", "ph_ln", hx, 20)          # quieter in a pocket, like the rest
-    P.obj("mu_hm_sig", f"sigmund~ -hop {HARM_HOP} -npts 2048 pitch env", hx, 50)   # env comes out first, then pitch
-    P.c("mu_hm_src", "mu_hm_sig")
+    P.obj("mu_hm_aa", "lop~ 6000", hx, 35); P.c("mu_hm_src", "mu_hm_aa")         # (before halving the rate)
+    P.obj("mu_hm_sig", f"sigmund~ -hop {HARM_HOP} -npts {HARM_NPTS} pitch env", hx, 50)   # env comes out first, then pitch
+    P.c("mu_hm_aa", "mu_hm_sig")
     P.obj("mu_hm_thr", "value mthr", hx + 200, 80)
     P.obj("mu_hm_env_t", "t f b", hx + 200, 50)
     ex("mu_hm_loud", f"$f1-$f2", hx + 200, 110)
@@ -3390,6 +3392,8 @@ def build():
         P.group(f"chv{k}", rf"^mu_v{k}_(o1|o2|o3|g2|g3|s12|s|env|out)$")
     for k in range(2):                                                  # the pad's two crossfade sets: on only while heard
         P.group(f"pads{k}", rf"^(mu_pad\d_{k}_(o1|o2|s|x)|mu_xf{k})$")
+    P.group("harmsig", r"^mu_hm_sig$")                                  # the pitch tracker, at half the sample rate
+    add_switch(P, "harmsig", ("music_on", "music_harm"), 100, block="64 1 0.5")
     P.group("harm", r"^mu_hm")                                          # Harmony's tracker and voices: off at 0
     add_switch(P, "harm", ("music_on", "music_harm"), 2500)            # (its notes fade over 1.8 s)
     P.group("music", r"^(mu_|ba_)")

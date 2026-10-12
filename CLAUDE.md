@@ -306,12 +306,16 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   Room notes fade in 200 ms on switch-on. Phone: music on ~39% of a core on the audio thread, music off ~18%.
 - **CPU (Oct 12, Samuel: "is there any way we can optimize it"):** measured by stripping one object type at a time
   (desktop, everything on): `sigmund~` was ~32% of the patch, oscillators ~13%, `vcf~` ~10%, `delread4~` ~6% (all
-  moving delays, kept), `expr~` ~3%. Now: Harmony's tracker hops 1024 (`HARM_HOP`, 7 steady frames ~150 ms; an
-  80 ms blip still plays nothing) and Harmony is its own group `harm` (music_on x music_harm); each synth chime voice
+  moving delays, kept), `expr~` ~3%. Now: Harmony's tracker runs at half the sample rate in its own group `harmsig`
+  (`add_switch(..., block="64 1 0.5")`, a `lop~ 6000` before it; `HARM_HOP` 512 / `HARM_NPTS` 1024 there = ~21 ms
+  frames over ~43 ms, 7 steady frames ~150 ms; an 80 ms blip still plays nothing) and Harmony is its own group
+  `harm` (music_on x music_harm); each synth chime voice
   is a group `chv<k>` (on at its note, off cdec + 300 ms later), each pad crossfade set a group `pads<k>` (with its
   `mu_xf<k>` ramp: leaving the ramp in the music group made a DSP loop between groups, "DSP loop detected"), the
   limiters are `soft_limit` (rational tanh from plain objects) and the zero-crossing sign is `*~ 1e9` + `clip~`.
-  Result: -34% everything on, -49% with Harmony 0. Room notes stay always on (with react < 1 their input never
+  Result: -34% everything on, -49% with Harmony 0; with Samuel's own settings (reverb 0.6, phaser 0.4, chorus 0.5,
+  pitch 0.25, glitch cloud full, music, beat) -22%. What's left there: music 37% (Harmony 18 of it), reverb 13%,
+  phaser 10% (its coefficients every 4 ms with [expr]; 8 ms would zipper at 5 Hz), glitch cloud 7%, pitch 7%. Room notes stay always on (with react < 1 their input never
   closes). The 200 Hz accelerometer (~7.5% of a core, own thread) is kept for step timing.
 - Presets store: sliders, movers, music pad/notes/tone/follow, beat, dry. A slider kept out of presets keeps its mover out too
   (`Params.withMovers`), or loading a preset or world switched it off. Not stored: gain/gate/compressor, smoothing/nudge,
