@@ -147,14 +147,18 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   sounds" in Music, noPreset, 0 synth / 1 found (default) / 2 both): every melodic note (chimes, arpeggio, groove,
   motif) goes through the 4 chime voices; each has a found twin `fm<k>_*`. A note plays a caught slice (snares/hats
   preferred, kicks only if nothing else) at note / `FM_REF_HZ` (600; kicks / `FM_KICK_REF_HZ` 150, so a knock is
-  pitched up to the note; rate 0.5-4) as a short strike (high-passed twice at 0.8 x the note, so its own low pitch
-  doesn't fight it, `FM_RAW` 2.5) that rings two `vcf~` resonators on the note and its octave (octave by the chime's
-  brightness; Q from the chime's fade, 60 dB over cdec; drive `FM_RES` x Q, kicks x `FM_KICK_GAIN` 0.45). A delay-line
-  string was not possible: Pd's feedback needs a block (64 samples), too slow above ~750 Hz. An automatic level
-  (`env~` every 5 ms, only down, 0.8 of the way to `FM_LEVEL_DB` 88) keeps a clap and a knock within ~5 dB of each
-  other and of the synth chimes, then tanh at 0.9 (without it every found note hit the limiter). Found mode plays
+  pitched up to the note; rate 0.5-4) as a short strike (5 ms attack, band-passed around the note, `vcf~` Q 1.2,
+  so neither its own low pitch nor its harsh top fights the note, `FM_RAW` 2.5) that rings one `vcf~` resonator on
+  the note (Q from the chime's fade, 60 dB over cdec; drive `FM_RES` 18 x Q, kicks x `FM_KICK_GAIN` 0.45). Samuel
+  (Oct 12): in key, but "could sound rounder" and "a little loud" -> the octave resonator went, level down. A
+  delay-line string was not possible: Pd's feedback needs a block (64 samples), too slow above ~750 Hz. An automatic
+  level (`env~` every 5 ms, only down, 0.9 of the way to `FM_LEVEL_DB` 85) keeps a clap and a knock 2-6 dB under the
+  synth chimes, then tanh at 0.7 (without it every found note hit the limiter). Found mode plays
   the synth until the first catch. Catching and the recording audio now run when the beat OR the melody needs them
-  (`fs_need` = rhythm_src x beat_level or music_on x melody_src). Group `fmelody` (music_on x melody_src). Tests use
+  (`fs_need` = rhythm_src x beat_level or music_on x melody_src). Each voice is its own switch~ group `fmv<k>`, on
+  at its note and off cdec + 600 ms later (like the glitch voices); the mix is group `fmelody`. Cost (desktop,
+  everything on): the found melody ~8% of the patch, the whole patch ~10% less than with always-on voices. Phone,
+  everything on (Music, beat, found kit and melody, before the per-voice switches): audio thread 65-74% of a core. Tests use
   melody_src 0 unless they test it.
 - **Learned groove** (roadmap 16 C4, replacing "rhythm memory": with the beat always on it never stopped cold
   anyway): at each catch the spot in the bar is noted (the last `tick16`, +1 past half a 16th: `fs_pos`), and when the

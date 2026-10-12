@@ -1487,9 +1487,19 @@ for nm, snd in (("clap", clap()), ("thump", thump())):
 _, hz0, r0 = melody_notes(1, None)
 check(all(abs(a - b) < 2 for a, b in zip(hz0, syn_hz)) and all(0.6 * b < a < 1.5 * b for a, b in zip(r0, syn_r)),
       "found melody: nothing caught yet -> the synth chimes play (rms %s vs %s)" % ([round(v, 3) for v in r0], [round(v, 3) for v in syn_r]))
+def voices_on(src):
+    """How often the found melody's voices were switched on (they run only while a note rings) and the rms."""
+    x = (np.random.default_rng(3).standard_normal(6 * SR) * 0.0005).astype(np.float32); c = clap(); x[SR:SR + len(c)] += c.astype(np.float32)
+    e = fresh(music_on=1, music_pad=0, music_arp=1, wet=0, music_res=0, music_react=0, melody_src=src)
+    e.listen("sw_fmv0", "sw_fmv1", "sw_fmv2", "sw_fmv3"); e.run(x[:3 * SR])
+    for deg in (7, 9, 11):
+        e.send_list("motif", deg, 0.5); e.run(x[3 * SR:4 * SR])
+    return sum(v == 1 for k in range(4) for v in e.heard["sw_fmv%d" % k]), sum(v == 0 for k in range(4) for v in e.heard["sw_fmv%d" % k])
+on_s, _ = voices_on(0); on_f, off_f = voices_on(1); on_b, _ = voices_on(2)
 _, _, rb = melody_notes(2, clap())
-check(sum(rb) > 1.05 * sum(syn_r), "found melody: Both layers the found notes over the synth chimes (rms %s vs %s)"
-      % ([round(v, 3) for v in rb], [round(v, 3) for v in syn_r]))
+check(on_s == 0 and on_f >= 3 and on_b >= 3 and off_f >= 1 and sum(rb) > 0.8 * sum(syn_r),
+      "found melody: its voices switch on only for notes (synth %d, found %d, both %d, off again %d), Both keeps the synth "
+      "chimes (rms %s vs %s)" % (on_s, on_f, on_b, off_f, [round(v, 3) for v in rb], [round(v, 3) for v in syn_r]))
 c_beat_off, _, _ = melody_notes(1, clap(), beat_level=0)
 c_none, _, _ = melody_notes(0, clap(), beat_level=0)
 check(c_beat_off == [1] and c_none == [], "found melody: sounds are caught for it with the beat off (%s), not when nothing needs them (%s)"

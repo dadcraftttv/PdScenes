@@ -183,10 +183,12 @@ FM_KICK_REF_HZ = 150              # (a kick's slice: about a thump's pitch, so a
 FM_KICK_GAIN = 0.45               #  where it rings its resonators much harder: this much)
 FM_RATE = (0.5, 4.0)
 FM_RAW = 2.5
-FM_RES = 10
-FM_LIMIT = 0.9                    # the found melody's soft limit (tanh)
-FM_LEVEL_DB = 88                  # its level is brought toward this (dB, 100 = full scale; about a synth chime's)...
-FM_LEVEL_RATIO = 0.8              # ...by this share of the difference (a clap and a knock ring very differently)
+FM_RES = 18
+FM_STRIKE_Q = 1.2                 # the strike is band-passed around the note (rounder than high-passed: Samuel)
+FM_ATTACK_MS = 5
+FM_LIMIT = 0.7                    # the found melody's soft limit (tanh)
+FM_LEVEL_DB = 85                  # its level is brought toward this (dB, 100 = full scale; a little under a synth chime)...
+FM_LEVEL_RATIO = 0.9              # ...by this share of the difference (a clap and a knock ring very differently)
 FS_POP_DB = 94                    # louder than this (-6 dBFS) and mostly lows: a mic pop, not kept
 FS_MIN_DB = 55                     # quieter than this (-45 dBFS at its loudest) is not worth keeping
 FS_RMS_TARGET = 0.3                # a slice's loudest 10 ms is brought no higher than this (a clipped snap was a boom)
@@ -781,14 +783,20 @@ def add_found_kit(P, x):
 
 def add_found_note(P, k, vx, vy, ex, caught):
     """Found melody, one voice (the twin of chime voice k): a velocity in (frequency, fade and brightness already
-    stored by the chime) plays a random caught slice at note / FM_REF_HZ and strikes two resonators tuned to the note
-    and its octave, ringing for the chime's fade. Silent when Melody sounds is Synth or nothing is caught yet."""
+    stored by the chime) plays a random caught slice at note / FM_REF_HZ and strikes a resonator tuned to the note,
+    ringing for the chime's fade. Silent when Melody sounds is Synth or nothing is caught yet. Its audio runs only
+    while a note sounds (its own switch~ group fmv<k>, like the glitch voices)."""
     n = f"fm{k}"
     S = FS_SLOTS
     ex(f"{n}_ok", f"$f1*(mel_src[0]>=1)*{caught}", vx, vy)
     P.obj(f"{n}_in", "t f", vx, vy - 20); P.c(f"{n}_in", f"{n}_ok")
     P.obj(f"{n}_gate", "moses 0.0001", vx, vy + 20); P.c(f"{n}_ok", f"{n}_gate")
-    P.obj(f"{n}_go", "t f b b b", vx, vy + 40); P.c(f"{n}_gate", f"{n}_go", 1, 0)
+    P.obj(f"{n}_go", "t f b b b b", vx, vy + 40); P.c(f"{n}_gate", f"{n}_go", 1, 0)
+    P.msg(f"{n}_swon", f"{BS}; sw_fmv{k} 1", vx + 100, vy + 20); P.c(f"{n}_go", f"{n}_swon", 4, 0)
+    P.obj(f"{n}_swdc", "value cdec", vx + 160, vy + 20); P.obj(f"{n}_swt", "+ 600", vx + 160, vy + 35)
+    P.obj(f"{n}_swdl", "del", vx + 160, vy + 50); P.msg(f"{n}_swoff", f"{BS}; sw_fmv{k} 0", vx + 160, vy + 65)
+    P.c(f"{n}_go", f"{n}_swdc", 4, 0); P.c(f"{n}_swdc", f"{n}_swt"); P.c(f"{n}_swt", f"{n}_swdl"); P.c(f"{n}_swdl", f"{n}_swoff")
+    P.obj(f"grp_fmv{k}_r", f"r sw_fmv{k}", 10, 10); P.obj(f"grp_fmv{k}_sw", "switch~", 10, 40); P.c(f"grp_fmv{k}_r", f"grp_fmv{k}_sw")
     # 1. which slice: a bright one (snare or hat: energy at every note) if any, else a kick
     P.obj(f"{n}_rnd", "random 1000", vx + 200, vy + 60); P.c(f"{n}_go", f"{n}_rnd", 3, 0)
     j = "int($f1*max(fs_filled[1]+fs_filled[2],1)/1000)"
@@ -809,20 +817,17 @@ def add_found_note(P, k, vx, vy, ex, caught):
     # 2. the note: rate, resonator frequencies, ring length (Q from the fade: 60 dB over cdec ms), octave level
     P.obj(f"{n}_nt", "t b b b", vx + 400, vy + 60); P.c(f"{n}_go", f"{n}_nt", 2, 0)
     P.obj(f"{n}_fq", "value cfreq", vx + 400, vy + 80); P.obj(f"{n}_dc", "value cdec", vx + 480, vy + 80)
-    P.obj(f"{n}_bv", "value cbright", vx + 560, vy + 80)
-    P.c(f"{n}_nt", f"{n}_bv", 2, 0); P.c(f"{n}_nt", f"{n}_dc", 1, 0); P.c(f"{n}_nt", f"{n}_fq", 0, 0)
+    P.c(f"{n}_nt", f"{n}_dc", 1, 0); P.c(f"{n}_nt", f"{n}_fq", 0, 0)
     ex(f"{n}_q", "max(3.1416*$f1*$f2/6900,5)", vx + 480, vy + 140)
     P.c(f"{n}_dc", f"{n}_q", 0, 1)
     P.obj(f"{n}_ft", "t f f f f", vx + 400, vy + 100); P.c(f"{n}_fq", f"{n}_ft")
     P.c(f"{n}_ft", f"{n}_q", 3, 0)
-    P.obj(f"{n}_fs1", "sig~", vx + 400, vy + 240); P.obj(f"{n}_f2x", "* 2", vx + 450, vy + 220)
-    P.obj(f"{n}_fs2", "sig~", vx + 450, vy + 240)
-    P.c(f"{n}_ft", f"{n}_fs1", 2, 0); P.c(f"{n}_ft", f"{n}_f2x", 1, 0); P.c(f"{n}_f2x", f"{n}_fs2")
+    P.obj(f"{n}_fs1", "sig~", vx + 400, vy + 240)
+    P.c(f"{n}_ft", f"{n}_fs1", 2, 0)
     ex(f"{n}_rate", f"min(max($f1/$f2,{FM_RATE[0]}),{FM_RATE[1]})", vx + 400, vy + 140)
     P.obj(f"{n}_rv", "t f f", vx + 400, vy + 160); P.c(f"{n}_ft", f"{n}_rate", 0, 0); P.c(f"{n}_rate", f"{n}_rv")
     ex(f"{n}_qg", f"{FM_RES}*$f1", vx + 560, vy + 160)                  # (a narrower ring catches less: feed it harder)
     P.c(f"{n}_q", f"{n}_qg")
-    P.obj(f"{n}_bg", "* 2", vx + 600, vy + 120); P.c(f"{n}_bv", f"{n}_bg")
     # 3. play: the read ramp over the slice's length / rate, and the strike's loudness = velocity x the slice's gain
     # (the rate arrived with the note, into the cold inlets; then: the slice's gain, the read ramp, the loudness)
     P.obj(f"{n}_pl", "t f b b", vx, vy + 80); P.c(f"{n}_go", f"{n}_pl", 0, 0)
@@ -840,23 +845,18 @@ def add_found_note(P, k, vx, vy, ex, caught):
     P.c(f"{n}_pl", f"{n}_amp", 0, 0)
     P.obj(f"{n}_apk", "pack f f", vx + 60, vy + 160)
     P.c(f"{n}_amp", f"{n}_apk", 1, 1); P.c(f"{n}_amp", f"{n}_apk", 0, 0)
-    P.msg(f"{n}_emsg", f"0 {BS}, {BS}$1 2 {BS}, 0 {BS}$2 2", vx + 60, vy + 180); P.obj(f"{n}_env", "vline~", vx + 60, vy + 200)
+    P.msg(f"{n}_emsg", f"0 {BS}, {BS}$1 {FM_ATTACK_MS} {BS}, 0 {BS}$2 {FM_ATTACK_MS}", vx + 60, vy + 180); P.obj(f"{n}_env", "vline~", vx + 60, vy + 200)
     P.c(f"{n}_apk", f"{n}_emsg"); P.c(f"{n}_emsg", f"{n}_env")
     P.sig2(f"{n}_raw", "*~", f"{n}_rd", f"{n}_env", vx, vy + 290)
     # (the order inside go: slice first, then the note, then play; set from right to left)
-    P.obj(f"{n}_r1", "vcf~", vx + 100, vy + 320); P.obj(f"{n}_r2", "vcf~", vx + 200, vy + 320)
-    P.c(f"{n}_raw", f"{n}_r1"); P.c(f"{n}_fs1", f"{n}_r1", 0, 1)
-    P.c(f"{n}_raw", f"{n}_r2"); P.c(f"{n}_fs2", f"{n}_r2", 0, 1)
-    P.c(f"{n}_q", f"{n}_r1", 0, 2); P.c(f"{n}_q", f"{n}_r2", 0, 2)
-    P.obj(f"{n}_g2", "*~ 0.5", vx + 200, vy + 350); P.c(f"{n}_r2", f"{n}_g2"); P.c(f"{n}_bg", f"{n}_g2", 0, 1)
-    P.sig2(f"{n}_res0", "+~", f"{n}_r1", f"{n}_g2", vx + 100, vy + 370)
-    P.obj(f"{n}_res", "*~ 1", vx + 100, vy + 390); P.c(f"{n}_res0", f"{n}_res"); P.c(f"{n}_qg", f"{n}_res", 0, 1)
-    # the strike itself keeps its character but not its own low pitch (that would fight the note): high-passed under it
-    P.obj(f"{n}_hp", "hip~ 100", vx, vy + 360); P.obj(f"{n}_hpb", "hip~ 100", vx, vy + 375)
-    P.c(f"{n}_raw", f"{n}_hp"); P.c(f"{n}_hp", f"{n}_hpb")
-    P.obj(f"{n}_hpf", "* 0.8", vx + 500, vy + 220); P.c(f"{n}_ft", f"{n}_hpf", 1, 0)
-    P.c(f"{n}_hpf", f"{n}_hp", 0, 1); P.c(f"{n}_hpf", f"{n}_hpb", 0, 1)
-    P.obj(f"{n}_mix", f"*~ {FM_RAW}", vx, vy + 390); P.c(f"{n}_hpb", f"{n}_mix")
+    P.obj(f"{n}_r1", "vcf~", vx + 100, vy + 320)
+    P.c(f"{n}_raw", f"{n}_r1"); P.c(f"{n}_fs1", f"{n}_r1", 0, 1); P.c(f"{n}_q", f"{n}_r1", 0, 2)
+    P.obj(f"{n}_res", "*~ 1", vx + 100, vy + 390); P.c(f"{n}_r1", f"{n}_res"); P.c(f"{n}_qg", f"{n}_res", 0, 1)
+    # the strike itself keeps its character but not its own low pitch (that would fight the note) nor its harsh top:
+    # a soft band around the note
+    P.obj(f"{n}_bp", "vcf~ 1", vx, vy + 360); P.c(f"{n}_raw", f"{n}_bp"); P.c(f"{n}_fs1", f"{n}_bp", 0, 1)
+    P.msg(f"{n}_bpq", str(FM_STRIKE_Q), vx + 60, vy + 340); P.c(f"{n}_nt", f"{n}_bpq", 2, 0); P.c(f"{n}_bpq", f"{n}_bp", 0, 2)
+    P.obj(f"{n}_mix", f"*~ {FM_RAW}", vx, vy + 390); P.c(f"{n}_bp", f"{n}_mix")
     P.sig2(f"{n}_out", "+~", f"{n}_mix", f"{n}_res", vx, vy + 410)
 
 
@@ -3354,7 +3354,9 @@ def build():
     add_switch(P, "music", ("music_on",), 3000)                       # chimes fade over up to 2.6 s
     P.group("gloop", r"^gl_(rec_in|rec|ix|rd|env|s0|out)$")                    # the glitch loop's audio
     add_switch(P, "gloop", ("beat_glitch", "beat_level", "gc_amount"), 3500)
-    P.group("fmelody", r"^(fm\d_(rd|ix|env|raw|hpb?|fs1|fs2|r1|r2|g2|res0|res|mix|out)|fm_(acc\d|lim|env|agc_ln|lvl))$")   # the found melody's audio
+    for k in range(4):                                                  # each found melody voice: on only while it rings
+        P.group(f"fmv{k}", rf"^fm{k}_(rd|ix|env|raw|bp|fs1|r1|res|mix|out)$")
+    P.group("fmelody", r"^fm_(acc\d|lim|env|agc_ln|lvl)$")             # the found melody's mix
     add_switch(P, "fmelody", ("music_on", "melody_src"), 3000)
     P.group("fsound", r"^(fs_(src|wr|rd|rec|lo|hi|env_\w+|ks0|ks|hat_lim)|fsv_\w+_(rd|ixl|env|s|f))$")    # the found-sound kit's audio
     add_switch(P, "fsound", ("fs_need",), 500)
