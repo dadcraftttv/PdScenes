@@ -115,6 +115,9 @@ final class Params {
             // ---- Walking beat ---- (drums played by your footsteps, added after the first presets)
             new Param("beat_on", "Walking beat enabled", 0f, 1f, 1f, "", Param.Curve.LINEAR)
                     .inSection("beat").toggle().resetWhenAbsent(),
+            new Param("beat_follow", "Walking beat follows", 0f, 1f, 1f, "", Param.Curve.LINEAR)
+                    .choices("Your steps (as before)", "Tempo clock (steadier, follows your pace)")
+                    .inSection("beat").noPreset().resetWhenAbsent(),
             new Param("beat_level", "Beat level (plays when you walk; 0 = off)", 0f, 1f, 0f, "",
                     Param.Curve.LINEAR).inSection("beat").rand(0f, 0.7f).resetWhenAbsent(),
             new Param("beat_hats", "Hi-hat level", 0f, 1f, 0.5f, "", Param.Curve.LINEAR)

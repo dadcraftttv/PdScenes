@@ -474,7 +474,9 @@ public class MainActivity extends Activity {
             why.add(getString(R.string.why_shaken));
         }
         if (StepDetector.walking(nowS)) {
-            why.add(getString(R.string.why_walking));
+            boolean clock = ParamStore.get("beat_follow") >= 0.5f && AudioService.tempo() > 0;
+            why.add(clock ? getString(R.string.why_walking_bpm, Math.round(AudioService.tempo()))
+                    : getString(R.string.why_walking));
         }
         if (PhoneContext.inPocket()) {
             why.add(getString(R.string.why_pocket));

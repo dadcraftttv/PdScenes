@@ -35,7 +35,7 @@ DEFAULTS = [
     ("phaser_on", 1), ("phaser_mix", 0), ("phaser_rate", 0.4), ("phaser_depth", 0.7), ("phaser_fb", 0.4),
     ("beat_on", 1), ("beat_level", 0), ("beat_hats", 0.5), ("beat_snare", 0.6), ("beat_pitch", 55),
     ("music_on", 0), ("music_key", 0), ("music_scale", 0), ("music_pad", 0.33), ("music_arp", 0.4),
-    ("music_tone", 0.5), ("music_react", 0.8), ("music_res", 0.8), ("music_harm", 0.6), ("gate_attack", 5), ("gate_hold", 0), ("gate_release", 80), ("comp_attack", 40),
+    ("music_tone", 0.5), ("music_react", 0.8), ("music_res", 0.8), ("music_harm", 0.6), ("beat_follow", 1), ("gate_attack", 5), ("gate_hold", 0), ("gate_release", 80), ("comp_attack", 40),
     ("comp_release", 40), ("music_drift", 1), ("echo_scatter", 0.5), ("gc_amount", 0), ("gc_level", 0.7), ("gc_pct_stutter", 35), ("gc_pct_reverse", 25),
     ("gc_pct_shuffle", 20), ("gc_pct_stretch", 20), ("music_pad_reg", 2), ("pocket_hush", 0.5), ("pocket_guard", 0.6),
 ]
@@ -148,6 +148,12 @@ HARM_HIGH = 76             # a pitch from E5 up (a whistle, a bird) is answered 
 HARM_RANGE = (36, 104)     # heard pitches outside C2..G#7 are hiss or rumble, not a voice, whistle or bird
 HARM_ATTACK_MS = 150
 # Glitch cloud: bits of what the mic heard (kept in memory only, a few seconds) come back mangled, around you.
+CLOCK_MIN_MS, CLOCK_MAX_MS = 375, 750   # beats are folded into 80-160 BPM
+CLOCK_DEFAULT_MS = 600       # 100 BPM before any walking
+CLOCK_PHASE_GAIN = 0.35      # each step moves the next beat this much of the way to it...
+CLOCK_FREQ_GAIN = 0.1        # ...and the beat length this much of the error...
+CLOCK_PACE_GAIN = 0.15       # ...and this much toward the step interval itself
+CLOCK_FRESH_MS = 2000        # no step for this long (plus a beat): the next step starts a fresh walk on its beat
 GATE_HYST_DB = 4             # the gate opens at its threshold and only closes this far below it (no flutter)
 GC_BUF_MS = 4000
 GC_ONSET_DB = 10           # a sudden sound: the 5 ms level jumps this far above its recent average...
@@ -381,12 +387,103 @@ def smoothed(P, key, recv, x, y, ramp=30, mult=None):
     return f"ln_{key}"
 
 
+def add_tempo_clock(P):
+    """The tempo clock (roadmap 16 part 1): a steady beat that follows the walking like a band follows its drummer.
+    Each step nudges its timing (CLOCK_PHASE_GAIN of the error) and tempo (CLOCK_FREQ_GAIN, plus a little of the step
+    interval itself), so one odd step barely moves it and a change of pace is followed within a few steps. One step =
+    one beat, folded into CLOCK_MIN_MS..CLOCK_MAX_MS (80-160 BPM; a slow amble plays at double time). It sends
+    [pulse <beat s>( while you walk (until 1.25 step intervals after the last step, so stopping still stops the
+    drums at once) and [tempo <bpm>( on each beat; when you stop it keeps the tempo. beat_follow 0 sends the steps
+    themselves as pulses instead (the old behaviour)."""
+    x, y = 9000, 20
+    def ex(name, text, xx, yy):
+        return P.obj(name, "expr " + text.replace(",", BS + ",").replace("$", BS + "$"), xx, yy)
+    P.obj("tc_lb", "loadbang", x, y)
+    P.obj("tc_timer", "timer", x, y + 60)                                 # ms since load (logical time)
+    P.c("tc_lb", "tc_timer")
+    P.obj("tc_r_step", "r step", x + 200, y)
+    P.obj("tc_step_t", "t b f", x + 200, y + 30)                          # the interval first, then the time
+    P.c("tc_r_step", "tc_step_t"); P.c("tc_step_t", "tc_timer", 0, 1)
+    # state: P beat ms, N next beat (ms since load), B last beat, L last step, I last step interval ms
+    st = {k: P.obj(f"tc_v{k}", f"value tc_{k}", x + 500 + 70 * i, y + 20) for i, k in enumerate("PNBLI")}
+    for k in "PNBLI":
+        P.obj(f"tc_w{k}", f"value tc_{k}", x + 500 + 70 * "PNBLI".index(k), y + 300)
+    P.msg("tc_init_msg", f"{CLOCK_DEFAULT_MS}", x + 60, y + 20)
+    P.c("tc_lb", "tc_init_msg"); P.c("tc_init_msg", "tc_wP")
+    # on a step: now, its interval -> new P, new N (fresh walk: a beat right now)
+    P.obj("tc_now_t", "t f f b b b b", x + 200, y + 90)                   # read P N B L, store now, then calculate
+    P.c("tc_timer", "tc_now_t")
+    for i, k in enumerate("PNBL"):
+        P.c("tc_now_t", f"tc_v{k}", 5 - i, 0)
+    iv = "max($f2*1000,100)"                                              # (never 0: a beat 0 ms long would loop forever)
+    fold = f"({iv})*pow(2,floor(ln({CLOCK_MAX_MS}/({iv}))/ln(2)))"
+    e = "if(abs($f1-$f5)<abs($f1-$f4),$f1-$f5,$f1-$f4)"                     # error to the nearest beat
+    fresh = f"($f6<=0||$f1-$f6>{CLOCK_FRESH_MS}+$f3)"
+    newP = (f"if({fresh},{fold},min(max((1-{CLOCK_PACE_GAIN})*($f3+{CLOCK_FREQ_GAIN}*{e})+{CLOCK_PACE_GAIN}*{fold},"
+            f"{CLOCK_MIN_MS}),{CLOCK_MAX_MS}))")
+    newN = f"if({fresh},$f1,max($f4+{CLOCK_PHASE_GAIN}*{e},$f1+1))"
+    ex("tc_calc", f"{newP} ; {newN} ; {iv} ; $f1".replace(" ; ", " " + BS + "; "), x + 200, y + 150)
+    # inlets: $f1 now (hot, last), $f2 interval s, $f3 P, $f4 N, $f5 B, $f6 L
+    P.c("tc_step_t", "tc_calc", 1, 1)
+    P.c("tc_vP", "tc_calc", 0, 2); P.c("tc_vN", "tc_calc", 0, 3); P.c("tc_vB", "tc_calc", 0, 4); P.c("tc_vL", "tc_calc", 0, 5)
+    P.c("tc_now_t", "tc_calc", 0, 0)
+    # outputs right to left: L (now), I (interval ms), N, P -> written; then the next beat is (re)scheduled
+    P.c("tc_calc", "tc_wL", 3, 0); P.c("tc_calc", "tc_wI", 2, 0)
+    P.obj("tc_n_t", "t f b f", x + 280, y + 190)                         # store N, read now, then the wait
+    P.c("tc_calc", "tc_n_t", 1, 0); P.c("tc_n_t", "tc_wN", 2, 0)
+    P.c("tc_calc", "tc_wP", 0, 0)
+    if os.environ.get("CLOCK_DEBUG"):
+        P.obj("tc_dbg_pk", "pack f f f f", x + 700, y + 150); P.obj("tc_dbg_s", "s tc_dbg", x + 700, y + 170)
+        P.c("tc_calc", "tc_dbg_pk", 0, 0); P.c("tc_calc", "tc_dbg_pk", 1, 1); P.c("tc_calc", "tc_dbg_pk", 2, 2); P.c("tc_calc", "tc_dbg_pk", 3, 3)
+        P.c("tc_dbg_pk", "tc_dbg_s")
+    P.obj("tc_now2", "f", x + 360, y + 210)                               # now, for the delay to N
+    P.c("tc_now_t", "tc_now2", 1, 1)
+    ex("tc_wait", "max($f1-$f2,0)", x + 280, y + 230)
+    P.c("tc_n_t", "tc_now2", 1, 0); P.c("tc_now2", "tc_wait", 0, 1); P.c("tc_n_t", "tc_wait", 0, 0)
+    P.obj("tc_del", "del", x + 280, y + 260)
+    P.c("tc_wait", "tc_del")
+    # a beat: B = N, N = N + P, the pulse (while walking) and the tempo, then the next beat
+    P.obj("tc_beat", "t b b b b", x, y + 330)
+    P.c("tc_del", "tc_beat")
+    P.obj("tc_bN", "value tc_N", x + 80, y + 350); P.obj("tc_bP", "value tc_P", x + 150, y + 350)
+    P.obj("tc_bL", "value tc_L", x + 220, y + 350); P.obj("tc_bI", "value tc_I", x + 290, y + 350)
+    P.obj("tc_timer2", "timer", x + 360, y + 370)                         # (its own timer: the step path has the other)
+    P.c("tc_lb", "tc_timer2")
+    P.c("tc_beat", "tc_timer2", 3, 1)
+    P.c("tc_beat", "tc_bI", 2, 0); P.c("tc_beat", "tc_bL", 2, 0); P.c("tc_beat", "tc_bP", 1, 0); P.c("tc_beat", "tc_bN", 0, 0)
+    ex("tc_next", f"$f1 ; $f1+$f2 ; max($f2,{CLOCK_MIN_MS}) ; ($f3-$f4<1.25*$f5)*($f5>0) ; 60000/max($f2,1)".replace(" ; ", " " + BS + "; "), x, y + 380)
+    # inlets: $f1 N (hot, last), $f2 P, $f3 now, $f4 L, $f5 I
+    P.c("tc_timer2", "tc_next", 0, 2)                                      # (the time of the beat)
+    P.c("tc_bL", "tc_next", 0, 3); P.c("tc_bI", "tc_next", 0, 4); P.c("tc_bP", "tc_next", 0, 1); P.c("tc_bN", "tc_next")
+    # out: 4 bpm, 3 walking?, 2 P (the delay to the next beat), 1 new N, 0 B
+    P.obj("tc_tempo_s", "s tempo", x + 300, y + 420); P.c("tc_next", "tc_tempo_s", 4, 0)
+    P.obj("tc_walk", "f", x + 220, y + 420); P.c("tc_next", "tc_walk", 3, 1)
+    P.c("tc_next", "tc_wN", 1, 0); P.c("tc_next", "tc_wB", 0, 0)
+    P.obj("tc_p_t", "t f b", x + 150, y + 420)
+    P.c("tc_next", "tc_p_t", 2, 0)
+    P.c("tc_p_t", "tc_walk", 1, 0)                                         # walking? -> the pulse gate
+    P.c("tc_p_t", "tc_del", 0, 0)                                          # next beat in P ms
+    P.obj("tc_walk_sel", "sel 1", x + 220, y + 450)
+    P.c("tc_walk", "tc_walk_sel")
+    P.obj("tc_bP2", "value tc_P", x + 220, y + 480); P.obj("tc_sec", "/ 1000", x + 220, y + 510)
+    P.c("tc_walk_sel", "tc_bP2"); P.c("tc_bP2", "tc_sec")
+    # the router: beat_follow 1 = the clock's beats, 0 = the steps themselves
+    P.obj("tc_r_mode", "r beat_follow", x + 500, y + 450)
+    P.obj("tc_clock_on", "spigot 1", x + 220, y + 540); P.obj("tc_steps_on", "spigot 0", x + 600, y + 540)
+    ex("tc_inv", "$f1==0", x + 600, y + 480)
+    P.c("tc_r_mode", "tc_clock_on", 0, 1); P.c("tc_r_mode", "tc_inv"); P.c("tc_inv", "tc_steps_on", 0, 1)
+    P.c("tc_sec", "tc_clock_on")
+    P.obj("tc_raw", "r step", x + 600, y + 510); P.c("tc_raw", "tc_steps_on")
+    P.obj("tc_pulse_s", "s pulse", x + 400, y + 570)
+    P.c("tc_clock_on", "tc_pulse_s"); P.c("tc_steps_on", "tc_pulse_s")
+
+
 def add_beat(P):
     """Footstep drums. The app sends [step( with the time since the previous step (seconds) at every
     footstep. Steps alternate kick and snare, and a hi-hat falls half a step after each one. Returns the
     name of the mono output signal."""
     x = 2300
-    P.obj("r_step", "r step", x, 20)
+    P.obj("r_step", "r pulse", x, 20)                                  # steps or the tempo clock (add_tempo_clock)
     P.obj("step_t", "t b b f", x, 50)
     P.c("r_step", "step_t")
     # Half the interval, in ms, sets the hi-hat delay (right inlet of [del]: sets without starting it).
@@ -809,7 +906,7 @@ def add_music(P):
     P.c("mu_still_off", "mu_still_gate", 0, 1); P.c("mu_still_back", "mu_still_gate", 0, 1)
 
     # Path 3, footsteps: an arpeggio around the current chord. Louder when you walk faster.
-    P.obj("mu_r_step", "r step", x + 1100, 600)
+    P.obj("mu_r_step", "r pulse", x + 1100, 600)
     P.obj("mu_step_t", "t b f", x + 1100, 630)
     P.c("mu_r_step", "mu_step_t")
     ex("mu_pace", "1/max($f1,0.25)", x + 1200, 660)
@@ -817,7 +914,8 @@ def add_music(P):
     ex("mu_pace_vel", "(0.4+0.6*$f1)*(0.8+0.4*$f2)", x + 1200, 720)    # a harder step pushes the note
     P.obj("mu_r_strength", "r step_strength", x + 1350, 660)
     P.c("mu_r_strength", "mu_pace_vel", 0, 1)
-    P.c("mu_step_t", "mu_pace", 1, 0); P.c("mu_pace", "mu_pace_f"); P.c("mu_pace_f", "mu_pace_vel")
+    P.obj("mu_r_pace", "r step", x + 1200, 640)                       # the pace comes from your real steps
+    P.c("mu_r_pace", "mu_pace"); P.c("mu_pace", "mu_pace_f"); P.c("mu_pace_f", "mu_pace_vel")
     P.c("mu_pace_vel", "mu_v_vel")
     P.obj("mu_arp_gate", "spigot", x + 1100, 660)
     P.c("mu_step_t", "mu_arp_gate", 0, 0)
@@ -1118,7 +1216,7 @@ def add_music(P):
     P.sig2("ba_s", "+~", "ba_s12", "ba_g3", bx, 655)
     P.sig2("ba_e", "*~", "ba_s", "ba_env", bx, 670)
     # footstep duck, only while the walking beat is switched on and audible
-    P.obj("ba_r_step", "r step", bx + 200, 600)
+    P.obj("ba_r_step", "r pulse", bx + 200, 600)
     P.obj("ba_r_bl", "r beat_level", bx + 280, 600)
     P.obj("ba_r_bo", "r beat_on", bx + 360, 600)
     P.obj("ba_bl", "f", bx + 200, 630)
@@ -1431,7 +1529,7 @@ def add_glitch_cloud(P):
     P.c("gc_clk_rest", "gc_clk_go"); P.c("gc_clk_go", "gc_flag0", 1, 0); P.c("gc_flag0", "gc_flag", 0, 1)
     P.c("gc_clk_go", "gc_ask", 0, 0)                                   # (only sudden sounds start the rest)
     # ---- walking: a glitch waits for the next step or half-step; stutters are a quarter step long ----
-    P.obj("gc_r_step", "r step", x + 800, y)
+    P.obj("gc_r_step", "r pulse", x + 800, y)
     P.obj("gc_step_t", "t b b f b", x + 800, y + 30)
     P.c("gc_r_step", "gc_step_t")
     P.msg("gc_walk1", "1", x + 800, y + 90); P.msg("gc_walk0", "0", x + 860, y + 120)
@@ -2284,7 +2382,7 @@ def build():
     # While walking, the echo can lock to the step rhythm (echo_sync: 0 off, 1 = a step, 2 = half, 3 = quarter).
     # The step interval is averaged and moved in 20 ms jumps, so ordinary step-to-step wobble doesn't make the
     # echo warble; 2.5 s after the last step the slider's own time comes back.
-    P.obj("ec_r_step", "r step", 700, 20)
+    P.obj("ec_r_step", "r pulse", 700, 20)
     P.obj("ec_step_t", "t b f", 700, 50)
     P.c("ec_r_step", "ec_step_t")
     P.obj("ec_clip", "clip 0.25 1.2", 760, 80)
@@ -2355,6 +2453,7 @@ def build():
     dry = smoothed(P, "dry", "dry", 250, 300)
     P.sig2("dry_sig", "*~", "voice", dry, 250, 380)
     P.obj("mix_pre", "+~", 250, 420); P.c("dry_sig", "mix_pre")      # the echo joins both ears later, scattered
+    add_tempo_clock(P)
     beat = add_beat(P)
     P.sig2("mix_out", "+~", "mix_pre", beat, 250, 450)       # the beat joins here, so reverb and pan apply to it
 

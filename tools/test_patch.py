@@ -51,7 +51,7 @@ def fresh(**over):
                 phaser_on=1, phaser_mix=0, phaser_rate=0.4, phaser_depth=0.7, phaser_fb=0.4,
                 beat_on=1, beat_level=0, beat_hats=0.5, beat_snare=0.6, beat_pitch=55,
                 music_on=0, music_key=0, music_scale=0, music_pad=0.33, music_arp=0.4,
-                music_tone=0.5, music_react=0.8, music_res=0.8, music_harm=0, echo_scatter=0, music_pad_reg=2, pocket_hush=0.5, pocket_guard=0.6)
+                music_tone=0.5, music_react=0.8, music_res=0.8, music_harm=0, echo_scatter=0, beat_follow=0, music_pad_reg=2, pocket_hush=0.5, pocket_guard=0.6)
     base.update(over)
     for k, v in base.items():
         e.send(k, v)
@@ -77,7 +77,7 @@ check(not bad, "patch loads with no Pd errors" + (": %s" % bad if bad else ""))
 
 jp = java_params()
 patch_text = open(PATCH).read()
-receivers = set(re.findall(r"#X obj \d+ \d+ r (\w+);", patch_text)) - {"step", "scale_n", "pad_glide", "mic_level", "pad_slot", "pool_n", "pool_x", "pocket", "pocket_down", "duck", "step_strength", "step_hit", "beat_sure", "groove", "gc_mode", "gc_try", "density_on", "motif", "drift_now", "drift_set", "drift_n", "music_register", "music_warm"} - {r for r in re.findall(r"#X obj \d+ \d+ r (sw_\w+);", open(PATCH).read())}   # events and internal links, not settings
+receivers = set(re.findall(r"#X obj \d+ \d+ r (\w+);", patch_text)) - {"step", "scale_n", "pad_glide", "mic_level", "pad_slot", "pool_n", "pool_x", "pocket", "pocket_down", "duck", "step_strength", "step_hit", "beat_sure", "groove", "gc_mode", "gc_try", "density_on", "motif", "drift_now", "drift_set", "drift_n", "music_register", "music_warm", "pulse"} - {r for r in re.findall(r"#X obj \d+ \d+ r (sw_\w+);", open(PATCH).read())}   # events and internal links, not settings
 pd_ids = {i for i, _, nopd in jp if not nopd}
 check(len(jp) >= 10, "parsed %d params from Params.java" % len(jp))
 check(pd_ids == receivers, "Params.java ids == patch receivers (java-only %s, patch-only %s)"
@@ -1248,6 +1248,40 @@ _, degs_b, _ = harmony(hum(330, 0.08))
 _, degs_q, _ = harmony(hum(220, 1.5, amp=0.0008))
 check(not degs_n and not degs_b and not degs_q,
       "harmony: noise, a short blip and a hum lost in the room's quiet play nothing (%s %s %s)" % (degs_n, degs_b, degs_q))
+
+# the tempo clock: a steady beat that follows the walking (kicks only, so a hit every other beat)
+def clock_hits(step_times, total, **over):
+    e = fresh(**dict(dict(dry=0, wet=0, beat_level=1, beat_snare=0, beat_hats=0, beat_follow=1), **over)); e.listen("tempo")
+    out = []; t = 0; last = None
+    for st in sorted(step_times) + [total]:
+        n = int(round((st - t) * SR / 64)) * 64
+        if n > 0:
+            out.append(e.run(np.zeros(n, np.float32))[:, 0]); t += n / SR
+        if st < total:
+            e.send("step", float(st - last if last is not None else 0.55)); last = st
+    y = np.abs(np.concatenate(out)); hits = []; i = 0
+    while i < len(y):
+        if y[i] > 0.02:
+            hits.append(i / SR); i += int(0.3 * SR)
+        else:
+            i += 1
+    return np.array(hits), [float(v) for v in e.heard["tempo"]]
+rng = np.random.default_rng(1)
+wobbly = [1.0 + 0.5 * i + rng.uniform(-0.04, 0.04) for i in range(20)]
+h, tempo = clock_hits(wobbly + [11.0 + 0.4 * i for i in range(15)], 18.0)
+mid = np.diff(h)[(h[1:] > 3) & (h[1:] < 10)]; fast = np.diff(h)[h[1:] > 12.5]
+check(abs(np.mean(mid) - 1.0) < 0.02 and np.std(mid) < 0.02 and abs(np.mean(fast) - 0.8) < 0.03 and h[-1] < wobbly[-1] + 6.6 + 0.05,
+      "tempo clock: steps wobbling +-40 ms give an even beat (every 2 beats %.3f s, spread %.3f), a faster walk is followed (%.3f s), "
+      "stopping stops it (last hit %.2f s after the last step)" % (np.mean(mid), np.std(mid), np.mean(fast), h[-1] - (11.0 + 0.4 * 14)))
+gappy = [1.0 + 0.5 * i for i in range(16) if i != 9]                       # one step not detected
+h, _ = clock_hits(gappy, 9.5)
+check(np.max(np.diff(h[(h > 2.5) & (h < 8.6)])) < 1.05, "tempo clock: a missed step doesn't make a hole in the beat (longest gap %.2f s)" % np.max(np.diff(h[(h > 2.5) & (h < 8.6)])))
+h, tempo = clock_hits([1.0 + 1.0 * i for i in range(10)], 11.0)          # an amble, 60 steps a minute
+check(abs(tempo[-1] - 120) < 4 and abs(np.median(np.diff(h)) - 1.0) < 0.03,
+      "tempo clock: a slow amble plays at double time (%.0f BPM, a kick every %.2f s)" % (tempo[-1], np.median(np.diff(h))))
+h, _ = clock_hits(wobbly, 12.0, beat_follow=0)
+step_hits = [st for k, st in enumerate(wobbly) if k >= 2 and k % 2 == 0]   # (the first two steps of a walk play nothing in the app; here all count)
+check(np.std(np.diff(h[(h > 3) & (h < 10)])) > 0.015, "tempo clock: 'your steps' plays straight from the steps, wobble and all (spread %.3f s)" % np.std(np.diff(h[(h > 3) & (h < 10)])))
 
 # input shaping: the gate's own fast meter, hysteresis, hold, attack and release; the compressor's attack and release
 def db_tone(db, secs, f=1000):

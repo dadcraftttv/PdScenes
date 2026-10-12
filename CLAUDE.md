@@ -94,6 +94,21 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   became pure fuzz; a steady roar now leaves the user's own settings. Flux preset was softened (dist 0.2 soft, crush 0.15,
   ring 0.15, freeze mover depth 0.4) so the room still comes through.
 - **Walking beat:** StepDetector sends `step <interval>` messages; foot drift was fixed and confirmed on the phone.
+- **Tempo clock** (roadmap 16 part 1, step B; `add_tempo_clock`): a steady beat in Pd that follows the steps like a
+  band follows its drummer: each step moves the next beat 35% of the way to it, the beat length 10% of the error plus
+  15% toward the step interval; one step = one beat, folded into 80-160 BPM (an amble at 60 steps/min plays at 120).
+  A step after >2 s (+a beat) starts a fresh walk on its own beat. It sends `pulse <beat s>` while walking (until
+  1.25 step intervals after the last step, so stopping still stops the drums) and `tempo <bpm>` on every beat; it
+  keeps ticking at the last tempo. `beat_follow` (Walking beat section, noPreset, default 1 = clock; 0 = "Your steps",
+  the old behaviour: steps passed straight on as pulses). Drums, arpeggio notes, chime queue, bass duck, echo sync
+  and the glitch step lock listen to `pulse`; the arpeggio's pace and the stop breath still use the real `step`.
+  The Now line says "walking 112 BPM". Measured: steps wobbling +-40 ms -> beats within 13 ms of even, a pace change
+  followed within ~2 steps, a missed step leaves no hole. Tests run with `beat_follow=0` unless they test the clock.
+  **Pd lessons:** a [t] outlet feeding two objects has no defined order (one read a stale time and the tempo ran away);
+  an interval of 0 made a 0 ms beat that rescheduled itself forever (guarded). `CLOCK_DEBUG=1` prints P, N, I, now.
+- **Dropdowns keep their value** (fixed Oct 12): rows are created at their stored value and a Spinner selects it
+  before its listener is set; a Spinner reports its first entry as selected on first layout, and folded rows aren't
+  refreshed, so key and scale kept snapping back to C major.
 - **Music (off by default):** key + scale snap the notes; pad is soft glue (default 0.33, Samuel likes ~0.20); chimes/arpeggio follow the room.
   Pad chords come from `CHORD_POOLS` per scale (Samuel chose: home chord + its two strongest neighbours, picked by brightness, plus one
   contrast chord ~20% of changes; e.g. C major = C F G + Am; pentatonic/whole tone keep all). No diminished chords. Chord changes

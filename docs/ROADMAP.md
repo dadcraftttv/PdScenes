@@ -130,7 +130,7 @@ Plan first, agreed with Samuel, then build; test on the phone after every step. 
     or half-step (`mu_q_*`), the glitch cloud's "free clock" is random on purpose. Pieces that exist: StepDetector's
     averaged interval (the pace), the glitch cloud's 4 s RAM buffer, the sudden-sound detector (gc meter onsets),
     MotifMemory, density memory, ARP_PATTERNS tiers.
-    1. **Tempo clock** (step B): its own steady beat, nudged by each footstep (phase-locked, like following a drummer),
+    1. **(BUILT 2026-10-12, needs Samuel's walk) Tempo clock** (step B): its own steady beat, nudged by each footstep (phase-locked, like following a drummer),
        so a grid with subdivisions exists, uneven steps don't throw it, and it holds (or settles to a default) when
        you stop. Fold very slow paces up into a musical range. Useful on its own: drums, chimes and arpeggio on it.
     2. **Hit catcher:** on a sudden sound, copy a short slice from the RAM buffer into a small kit (never to disk),

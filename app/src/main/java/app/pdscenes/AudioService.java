@@ -87,8 +87,16 @@ public class AudioService extends Service {
     /** The patch reports each chime it plays here (not arpeggio notes or replays); motif memory listens. */
     private static final String CHIME_NOTE = "chime_note";
     private static final String MOTIF_PLAY = "motif";
+    /** The patch's tempo clock reports its tempo on each beat. */
+    private static final String TEMPO = "tempo";
+    private static volatile float tempoBpm;
     private final MotifMemory motif = new MotifMemory(new java.util.Random());
     private final NoteRegister noteRegister = new NoteRegister();
+    /** The tempo clock's tempo (beats a minute), 0 before the first beat. */
+    static float tempo() {
+        return tempoBpm;
+    }
+
     private static final int[] SCALE_SIZES = {7, 7, 5, 5, 7, 7, 7, 6};   // the patch's scales, by music_scale
     private final java.util.concurrent.atomic.AtomicInteger harmonyNotes = new java.util.concurrent.atomic.AtomicInteger();
     private final Runnable moverTick = new Runnable() {
@@ -448,6 +456,10 @@ public class AudioService extends Service {
 
             @Override
             public void receiveFloat(String source, float x) {
+                if (TEMPO.equals(source)) {
+                    tempoBpm = x;
+                    return;
+                }
                 if (CHIME_NOTE.equals(source)) {
                     motif.onNote(Math.round(x), SystemClock.elapsedRealtimeNanos() / 1e9);
                     return;
@@ -476,6 +488,7 @@ public class AudioService extends Service {
         PdBase.subscribe("mic_level");
         PdBase.subscribe(HARMONY_RECEIVER);
         PdBase.subscribe(CHIME_NOTE);
+        PdBase.subscribe(TEMPO);
         PdBase.subscribe(SceneEvents.REQUEST_RECEIVER);
 
         // Must come before initAudio. DEFAULT_ID lets Android choose ("Automatic").
