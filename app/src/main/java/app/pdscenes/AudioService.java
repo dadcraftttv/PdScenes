@@ -90,7 +90,7 @@ public class AudioService extends Service {
     /** The patch's tempo clock reports its tempo on each beat. */
     private static final String TEMPO = "tempo";
     private static volatile float tempoBpm;
-    /** The found-sound kit: how many kicks, snares and hats have been caught (the patch keeps the latest 3 of each). */
+    /** The found-sound kit: how many kicks, snares and hats have been caught (the patch keeps the latest 5 of each). */
     private static final String FS_CAUGHT = "fs_caught";
     private static final int[] kitCaught = new int[3];
     /** The last judged slice's levels (dBFS: all, lows, highs), logged with its catch. */
@@ -100,10 +100,10 @@ public class AudioService extends Service {
     private volatile String fsLevels = "";
     private final MotifMemory motif = new MotifMemory(new java.util.Random());
     private final NoteRegister noteRegister = new NoteRegister();
-    /** Kicks, snares and hats in the found-sound kit now (0-3 each). */
+    /** Kicks, snares and hats in the found-sound kit now (0-5 each). */
     static int[] kit() {
         synchronized (kitCaught) {
-            return new int[]{Math.min(kitCaught[0], 3), Math.min(kitCaught[1], 3), Math.min(kitCaught[2], 3),
+            return new int[]{Math.min(kitCaught[0], 5), Math.min(kitCaught[1], 5), Math.min(kitCaught[2], 5),
                     kitCaught[0] + kitCaught[1] + kitCaught[2]};   // ...and how many were caught in all
         }
     }

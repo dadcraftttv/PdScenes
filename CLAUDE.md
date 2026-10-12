@@ -126,13 +126,16 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   mic from `FS_PREROLL_MS` (15 ms) earlier is recorded (`tabwrite~ fs_stage` from a 100 ms `fs_buf`) while env~ maxima
   of all/lows (<150 Hz)/highs (>4 kHz) are kept; then filed: below `FS_MIN_DB` (-45 dBFS) dropped, lows within 6 dB of
   the whole -> kick, highs within 6 dB (3 caught no real taps) and lows 15 dB under -> hat, else snare; copied (`array get/set`) into the
-  role's next slot `fs_<role><slot>` (3 per role, round robin, memory only) with a gain levelling its peak to 0.5
+  role's next slot `fs_<role><slot>` (`FS_SLOTS` 5 per role since Oct 12, was 3; round robin, memory only) with a gain levelling its peak to 0.5
   (`fs_gains`) but its loudest 10 ms no higher than `FS_RMS_TARGET` (0.3; a snap at the mic overloaded it into a
   clipped, dense slice that played as a "deafening boom"), and the found drums get `FS_MAKEUP` (3x) into a tanh
   limit at `FS_LIMIT` (0.9): a thump kit ~5 dB under the synth kit, a clipped boom at its level, never above
   (Samuel, Oct 12: "not quite present enough"). `fs_filled` counts. Voices (one per role): a random filled slot of
   its role through `tabread4~` at rate 0.8/1/1.3, lop 3.5k / hip 160 / hip 1.5k, level 1/0.8/0.7, decay
   260/200/hat's own; a role with nothing of its own borrows any caught slot, so one catch makes the whole kit found.
+  Each hit varies (Samuel, Oct 12: "a little too predictable"): pitch +-`FS_VAR_SEMI` (1) semitone, 30% start up
+  to 10 ms into the slice (`FS_VAR_START`), loudness 0.9-1.1 (`FS_VAR_VEL`). Planned next, agreed: drifting swing,
+  arrangement moments (sparse bars), found-sound flourishes (a hit backwards or half speed now and then).
   The slot switch is a `[set $1(` message (a `makefilename set ...` symbol was ignored: until Oct 12 every voice
   played fs_00 only, and the snare/hat were silent without a kick). `rhythm_src` ("Beat sounds", default 1 =
   found; 0 synth, 2 both): found mode plays the synth at `FS_PLACEHOLDER` (0.25) until the first catch, then never.

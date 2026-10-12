@@ -185,7 +185,10 @@ RH_HOLD_BARS = 2                   # a pattern choice lasts this many bars
 # Found-sound kit (roadmap 16 C2/C3): sudden sounds are caught (memory only) and become the drums.
 FS_SLICE_S = 0.25                  # a caught slice...
 FS_PREROLL_MS = 15                 # ...starting this long before the sound was noticed (keeps its attack)
-FS_SLOTS = 3                       # slices kept per role (kick, snare, hat); the oldest is replaced
+FS_SLOTS = 5                       # slices kept per role (kick, snare, hat); the oldest is replaced (3 felt samey)
+FS_VAR_SEMI = 1.0                  # each hit: its pitch moved up to this many semitones either way...
+FS_VAR_START = (0.3, 10)           # ...this share of hits starting up to this many ms into the slice (a softer attack)...
+FS_VAR_VEL = 0.2                   # ...and its loudness varied by this much (0.9-1.1): no two hits quite the same
 FM_REF_HZ = 600                   # found melody: a caught slice plays at note / this (clipped to FM_RATE)...
 FM_KICK_REF_HZ = 150              # (a kick's slice: about a thump's pitch, so a knock is pitched up to the note,
 FM_KICK_GAIN = 0.45               #  where it rings its resonators much harder: this much)
@@ -774,18 +777,28 @@ def add_found_kit(P, x):
         P.c(f"fsv_{r}_slot", f"fsv_{r}_ni", 0, 0); P.c(f"fsv_{r}_ni", f"fsv_{r}_name"); P.c(f"fsv_{r}_name", f"fsv_{r}_set")
         P.obj(f"fsv_{r}_rd", "tabread4~ fs_00", vx, vy + 160)
         P.c(f"fsv_{r}_set", f"fsv_{r}_rd")
-        # the read position: 0 -> the slice's samples, over its length / rate
+        # the read position: from the slice's start (or a few ms in) to its end, over its length / this hit's rate.
+        # Each hit gets its own small pitch, start and loudness differences (random draws: $f2 pitch, $f3 start)
         P.obj(f"fsv_{r}_srv", "value fs_srv", vx + 100, vy + 120)
-        ex(f"fsv_{r}_ix", f"$f1*{FS_SLICE_S} ; {FS_SLICE_S * 1000}/{rate}".replace(" ; ", " " + BS + "; "), vx + 100, vy + 140)
-        P.msg(f"fsv_{r}_ixmsg", f"1 {BS}, {BS}$1 {BS}$2", vx, vy + 130)
-        P.obj(f"fsv_{r}_ixpk", "pack f f", vx, vy + 120)
+        P.obj(f"fsv_{r}_jt", "t f b b b", vx + 100, vy + 125)
+        P.obj(f"fsv_{r}_jp", "random 1000", vx + 160, vy + 125); P.obj(f"fsv_{r}_js", "random 1000", vx + 220, vy + 125)
+        P.obj(f"fsv_{r}_jv", "random 1000", vx + 280, vy + 125)
+        rt = f"({rate}*pow(2,($f2-500)/500*{FS_VAR_SEMI}/12))"
+        off = f"if($f3<{FS_VAR_START[0] * 1000},$f3/{FS_VAR_START[0] * 1000}*{FS_VAR_START[1] / 1000}*$f1,0)"
+        ex(f"fsv_{r}_ix", f"{off}+1 ; $f1*{FS_SLICE_S} ; ($f1*{FS_SLICE_S}-{off})/$f1*1000/{rt}".replace(" ; ", " " + BS + "; "),
+           vx + 100, vy + 140)
+        P.msg(f"fsv_{r}_ixmsg", f"{BS}$1 {BS}, {BS}$2 {BS}$3", vx, vy + 130)
+        P.obj(f"fsv_{r}_ixpk", "pack f f f", vx, vy + 120)
         P.obj(f"fsv_{r}_ixl", "vline~", vx, vy + 145)
-        P.c(f"fsv_{r}_ix", f"fsv_{r}_ixpk", 1, 1); P.c(f"fsv_{r}_ix", f"fsv_{r}_ixpk", 0, 0)
+        P.c(f"fsv_{r}_ix", f"fsv_{r}_ixpk", 2, 2); P.c(f"fsv_{r}_ix", f"fsv_{r}_ixpk", 1, 1); P.c(f"fsv_{r}_ix", f"fsv_{r}_ixpk", 0, 0)
         P.c(f"fsv_{r}_ixpk", f"fsv_{r}_ixmsg"); P.c(f"fsv_{r}_ixmsg", f"fsv_{r}_ixl"); P.c(f"fsv_{r}_ixl", f"fsv_{r}_rd")
-        P.c(f"fsv_{r}_srv", f"fsv_{r}_ix", 0, 0)
-        # loudness: velocity x the slot's gain x the role's level; decay from the hit (hats) or the role
+        P.c(f"fsv_{r}_srv", f"fsv_{r}_jt")
+        P.c(f"fsv_{r}_jt", f"fsv_{r}_jv", 3, 0); P.c(f"fsv_{r}_jt", f"fsv_{r}_jp", 2, 0); P.c(f"fsv_{r}_jt", f"fsv_{r}_js", 1, 0)
+        P.c(f"fsv_{r}_jp", f"fsv_{r}_ix", 0, 1); P.c(f"fsv_{r}_js", f"fsv_{r}_ix", 0, 2); P.c(f"fsv_{r}_jt", f"fsv_{r}_ix", 0, 0)
+        # loudness: velocity x the slot's gain x the role's level x this hit's variation; decay from the hit (hats) or the role
         P.obj(f"fsv_{r}_dec", f"f {decay}", vx + 300, vy + 120)
-        ex(f"fsv_{r}_amp", f"$f1*$f2*{lvl} ; $f3".replace(" ; ", " " + BS + "; "), vx + 200, vy + 140)
+        ex(f"fsv_{r}_amp", f"$f1*$f2*{lvl}*(1-{FS_VAR_VEL / 2}+{FS_VAR_VEL}*$f4/1000) ; $f3".replace(" ; ", " " + BS + "; "), vx + 200, vy + 140)
+        P.c(f"fsv_{r}_jv", f"fsv_{r}_amp", 0, 3)
         P.obj(f"fsv_{r}_ampk", "pack f f", vx + 200, vy + 160)
         P.c(f"fsv_{r}_amp", f"fsv_{r}_ampk", 1, 1); P.c(f"fsv_{r}_amp", f"fsv_{r}_ampk", 0, 0)
         P.msg(f"fsv_{r}_envm", f"0 {BS}, {BS}$1 2 {BS}, 0 {BS}$2 2", vx + 200, vy + 180)

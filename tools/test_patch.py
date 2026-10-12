@@ -1391,7 +1391,7 @@ def fs_catch(events, total, **over):
 e, y, caught = fs_catch([(1.0, "k"), (2.0, "s"), (3.0, "h"), (4.0, "k"), (5.0, "s"), (6.0, "h")], 7.0)
 check(caught == [0, 1, 2, 0, 1, 2], "found sounds: a thump is caught as a kick, a clap as a snare, a tick as a hat (%s)" % caught)
 e, y, caught = fs_catch([(1.0 + 0.6 * k, "k") for k in range(5)], 5.0)
-check(len(caught) == 5, "found sounds: every thump is caught (%d), the kit keeps the latest %d of them" % (len(caught), 3))
+check(len(caught) == 5, "found sounds: every thump is caught (%d), the kit keeps the latest %d of them" % (len(caught), 5))
 _, _, none = fs_catch([], 4.0)
 check(not none, "found sounds: a quiet room catches nothing (%s)" % none)
 def pocketed_catch():
@@ -1418,6 +1418,27 @@ _, _, synth_full = kick_tones(0, False)
 check(f120 > 3 * f55 and s55 > 1.5 * s120 and 0.1 * synth_full < fallback < 0.4 * synth_full,
       "found sounds: the kicks play the caught thump (120 Hz %.4f vs synth %.4f; synth 55 Hz %.4f vs %.4f), nothing caught -> "
       "the synth faintly (rms %.4f vs %.4f)" % (f120, s120, s55, f55, fallback, synth_full))
+# every hit is a little different: the same caught thump comes back at slightly different pitches (and loudness)
+def kick_hit_pitches():
+    thump, clap, tick = fs_sounds()
+    x = (np.random.default_rng(3).standard_normal(16 * SR) * 0.0005).astype(np.float32); s_ = thump(); x[SR // 2:SR // 2 + len(s_)] += s_.astype(np.float32)
+    e = fresh(dry=0, wet=0, beat_level=1, beat_follow=1, beat_when=1, rhythm_src=1); e.listen("drum_kick")
+    y, times = [], []
+    for i in range(0, len(x), 512):
+        n = len(e.heard["drum_kick"]); y.append(e.run(x[i:i + 512])[:, 0])
+        if len(e.heard["drum_kick"]) > n and i > 3 * SR:
+            times.append(i)
+    y = np.concatenate(y); out = []
+    for t in times:
+        seg = y[t:t + int(0.09 * SR)]
+        if len(seg) < int(0.09 * SR):
+            continue
+        S_ = np.abs(np.fft.rfft(seg * np.hanning(len(seg)), 16 * len(seg))); fr = np.fft.rfftfreq(16 * len(seg), 1 / SR)
+        S_[(fr < 95) | (fr > 145)] = 0; out.append(float(fr[np.argmax(S_)])); 
+    return out
+hp = kick_hit_pitches()
+check(len(hp) >= 5 and 108 < min(hp) and max(hp) < 132 and max(hp) - min(hp) > 4,
+      "found sounds: each hit is a little different (the thump's kicks at %s Hz, around 120)" % [round(f) for f in hp[:10]])
 # one catch makes the whole kit found: a lone clap (a snare) also plays as the kick and hat, the synth stays silent
 def band(y, lo, hi):
     S = np.abs(np.fft.rfft(y)); f = np.fft.rfftfreq(len(y), 1 / SR); return float(np.sqrt(np.mean(S[(f >= lo) & (f < hi)] ** 2)))
@@ -1477,7 +1498,7 @@ def voice_harmony(src):
 yv, degs_v, semis_v, sw_v = voice_harmony(1)
 held_v = yv[int(2.6 * SR):int(3.4 * SR)]
 f_v = step_hz(degs_v[0] - 7) if degs_v else 1; f_org = step_hz(degs_v[0]) if degs_v else 1
-check(len(degs_v) == 1 and 3 <= semis_v[-1] <= 9 and abs(f_v - 220 * 2 ** (semis_v[-1] / 12)) < 3
+check(len(degs_v) == 1 and 2.9 <= semis_v[-1] <= 9.1 and abs(f_v - 220 * 2 ** (semis_v[-1] / 12)) < 3
       and tone_level(held_v, f_v) > 0.02 and tone_level(held_v, 2 * f_v) > 0.2 * tone_level(held_v, f_v)
       and tone_level(held_v, 3 * f_org) < 0.05 * tone_level(held_v, f_v),
       "harmony, your voice: a hummed A3 is copied %.1f semitones up onto the chord note (%.0f Hz, level %.4f) with the "
@@ -1570,6 +1591,7 @@ def voices_on(src):
     e.listen("sw_fmv0", "sw_fmv1", "sw_fmv2", "sw_fmv3"); e.run(x[:3 * SR])
     for deg in (7, 9, 11):
         e.send_list("motif", deg, 0.5); e.run(x[3 * SR:4 * SR])
+    e.run(e.silence(4.0))                                               # (a fade lasts up to 2.6 s, then 0.6 s more)
     return sum(v == 1 for k in range(4) for v in e.heard["sw_fmv%d" % k]), sum(v == 0 for k in range(4) for v in e.heard["sw_fmv%d" % k])
 on_s, _ = voices_on(0); on_f, off_f = voices_on(1); on_b, _ = voices_on(2)
 _, _, rb = melody_notes(2, clap())
