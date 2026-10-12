@@ -222,7 +222,9 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   **Your voice as the harmony** (Samuel, Oct 12: close harmony, one voice, default "Your voice"; `harm_src` "Harmony
   sound" Organ / Your voice / Both, Music, noPreset): the same detection, but the answer is a pitch-shifted copy of
   the mic (`hv_*`, a two-grain delay shifter like the Pitch effect) on the close chord note: the organ's choice
-  without the octave jump (`mu_hm_vdeg`: a third or more above a voice, below a whistle). The interval (heard
+  without the octave jump (`mu_hm_vdeg`: a third or more above a voice below `HV_SPLIT` (60, middle C), a third or
+  more below from there up and for whistles: Samuel heard a chipmunk singing high, and most women's and children's
+  voices sit there; a downward shift only darkens a little). The interval (heard
   pitch -> chord note, `harm_semi`) is set at note-on and held, so the copy follows vibrato. Grains are an even
   number of the heard note's periods near `HV_WINDOW_MS` (40): fixed-length grains on a steady tone half-cancelled
   at the crossfades (energy at 258/266 Hz instead of 262, a warble); in step they are clean and a third louder.

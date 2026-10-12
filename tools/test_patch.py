@@ -1482,6 +1482,13 @@ check(len(degs_v) == 1 and 3 <= semis_v[-1] <= 9 and abs(f_v - 220 * 2 ** (semis
 check(rms(yv[int(4.3 * SR):]) < 0.1 * rms(held_v) and sw_v[:1] == [1] and sw_v[-1] == 0,
       "harmony, your voice: it fades within half a second of the hum stopping (%.5f vs %.4f) and its shifter only runs "
       "while it sings (%s)" % (rms(yv[int(4.3 * SR):]), rms(held_v), sw_v))
+def voice_semis(freq):
+    e = fresh(music_on=1, music_pad=0, music_arp=0, music_res=0, wet=0, harm_src=1, music_harm=1); e.listen("harm_semi")
+    e.send("music_on", 1); e.run(hum(freq, 1.5)); return list(e.heard["harm_semi"])
+hi_v, wh_v = voice_semis(330), voice_semis(1568)
+check(hi_v and -9 <= hi_v[-1] <= -3 and wh_v and -9 <= wh_v[-1] <= -3,
+      "harmony, your voice: from middle C up a voice is answered a third or more below (E4: %s semitones; whistle %s), no chipmunk"
+      % ([round(v, 1) for v in hi_v], [round(v, 1) for v in wh_v]))
 yb, _, _, _ = voice_harmony(2); yo, _, _, sw_o = voice_harmony(0); held_b, held_o = yb[int(2.6 * SR):int(3.4 * SR)], yo[int(2.6 * SR):int(3.4 * SR)]
 check(not sw_o and tone_level(held_o, f_v) < 0.2 * tone_level(held_v, f_v) and tone_level(held_b, f_v) > 0.5 * tone_level(held_v, f_v)
       and tone_level(held_b, 3 * f_org) > 0.5 * tone_level(held_o, 3 * f_org),

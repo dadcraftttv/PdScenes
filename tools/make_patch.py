@@ -152,6 +152,8 @@ HARM_ATTACK_MS = 150
 HV_WINDOW_MS = 40          # your voice as the harmony: grain length of its pitch shifter, made an even number of the
                            # heard note's periods (the two grains then stay in step on it instead of warbling)
 HV_RELEASE_MS = 400        # its fade when you stop (the organ's 1.8 s would shift the room for too long)
+HV_SPLIT = 60              # a voice from middle C up is answered below it (shifting a high voice up makes a chipmunk:
+                           # Samuel heard it singing high; most women's and children's voices sit up there)
 HV_GAIN = 0.7              # its level against your own voice, before the Harmony slider
 # Glitch cloud: bits of what the mic heard (kept in memory only, a few seconds) come back mangled, around you.
 # Drum patterns for the tempo clock (16 steps = one bar of 16th notes), calm -> busy; the value is the hit's
@@ -2164,9 +2166,9 @@ def add_harmony(P, hx, ex, degree_to_hz):
     deg_in, deg_hz = degree_to_hz("mu_hm_c", hx + 100, 470)
     P.c("mu_hm_deg", deg_in)
     # Your voice as the harmony (harm_src 1 or 2): close harmony, the same choice without the octave jump (a third
-    # or more above a voice, below a whistle or bird), sung by a pitch-shifted copy of the mic. The interval from the
+    # or more above a low voice, below a voice from HV_SPLIT up and below a whistle or bird), sung by a pitch-shifted copy of the mic. The interval from the
     # heard note to the chord note is set when the note starts and held, so the copy follows your vibrato.
-    ex("mu_hm_vdeg", f"if($f4<{HARM_HIGH},{up}-$f3,{down}+$f3)", hx + 700, 440)
+    ex("mu_hm_vdeg", f"if($f4<{HV_SPLIT},{up}-$f3,{down}+$f3)", hx + 700, 440)
     P.c("mu_hm_ch", "mu_hm_vdeg", 0, 1); P.c("mu_hm_n2", "mu_hm_vdeg", 0, 2); P.c("mu_hm_t", "mu_hm_vdeg", 1, 3)
     P.c("mu_hm_d", "mu_hm_vdeg", 0, 0)
     vdeg_in, vdeg_hz = degree_to_hz("mu_hm_vc", hx + 700, 470)
