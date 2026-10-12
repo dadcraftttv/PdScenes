@@ -134,8 +134,13 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   its role through `tabread4~` at rate 0.8/1/1.3, lop 3.5k / hip 160 / hip 1.5k, level 1/0.8/0.7, decay
   260/200/hat's own; a role with nothing of its own borrows any caught slot, so one catch makes the whole kit found.
   Each hit varies (Samuel, Oct 12: "a little too predictable"): pitch +-`FS_VAR_SEMI` (1) semitone, 30% start up
-  to 10 ms into the slice (`FS_VAR_START`), loudness 0.9-1.1 (`FS_VAR_VEL`). Planned next, agreed: drifting swing,
-  arrangement moments (sparse bars), found-sound flourishes (a hit backwards or half speed now and then).
+  to 10 ms into the slice (`FS_VAR_START`), loudness 0.9-1.1 (`FS_VAR_VEL`). **Swing** (step 2): odd ticks reach
+  the pattern engine `rh_sw` of a 16th late (`[pipe]` before `rh_on`; the clock's own tick16 stays straight, so
+  chimes, the learned groove and glitch loops keep to it); every `SWING_EVERY_BARS` (8) a new amount from
+  `SWING_CHOICES` (0-0.26) is glided to by `SWING_GLIDE` (0.4) per bar; `rh_swing` reports, `rh_swing_set` (tests)
+  sets it. Planned next, agreed: arrangement moments (sparse bars), found-sound flourishes (a hit backwards or half
+  speed now and then). Test lesson: Pd seeds every [random] from a process-wide counter, so adding objects reshuffles
+  which ghost snares (0.22, ~1-2%/16th) land where in later tests: count learned snares by their velocity.
   The slot switch is a `[set $1(` message (a `makefilename set ...` symbol was ignored: until Oct 12 every voice
   played fs_00 only, and the snare/hat were silent without a kick). `rhythm_src` ("Beat sounds", default 1 =
   found; 0 synth, 2 both): found mode plays the synth at `FS_PLACEHOLDER` (0.25) until the first catch, then never.

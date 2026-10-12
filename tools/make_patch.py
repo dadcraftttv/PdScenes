@@ -227,6 +227,9 @@ FS_ROLE_SPEC = (                   # role: playback rate (pitch), filter, level,
     ("h", 1.3, "hip~ 1500", 0.7, 90),
 )
 RH_FILL_EVERY = 8                  # bars
+SWING_CHOICES = (0, 0.08, 0.14, 0.2, 0.26)   # swing: off-beat 16ths this share of a 16th late, a new pick every...
+SWING_EVERY_BARS = 8               # ...this many bars (Samuel: "a little too predictable"), glided toward...
+SWING_GLIDE = 0.4                  # ...by this much each bar
 CLOCK_MIN_MS, CLOCK_MAX_MS = 375, 750   # beats are folded into 80-160 BPM
 CLOCK_DEFAULT_MS = 600       # 100 BPM before any walking
 CLOCK_PHASE_GAIN = 0.35      # each step moves the next beat this much of the way to it...
@@ -1293,7 +1296,32 @@ def add_rhythm(P, x):
     # ---- each 16th tick: a new bar picks patterns; every tick reads them, with the bar's variations ----
     P.obj("rh_r_tick", "r tick16", x, y)
     P.obj("rh_on", "spigot 1", x, y + 20)
-    P.c("rh_r_tick", "rh_on"); P.c("rh_r_mode", "rh_on", 0, 1)            # (only in tempo clock mode)
+    P.c("rh_r_mode", "rh_on", 0, 1)                                       # (only in tempo clock mode)
+    # swing: an off-beat 16th reaches the patterns rh_sw of a 16th late (the clock's own ticks stay straight: chimes,
+    # the learned groove and glitch loops keep to them). Every SWING_EVERY_BARS bars a new amount is picked and glided to.
+    sx = x - 400
+    P.obj("rh_sw_t", "t f f", sx, y + 5); P.c("rh_r_tick", "rh_sw_t")
+    ex("rh_sw_dl", "if($f1%2,rh_sw*tc_P/4,0)", sx + 80, y + 10)
+    P.obj("rh_sw_pk", "pack f f", sx, y + 15); P.c("rh_sw_t", "rh_sw_dl", 1, 0); P.c("rh_sw_dl", "rh_sw_pk", 0, 1)
+    P.c("rh_sw_t", "rh_sw_pk", 0, 0)
+    P.obj("rh_sw_pipe", "pipe 0", sx, y + 20); P.c("rh_sw_pk", "rh_sw_pipe"); P.c("rh_sw_pipe", "rh_on")
+    P.obj("rh_sw_v", "value rh_sw", sx + 200, y); P.obj("rh_sw_tv", "value rh_swt", sx + 280, y)
+    P.obj("rh_sw_bar", "sel 0", sx + 160, y + 25); P.c("rh_sw_t", "rh_sw_bar", 1, 0)
+    P.obj("rh_sw_bt", "t b b", sx + 160, y + 35); P.c("rh_sw_bar", "rh_sw_bt")
+    P.obj("rh_sw_n", "f", sx + 240, y + 45); P.obj("rh_sw_n1", "+ 1", sx + 280, y + 45); P.obj("rh_sw_nm", f"mod {SWING_EVERY_BARS}", sx + 320, y + 45)
+    P.c("rh_sw_bt", "rh_sw_n", 1, 0); P.c("rh_sw_n", "rh_sw_n1"); P.c("rh_sw_n1", "rh_sw_nm"); P.c("rh_sw_nm", "rh_sw_n", 0, 1)
+    P.obj("rh_sw_new", "sel 0", sx + 240, y + 60); P.c("rh_sw_n", "rh_sw_new")
+    P.obj("rh_sw_rnd", f"random {len(SWING_CHOICES)}", sx + 240, y + 75); P.c("rh_sw_new", "rh_sw_rnd")
+    P.obj("rh_sw_ch", f"table rh_swing_ch {len(SWING_CHOICES)}", sx + 400, y)
+    P.msg("rh_sw_chi", f"{BS}; rh_swing_ch 0 {' '.join(str(v) for v in SWING_CHOICES)}", sx + 400, y + 15)
+    P.obj("rh_sw_lb", "loadbang", sx + 400, y - 15); P.c("rh_sw_lb", "rh_sw_chi")
+    P.obj("rh_sw_rd", "tabread rh_swing_ch", sx + 240, y + 90); P.c("rh_sw_rnd", "rh_sw_rd"); P.c("rh_sw_rd", "rh_sw_tv")
+    ex("rh_sw_gl", f"rh_sw+(rh_swt-rh_sw)*{SWING_GLIDE}+$f1*0", sx + 160, y + 105)
+    P.c("rh_sw_bt", "rh_sw_gl", 0, 0)
+    P.obj("rh_sw_gt", "t f f", sx + 160, y + 120); P.c("rh_sw_gl", "rh_sw_gt"); P.c("rh_sw_gt", "rh_sw_v", 1, 0)
+    P.obj("rh_sw_s", "s rh_swing", sx + 160, y + 135); P.c("rh_sw_gt", "rh_sw_s", 0, 0)
+    P.obj("rh_sw_set", "r rh_swing_set", sx + 400, y + 40); P.obj("rh_sw_set_t", "t f f", sx + 400, y + 55)   # (tests)
+    P.c("rh_sw_set", "rh_sw_set_t"); P.c("rh_sw_set_t", "rh_sw_v", 1, 0); P.c("rh_sw_set_t", "rh_sw_tv", 0, 0)
     P.obj("rh_t", "t f f b b b b", x, y + 40)
     P.c("rh_on", "rh_t")
     P.obj("rh_bar_sel", "sel 15", x + 300, y + 60)                      # (after tick 15's hits: the next bar's patterns)

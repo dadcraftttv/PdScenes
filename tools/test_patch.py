@@ -77,7 +77,7 @@ check(not bad, "patch loads with no Pd errors" + (": %s" % bad if bad else ""))
 
 jp = java_params()
 patch_text = open(PATCH).read()
-receivers = set(re.findall(r"#X obj \d+ \d+ r (\w+);", patch_text)) - {"step", "scale_n", "pad_glide", "mic_level", "pad_slot", "pool_n", "pool_x", "pocket", "pocket_down", "duck", "step_strength", "step_hit", "beat_sure", "groove", "gc_mode", "gc_try", "density_on", "motif", "drift_now", "drift_set", "drift_n", "music_register", "music_warm", "pulse", "tick16", "clock_walking", "gc_mode", "fs_need", "harm_organ", "fpad_need", "harm_run", "fpad_kick", "fpad_caught"} - {r for r in re.findall(r"#X obj \d+ \d+ r (sw_\w+);", open(PATCH).read())}   # events and internal links, not settings
+receivers = set(re.findall(r"#X obj \d+ \d+ r (\w+);", patch_text)) - {"step", "scale_n", "pad_glide", "mic_level", "pad_slot", "pool_n", "pool_x", "pocket", "pocket_down", "duck", "step_strength", "step_hit", "beat_sure", "groove", "gc_mode", "gc_try", "density_on", "motif", "drift_now", "drift_set", "drift_n", "music_register", "music_warm", "pulse", "tick16", "clock_walking", "gc_mode", "fs_need", "harm_organ", "fpad_need", "harm_run", "fpad_kick", "fpad_caught", "rh_swing_set"} - {r for r in re.findall(r"#X obj \d+ \d+ r (sw_\w+);", open(PATCH).read())}   # events and internal links, not settings
 pd_ids = {i for i, _, nopd in jp if not nopd}
 check(len(jp) >= 10, "parsed %d params from Params.java" % len(jp))
 check(pd_ids == receivers, "Params.java ids == patch receivers (java-only %s, patch-only %s)"
@@ -1620,6 +1620,37 @@ check(len(modes) >= 1 and len(plays) >= 3 and fades and tone > 5 * tone0 + 1e-4,
       "glitch loops: a glitch (glitch level 0) comes back in the beat every bar, fading (%s), its 700 Hz in the beat %.4f vs off %.4f"
       % (plays[:6], tone, tone0))
 
+# swing: off-beat 16ths reach the drums a share of a 16th late (on-beats stay on the tick); the amount drifts
+def swing_lags(sw, steps=40, interval=0.4):
+    e = fresh(dry=0, wet=0, beat_level=1, beat_follow=1, beat_when=1, rhythm_src=0)
+    e.listen("tick16", "drum_kick", "drum_snare", "drum_hat", "rh_swing")
+    names = ("drum_kick", "drum_snare", "drum_hat"); last = {}; lags = {0: [], 1: []}; t = 0.0; n = 64
+    seen = {k: 0 for k in names + ("tick16",)}
+    for st in range(steps):
+        e.send("step", interval)
+        if sw is not None:
+            e.send("rh_swing_set", sw)
+        for _ in range(int(interval * SR) // n):
+            e.run(np.zeros(n, np.float32)); t += n / SR
+            for v in e.heard["tick16"][seen["tick16"]:]:
+                last = {"tick": int(v), "t": t}
+            seen["tick16"] = len(e.heard["tick16"])
+            for k in names:
+                if len(e.heard[k]) > seen[k] and last and st > 8:
+                    lags[last["tick"] % 2].append(t - last["t"])
+                seen[k] = len(e.heard[k])
+    return lags, e.heard["rh_swing"]
+l0, _ = swing_lags(0); l25, _ = swing_lags(0.25)
+odd0, odd25, even25 = np.median(l0[1]) if l0[1] else 9, np.median(l25[1]) if l25[1] else 9, max(l25[0]) if l25[0] else 9
+sixteenth = 60 / 150 / 4                                                   # (steps 0.4 s apart: the clock at 150 BPM)
+check(len(l25[1]) >= 10 and odd0 < 0.004 and abs(odd25 - 0.25 * sixteenth) < 0.006 and even25 < 0.004,
+      "swing: off-beat 16ths land a share of a 16th late (swing 0.25: %.0f ms, want %.0f; straight: %.0f ms), on-beats on time (%.0f ms)"
+      % (odd25 * 1000, 0.25 * sixteenth * 1000, odd0 * 1000, even25 * 1000))
+_, drift = swing_lags(None, steps=150)
+dv = sorted({round(v, 2) for v in drift})
+check(len(drift) >= 20 and max(drift) <= 0.27 and max(drift) - min(drift) > 0.05,
+      "swing: it drifts every few bars between straight and lazy (%d bars, %.2f-%.2f)" % (len(drift), min(drift), max(drift)))
+
 # the learned groove (C4): claps on one off-beat spot teach the snare that spot; a few quiet bars later it's gone
 def learned_spots(clap_bars, bars, spot=6):
     """Standing still at the default 100 BPM (a 16th = 150 ms). Syncs on the clock's own ticks, then claps 20 ms after
@@ -1635,13 +1666,14 @@ def learned_spots(clap_bars, bars, spot=6):
         x = (np.random.default_rng(j).standard_normal(n) * 0.0005).astype(np.float32)
         if b in clap_bars and k == spot:
             c = clap(); i0 = int(0.02 * SR); x[i0:i0 + len(c)] += c[:n - i0].astype(np.float32)
+        e.send("rh_swing_set", 0)                                     # (straight: a swung 16th could land in the next chunk)
         s0 = len(e.heard["drum_snare"]); t0 = len(e.heard["tick16"]); e.run(x)
-        if len(e.heard["drum_snare"]) > s0 and len(e.heard["tick16"]) > t0:
+        # (a learned snare plays at 0.9 x what was remembered, ~0.7; ghost snares at 0.22 fall anywhere now and then)
+        if len(e.heard["drum_snare"]) > s0 and len(e.heard["tick16"]) > t0 and max(e.heard["drum_snare"][s0:]) > 0.25:
             snares_at.append((b if (k + 1) % 16 else b + 1, int(e.heard["tick16"][-1])))
     return [any(bb == b and tt == spot for bb, tt in snares_at) for b in range(bars)]
 hit6 = learned_spots({1, 2, 3}, 11)
-# (ghost snares land on any 16th now and then, ~1-2%: one stray hit after the fade is allowed)
-check(hit6[2] and hit6[3] and hit6[4] and sum(hit6[8:]) <= 1 and not hit6[0] and not hit6[1],
+check(hit6[2] and hit6[3] and hit6[4] and not any(hit6[8:]) and not hit6[0] and not hit6[1],
       "learned groove: claps on one off-beat teach the snare that spot, then it fades (snare on that spot per bar: %s)"
       % "".join("x" if h else "." for h in hit6))
 
