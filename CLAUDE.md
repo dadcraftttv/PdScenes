@@ -219,6 +219,17 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   Notes go to `s harm_deg`; the "Hearing:" log line counts them. Pd's console goes to logcat tag `Pd`;
   `HARM_DEBUG=1 python3 tools/make_patch.py` prints pitch/loudness 3x a second (do not ship it).
   Test harness: call `e.listen(...)` once with all names (a second call leaks the first binding into later engines).
+  **Your voice as the harmony** (Samuel, Oct 12: close harmony, one voice, default "Your voice"; `harm_src` "Harmony
+  sound" Organ / Your voice / Both, Music, noPreset): the same detection, but the answer is a pitch-shifted copy of
+  the mic (`hv_*`, a two-grain delay shifter like the Pitch effect) on the close chord note: the organ's choice
+  without the octave jump (`mu_hm_vdeg`: a third or more above a voice, below a whistle). The interval (heard
+  pitch -> chord note, `harm_semi`) is set at note-on and held, so the copy follows vibrato. Grains are an even
+  number of the heard note's periods near `HV_WINDOW_MS` (40): fixed-length grains on a steady tone half-cancelled
+  at the crossfades (energy at 258/266 Hz instead of 262, a warble); in step they are clean and a third louder.
+  `mu_hm_vwr` writes `hv_buf` all the time; the grains are group `hvoice`, on at note-on, off `HV_RELEASE_MS`
+  (400; the organ's 1.8 s would shift the room too long) + window + 100 later. `HV_GAIN` 0.7 x Harmony. The organ
+  voices are group `horgan` (music_on x music_harm x `harm_organ` = harm_src != 1). Tests use harm_src 0 unless
+  they test it.
   **Density memory** (roadmap 8, no slider): `value mdens` = notes played lately (a chime +1, an arpeggio note +0.3
   so the walking bed doesn't silence chimes on the beat), fading over 8 s. Sudden-sound and still-pattern chimes play
   with chance 1/(1+(mdens/10)^2); the arpeggio rests up to 30% more past 16. Busy test room: 1.45 -> 1.0 notes/s.

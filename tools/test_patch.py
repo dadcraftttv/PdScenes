@@ -51,7 +51,7 @@ def fresh(**over):
                 phaser_on=1, phaser_mix=0, phaser_rate=0.4, phaser_depth=0.7, phaser_fb=0.4,
                 beat_on=1, beat_level=0, beat_hats=0.5, beat_snare=0.6, beat_pitch=55,
                 music_on=0, music_key=0, music_scale=0, music_pad=0.33, music_arp=0.4,
-                music_tone=0.5, music_react=0.8, music_res=0.8, music_harm=0, echo_scatter=0, beat_follow=0, music_pad_reg=2, pocket_hush=0.5, pocket_guard=0.6, melody_src=0)
+                music_tone=0.5, music_react=0.8, music_res=0.8, music_harm=0, echo_scatter=0, beat_follow=0, music_pad_reg=2, pocket_hush=0.5, pocket_guard=0.6, melody_src=0, harm_src=0)
     base.update(over)
     for k, v in base.items():
         e.send(k, v)
@@ -77,7 +77,7 @@ check(not bad, "patch loads with no Pd errors" + (": %s" % bad if bad else ""))
 
 jp = java_params()
 patch_text = open(PATCH).read()
-receivers = set(re.findall(r"#X obj \d+ \d+ r (\w+);", patch_text)) - {"step", "scale_n", "pad_glide", "mic_level", "pad_slot", "pool_n", "pool_x", "pocket", "pocket_down", "duck", "step_strength", "step_hit", "beat_sure", "groove", "gc_mode", "gc_try", "density_on", "motif", "drift_now", "drift_set", "drift_n", "music_register", "music_warm", "pulse", "tick16", "clock_walking", "gc_mode", "fs_need"} - {r for r in re.findall(r"#X obj \d+ \d+ r (sw_\w+);", open(PATCH).read())}   # events and internal links, not settings
+receivers = set(re.findall(r"#X obj \d+ \d+ r (\w+);", patch_text)) - {"step", "scale_n", "pad_glide", "mic_level", "pad_slot", "pool_n", "pool_x", "pocket", "pocket_down", "duck", "step_strength", "step_hit", "beat_sure", "groove", "gc_mode", "gc_try", "density_on", "motif", "drift_now", "drift_set", "drift_n", "music_register", "music_warm", "pulse", "tick16", "clock_walking", "gc_mode", "fs_need", "harm_organ"} - {r for r in re.findall(r"#X obj \d+ \d+ r (sw_\w+);", open(PATCH).read())}   # events and internal links, not settings
 pd_ids = {i for i, _, nopd in jp if not nopd}
 check(len(jp) >= 10, "parsed %d params from Params.java" % len(jp))
 check(pd_ids == receivers, "Params.java ids == patch receivers (java-only %s, patch-only %s)"
@@ -1462,6 +1462,31 @@ check(r_b < 1.15 * r_syn and p_b < 0.75 and r_t > 0.45 * r_syn,
       "found sounds: a clipped snap at the mic (a pop: not kept) plays back no louder than the synth kit (rms %.3f vs %.3f, peak %.2f), and a thump "
       "kit is near it (%.3f)" % (r_b, r_syn, p_b, r_t))
 
+# your voice as the harmony: a held hum gets a pitch-shifted copy of itself on the close chord note (a third or more
+# above, same octave), carrying the hum's own overtones; no organ; it fades soon after the hum stops and only runs then
+def voice_harmony(src):
+    base = dict(music_on=1, music_pad=0, music_arp=0, music_res=0, wet=0, harm_src=src)
+    x = hum(220, 1.5)
+    e = fresh(**dict(base, music_harm=1)); e.listen("harm_deg", "harm_semi", "sw_hvoice"); e.send("music_on", 1)
+    y = e.run(x)[:, 0] - fresh(**dict(base, music_harm=0)).run(x)[:, 0]
+    return y, [int(v) for v in e.heard["harm_deg"]], list(e.heard["harm_semi"]), list(e.heard["sw_hvoice"])
+yv, degs_v, semis_v, sw_v = voice_harmony(1)
+held_v = yv[int(2.6 * SR):int(3.4 * SR)]
+f_v = step_hz(degs_v[0] - 7) if degs_v else 1; f_org = step_hz(degs_v[0]) if degs_v else 1
+check(len(degs_v) == 1 and 3 <= semis_v[-1] <= 9 and abs(f_v - 220 * 2 ** (semis_v[-1] / 12)) < 3
+      and tone_level(held_v, f_v) > 0.02 and tone_level(held_v, 2 * f_v) > 0.2 * tone_level(held_v, f_v)
+      and tone_level(held_v, 3 * f_org) < 0.05 * tone_level(held_v, f_v),
+      "harmony, your voice: a hummed A3 is copied %.1f semitones up onto the chord note (%.0f Hz, level %.4f) with the "
+      "hum's overtones (2nd %.4f), and no organ (%.5f)" % (semis_v[-1] if semis_v else 0, f_v, tone_level(held_v, f_v),
+                                                           tone_level(held_v, 2 * f_v), tone_level(held_v, 3 * f_org)))
+check(rms(yv[int(4.3 * SR):]) < 0.1 * rms(held_v) and sw_v[:1] == [1] and sw_v[-1] == 0,
+      "harmony, your voice: it fades within half a second of the hum stopping (%.5f vs %.4f) and its shifter only runs "
+      "while it sings (%s)" % (rms(yv[int(4.3 * SR):]), rms(held_v), sw_v))
+yb, _, _, _ = voice_harmony(2); yo, _, _, sw_o = voice_harmony(0); held_b, held_o = yb[int(2.6 * SR):int(3.4 * SR)], yo[int(2.6 * SR):int(3.4 * SR)]
+check(not sw_o and tone_level(held_o, f_v) < 0.2 * tone_level(held_v, f_v) and tone_level(held_b, f_v) > 0.5 * tone_level(held_v, f_v)
+      and tone_level(held_b, 3 * f_org) > 0.5 * tone_level(held_o, 3 * f_org),
+      "harmony sound: Organ plays no voice copy, Both plays the copy and the organ")
+
 # found melody: the melody's notes play a caught sound striking resonators tuned to the note, in key, about as loud as
 # the synth chimes; before anything is caught, "Found" plays the synth chimes; catching runs for it with the beat off
 def peak_hz(y):
@@ -1542,7 +1567,8 @@ def learned_spots(clap_bars, bars, spot=6):
             snares_at.append((b if (k + 1) % 16 else b + 1, int(e.heard["tick16"][-1])))
     return [any(bb == b and tt == spot for bb, tt in snares_at) for b in range(bars)]
 hit6 = learned_spots({1, 2, 3}, 11)
-check(hit6[2] and hit6[3] and hit6[4] and not any(hit6[8:]) and not hit6[0] and not hit6[1],
+# (ghost snares land on any 16th now and then, ~1-2%: one stray hit after the fade is allowed)
+check(hit6[2] and hit6[3] and hit6[4] and sum(hit6[8:]) <= 1 and not hit6[0] and not hit6[1],
       "learned groove: claps on one off-beat teach the snare that spot, then it fades (snare on that spot per bar: %s)"
       % "".join("x" if h else "." for h in hit6))
 

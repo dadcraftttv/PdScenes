@@ -168,6 +168,9 @@ final class Params {
                     Param.Curve.LINEAR).inSection("music").rand(0.2f, 1f).resetWhenAbsent(),
             new Param("music_harm", "Harmony (a held hum or whistle gets an answering note)", 0f, 1f, 0.6f, "",
                     Param.Curve.LINEAR).inSection("music").rand(0.2f, 1f).resetWhenAbsent(),
+            new Param("harm_src", "Harmony sound", 0f, 2f, 1f, "", Param.Curve.LINEAR)
+                    .choices("Organ", "Your voice (a pitch-shifted copy of you)", "Both")
+                    .inSection("music").noPreset().resetWhenAbsent(),
 
             // ---- Echo ----
             new Param("echo_on", "Echo enabled", 0f, 1f, 1f, "", Param.Curve.LINEAR)

@@ -35,7 +35,7 @@ DEFAULTS = [
     ("phaser_on", 1), ("phaser_mix", 0), ("phaser_rate", 0.4), ("phaser_depth", 0.7), ("phaser_fb", 0.4),
     ("beat_on", 1), ("beat_level", 0), ("beat_hats", 0.5), ("beat_snare", 0.6), ("beat_pitch", 55),
     ("music_on", 0), ("music_key", 0), ("music_scale", 0), ("music_pad", 0.33), ("music_arp", 0.4),
-    ("music_tone", 0.5), ("music_react", 0.8), ("music_res", 0.8), ("music_harm", 0.6), ("beat_follow", 1), ("beat_when", 1), ("rhythm_src", 1), ("melody_src", 1), ("beat_glitch", 0.4), ("gate_attack", 5), ("gate_hold", 0), ("gate_release", 80), ("comp_attack", 40),
+    ("music_tone", 0.5), ("music_react", 0.8), ("music_res", 0.8), ("music_harm", 0.6), ("beat_follow", 1), ("beat_when", 1), ("rhythm_src", 1), ("melody_src", 1), ("harm_src", 1), ("beat_glitch", 0.4), ("gate_attack", 5), ("gate_hold", 0), ("gate_release", 80), ("comp_attack", 40),
     ("comp_release", 40), ("music_drift", 1), ("echo_scatter", 0.5), ("gc_amount", 0), ("gc_level", 0.7), ("gc_pct_stutter", 35), ("gc_pct_reverse", 25),
     ("gc_pct_shuffle", 20), ("gc_pct_stretch", 20), ("music_pad_reg", 2), ("pocket_hush", 0.5), ("pocket_guard", 0.6),
 ]
@@ -149,6 +149,10 @@ HARM_ABOVE_DB = 6          # how far above the room's quiet the sound must be
 HARM_HIGH = 76             # a pitch from E5 up (a whistle, a bird) is answered below it; lower ones (voices) above
 HARM_RANGE = (36, 104)     # heard pitches outside C2..G#7 are hiss or rumble, not a voice, whistle or bird
 HARM_ATTACK_MS = 150
+HV_WINDOW_MS = 40          # your voice as the harmony: grain length of its pitch shifter, made an even number of the
+                           # heard note's periods (the two grains then stay in step on it instead of warbling)
+HV_RELEASE_MS = 400        # its fade when you stop (the organ's 1.8 s would shift the room for too long)
+HV_GAIN = 0.7              # its level against your own voice, before the Harmony slider
 # Glitch cloud: bits of what the mic heard (kept in memory only, a few seconds) come back mangled, around you.
 # Drum patterns for the tempo clock (16 steps = one bar of 16th notes), calm -> busy; the value is the hit's
 # velocity, 0 = rest. Hats above 2 are open hats (velocity = value - 2). Each bar a pattern near the "drive" (pace when
@@ -2159,6 +2163,25 @@ def add_harmony(P, hx, ex, degree_to_hz):
     P.c("mu_hm_d", "mu_hm_deg", 0, 0)
     deg_in, deg_hz = degree_to_hz("mu_hm_c", hx + 100, 470)
     P.c("mu_hm_deg", deg_in)
+    # Your voice as the harmony (harm_src 1 or 2): close harmony, the same choice without the octave jump (a third
+    # or more above a voice, below a whistle or bird), sung by a pitch-shifted copy of the mic. The interval from the
+    # heard note to the chord note is set when the note starts and held, so the copy follows your vibrato.
+    ex("mu_hm_vdeg", f"if($f4<{HARM_HIGH},{up}-$f3,{down}+$f3)", hx + 700, 440)
+    P.c("mu_hm_ch", "mu_hm_vdeg", 0, 1); P.c("mu_hm_n2", "mu_hm_vdeg", 0, 2); P.c("mu_hm_t", "mu_hm_vdeg", 1, 3)
+    P.c("mu_hm_d", "mu_hm_vdeg", 0, 0)
+    vdeg_in, vdeg_hz = degree_to_hz("mu_hm_vc", hx + 700, 470)
+    P.c("mu_hm_vdeg", vdeg_in)
+    ex("mu_hm_vsemi", "12*log($f1/mtof($f2))/log(2)", hx + 700, 560)
+    P.c("mu_hm_t", "mu_hm_vsemi", 1, 1); P.c(vdeg_hz, "mu_hm_vsemi")
+    ex("mu_hm_vwin", f"2*max(1,rint({HV_WINDOW_MS}*mtof($f1)/2000))*1000/mtof($f1)", hx + 900, 560)
+    P.c("mu_hm_t", "mu_hm_vwin", 1, 0)                                  # (the pitch comes before the note)
+    P.obj("mu_hm_vwt", "t f f", hx + 900, 575)
+    P.c("mu_hm_vwin", "mu_hm_vwt")
+    ex("mu_hm_vrate", "(1-pow(2,$f1/12))*1000/$f2", hx + 700, 580)
+    P.c("mu_hm_vwt", "mu_hm_vrate", 1, 1)
+    P.c("mu_hm_vsemi", "mu_hm_vrate")
+    P.obj("mu_hm_vw", "f 40", hx + 960, 590); P.c("mu_hm_vwt", "mu_hm_vw", 0, 1)
+    P.obj("mu_hm_vsemi_s", "s harm_semi", hx + 800, 580); P.c("mu_hm_vsemi", "mu_hm_vsemi_s")   # (for the tests)
     P.obj("mu_hm_degout", "s harm_deg", hx + 300, 480)
     P.c("mu_hm_deg", "mu_hm_degout")
     # Note on: frequency first, then pick the other voice and open it; note off closes the voice that is playing.
@@ -2218,7 +2241,50 @@ def add_harmony(P, hx, ex, degree_to_hz):
     lvl = smoothed(P, "music_harm", "music_harm", hx + 300, 950)
     P.obj("mu_hm_gain", "*~ 0.4", hx, 970)
     P.c("mu_hm_lp", "mu_hm_gain")
-    return P.sig2("mu_hm_out", "*~", "mu_hm_gain", lvl, hx, 990)
+    # the organ plays unless Harmony sound is "Your voice"; the organ voices compute only then (group horgan)
+    P.obj("mu_hm_r_src", "r harm_src", hx + 900, 700); P.obj("mu_hm_org", "!= 1", hx + 900, 720)
+    P.obj("mu_hm_org_s", "s harm_organ", hx + 900, 740); P.c("mu_hm_r_src", "mu_hm_org"); P.c("mu_hm_org", "mu_hm_org_s")
+    P.obj("mu_hm_vok", ">= 1", hx + 980, 720); P.c("mu_hm_r_src", "mu_hm_vok")
+    # your voice: the mic into its own buffer all the time (cheap); the reading grains run only while it sings
+    P.obj("mu_hm_vwr", "delwrite~ hv_buf 200", hx + 700, 30); P.c("mu_hm_src", "mu_hm_vwr")
+    P.obj("mu_hm_von", "spigot 0", hx + 700, 650); P.c("mu_hm_vok", "mu_hm_von", 0, 1)
+    P.c("mu_hm_on", "mu_hm_von", 0, 0)
+    P.obj("mu_hm_von_t", "t b b b b", hx + 700, 670); P.c("mu_hm_von", "mu_hm_von_t")
+    P.msg("mu_hm_vsw1", f"{BS}; sw_hvoice 1", hx + 760, 690); P.c("mu_hm_von_t", "mu_hm_vsw1", 3, 0)
+    P.msg("mu_hm_vstop", "stop", hx + 820, 690); P.c("mu_hm_von_t", "mu_hm_vstop", 2, 0)
+    P.obj("mu_hm_vrt", "f", hx + 880, 690); P.c("mu_hm_vrate", "mu_hm_vrt", 0, 1)
+    P.obj("mu_hm_vset", "t b b", hx + 880, 680); P.c("mu_hm_von_t", "mu_hm_vset", 1, 0)
+    P.c("mu_hm_vset", "mu_hm_vw", 1, 0); P.c("mu_hm_vset", "mu_hm_vrt", 0, 0)
+    P.msg("mu_hm_vatk", f"1 {HARM_ATTACK_MS}", hx + 700, 700); P.c("mu_hm_von_t", "mu_hm_vatk", 0, 0)
+    P.obj("mu_hm_voff", "spigot 0", hx + 760, 720); P.c("mu_hm_vok", "mu_hm_voff", 0, 1); P.c("mu_hm_off", "mu_hm_voff")
+    P.obj("mu_hm_voff_t", "t b b", hx + 760, 740); P.c("mu_hm_voff", "mu_hm_voff_t")
+    P.msg("mu_hm_vrel", f"0 {HV_RELEASE_MS}", hx + 760, 760); P.c("mu_hm_voff_t", "mu_hm_vrel", 1, 0)
+    P.obj("mu_hm_vdl", f"del {HV_RELEASE_MS + HV_WINDOW_MS + 100}", hx + 840, 760); P.c("mu_hm_voff_t", "mu_hm_vdl", 0, 0)
+    P.c("mu_hm_vstop", "mu_hm_vdl")
+    P.msg("mu_hm_vsw0", f"{BS}; sw_hvoice 0", hx + 840, 780); P.c("mu_hm_vdl", "mu_hm_vsw0")
+    P.obj("grp_hvoice_r", "r sw_hvoice", 10, 10); P.obj("grp_hvoice_sw", "switch~", 10, 40); P.c("grp_hvoice_r", "grp_hvoice_sw")
+    vx, vy = hx + 700, 800
+    P.obj("hv_rate", "sig~", vx, vy); P.c("mu_hm_vrt", "hv_rate")
+    P.obj("hv_ph1", "phasor~", vx, vy + 20); P.c("hv_rate", "hv_ph1")
+    P.obj("hv_ph2o", "+~ 0.5", vx + 100, vy + 20); P.obj("hv_ph2", "wrap~", vx + 100, vy + 40)
+    P.c("hv_ph1", "hv_ph2o"); P.c("hv_ph2o", "hv_ph2")
+    for n, ph, x in (("1", "hv_ph1", vx), ("2", "hv_ph2", vx + 100)):
+        P.obj(f"hv_tap{n}", f"*~ {HV_WINDOW_MS}", x, vy + 60); P.obj(f"hv_off{n}", "+~ 4", x, vy + 80)
+        P.c("mu_hm_vw", f"hv_tap{n}", 0, 1)
+        P.obj(f"hv_rd{n}", "delread4~ hv_buf", x, vy + 100)
+        P.obj(f"hv_cos{n}", "cos~", x + 50, vy + 60); P.obj(f"hv_neg{n}", "*~ -0.5", x + 50, vy + 80)
+        P.obj(f"hv_win{n}", "+~ 0.5", x + 50, vy + 100)
+        P.c(ph, f"hv_tap{n}"); P.c(f"hv_tap{n}", f"hv_off{n}"); P.c(f"hv_off{n}", f"hv_rd{n}")
+        P.c(ph, f"hv_cos{n}"); P.c(f"hv_cos{n}", f"hv_neg{n}"); P.c(f"hv_neg{n}", f"hv_win{n}")
+        P.sig2(f"hv_grain{n}", "*~", f"hv_rd{n}", f"hv_win{n}", x, vy + 120)
+    P.sig2("hv_shifted", "+~", "hv_grain1", "hv_grain2", vx, vy + 140)
+    P.obj("hv_env", "vline~", vx + 200, vy + 120)
+    P.c("mu_hm_vatk", "hv_env"); P.c("mu_hm_vrel", "hv_env")
+    P.sig2("hv_env2", "*~", "hv_env", "hv_env", vx + 200, vy + 140)       # eased in and out
+    P.sig2("hv_s", "*~", "hv_shifted", "hv_env2", vx, vy + 160)
+    P.obj("hv_out", f"*~ {HV_GAIN}", vx, vy + 180); P.c("hv_s", "hv_out")
+    P.sig2("mu_hm_both", "+~", "mu_hm_gain", "hv_out", hx, 980)
+    return P.sig2("mu_hm_out", "*~", "mu_hm_both", lvl, hx, 990)
 
 
 def add_glitch_cloud(P):
@@ -3392,6 +3458,9 @@ def build():
         P.group(f"chv{k}", rf"^mu_v{k}_(o1|o2|o3|g2|g3|s12|s|env|out)$")
     for k in range(2):                                                  # the pad's two crossfade sets: on only while heard
         P.group(f"pads{k}", rf"^(mu_pad\d_{k}_(o1|o2|s|x)|mu_xf{k})$")
+    P.group("horgan", r"^mu_hm\d_")                                      # the organ voices: off for "Your voice"
+    add_switch(P, "horgan", ("music_on", "music_harm", "harm_organ"), 2500)
+    P.group("hvoice", r"^hv_")                                           # your voice as harmony: on only while it sings
     P.group("harmsig", r"^mu_hm_sig$")                                  # the pitch tracker, at half the sample rate
     add_switch(P, "harmsig", ("music_on", "music_harm"), 100, block="64 1 0.5")
     P.group("harm", r"^mu_hm")                                          # Harmony's tracker and voices: off at 0
