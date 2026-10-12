@@ -8,6 +8,11 @@ Suggested order is the numbering. Each one needs a test in `tools/test_patch.py`
 (3) Ghost capture/stretch (3), (4) Unstable world (5), (5) Collective scratch (6), (6) music: density memory, motif
 memory, key drift, register from sensors (8, 12), (7) screen polish + accel 100 Hz trial (14), (8) release prep.
 The glitch engine must stay cheap: off at Amount 0 (switch~), measured on the phone.
+Steps 1-6 done by Oct 10 (Unstable and the scratch were built and then set aside by Samuel), plus the glitch matrix.
+
+**Next order (Samuel, 2026-10-12):** (A) mic input shaping (item 15), (B) tempo clock (item 16, part 1), (C) found-sound
+rhythm section (item 16, parts 2-6), (D) tabs and Realms, replacing the old step-7 screen polish (item 17), (E) release prep.
+Plan first, agreed with Samuel, then build; test on the phone after every step. None of these are started yet.
 
 1. **(BUILT 2026-10-08 as "Room notes", `music_res`; needs tuning by ear) The room plays the notes (Dimensions "Flux").** Run the mic through resonators/filterbank tuned to the chosen
    key and scale; filter frequencies move with pitch changes and onsets, so sounds around you ring notes in key.
@@ -98,6 +103,64 @@ The glitch engine must stay cheap: off at Amount 0 (switch~), measured on the ph
       16 KB page alignment (all 64-bit .so files are 0x4000), world hysteresis test.
     - Not now (Samuel): anything that records audio ("sound capsule", "remember this minute"). Only if it would unlock a
       lot; he isn't ready to make that concession.
+
+15. **Mic input shaping: attack, hold, release (Samuel, Oct 12; the order's step A).** Like Ableton's Gate and Compressor,
+    the way he shaped drums in his mixes. Today (make_patch.py input stage): `env~ 1024 256` meter (21 ms window,
+    every 5 ms); the gate opens in 5 ms and closes over 80 ms, one threshold, no hold, so it can flutter near it; the
+    compressor's gain moves with a fixed `pack f 40` both ways. Plan:
+    - Gate: hysteresis (open at the threshold, close a few dB below), a hold time, and a **faster detector of its own**
+      (3-5 ms window) so it opens on time. No lookahead delay on the audible path: the user hears the room through
+      the headphones live, Android already adds ~20-40 ms, and 20 ms more would make claps feel late and smear against
+      the real sound leaking past earbuds (Room notes can delay; it's an effect).
+    - Compressor: separate attack (gain going down) and release (coming back up).
+    - Sliders folded under Input & output ("Gate and compressor shape"): gate attack, hold, release; compressor attack,
+      release. noPreset like gain/gate/compressor, one setting for all mics. Defaults = today (5/0/80 ms, 40/40 ms).
+    - Triggers (glitch onsets, chimes, Room notes' opening) already use the meter and stay that way. Note: the glitch
+      buffer, harmony's pitch tracker and Room notes' resonators take the gated sound itself, so a slow gate attack
+      also blunts what they get. Check harmony isn't chopped by a fast release or short hold.
+    - Test: a step signal into the patch, measuring the real attack, hold and release times.
+    - Purpose: pocket rustle (hold + slightly slower attack + faster release should shut between cloth bursts; it
+      complements pocket hush and mic-down protection, and the mic-up pocket sound Samuel likes must not get worse)
+      and earbud mics (15-20 dB quieter than the phone's).
+
+16. **Found-sound rhythm section (Samuel, Oct 12; steps B and C).** The walking beat is "neat but not my favorite"
+    (not yet known whether it's the drum sounds or the pattern: a quick listen test with another synth kit is worth
+    doing, it's much smaller work). The idea: the room supplies the drum sounds and the walking pace sets a tempo, the
+    RjDj premise itself. Today there is no BPM or grid: drums fire on each detected step, chimes wait for the next step
+    or half-step (`mu_q_*`), the glitch cloud's "free clock" is random on purpose. Pieces that exist: StepDetector's
+    averaged interval (the pace), the glitch cloud's 4 s RAM buffer, the sudden-sound detector (gc meter onsets),
+    MotifMemory, density memory, ARP_PATTERNS tiers.
+    1. **Tempo clock** (step B): its own steady beat, nudged by each footstep (phase-locked, like following a drummer),
+       so a grid with subdivisions exists, uneven steps don't throw it, and it holds (or settles to a default) when
+       you stop. Fold very slow paces up into a musical range. Useful on its own: drums, chimes and arpeggio on it.
+    2. **Hit catcher:** on a sudden sound, copy a short slice from the RAM buffer into a small kit (never to disk),
+       sorted by simple traits (low and thumpy -> kick, mid and noisy -> snare, high and short -> hat), keeping the
+       best few recent ones per role. Pocket hush stays in front of it. In a pocket, footfall thumps will be caught and
+       land on the tempo: maybe natural kicks, maybe mush.
+    3. **Sequencer:** slices on the grid, patterns busier with pace (like ARP_PATTERNS), shaped to sit in the mix
+       (pitch drop for kicks, high-pass for hats, a short envelope: ties in with item 15).
+    4. **Rhythm memory:** like MotifMemory but looping and decaying: the last bar or two of hits carry on a few bars
+       after the room goes quiet, varied each pass, thinning with density memory, then fading out.
+    5. **Loop layering:** glitch-cloud results (stutter, reverse, stretch) captured and layered into the rhythm.
+    6. **"Rhythm source" setting:** Synth drums / Found sounds / Both; the current walking beat stays as an option.
+    Watch: sounds can't land on the beat as they happen, so they come back in later bars as echoes on the grid; a quiet
+    room means an empty kit (fall back to soft synth drums or silence); slice choice and shaping decide musical vs
+    messy; measure phone CPU (Music on is ~39% of a core).
+
+17. **Tabs and Realms (Samuel, Oct 12; step D, replaces the step-7 screen polish).** The one long scroll has outgrown
+    itself. Tabs, roughly Sound, Music, Scenes, Realms, Setup (devices, appearance, reset, about); five at most. The
+    bottom bar (status, Start/Stop, Hold, Save) stays on every tab. A tab that does nothing right now says so ("Realms
+    are paused while a scene is playing"). Plain Views, no new libraries: a tab strip switching containers.
+    - **Realms** = Auto worlds renamed. Change only what is displayed: keep internal ids and built-in preset names
+      ("Kinetic world"...) or migrate them, so nobody's choices reset (the reset-button rule).
+    - **Realm ingredients:** each Realm expands to show its groups (Beat, Music, Echo, Reverb, Glitch...), each with a
+      "this Realm uses it" switch; off = the Realm leaves that section at the user's own settings (an extension of the
+      locked-param skip Worlds already do). Editing values inside a Realm stays preset editing (preset dropdown, Save
+      sound), so Realms don't become a second settings screen.
+    - Fold in the leftover polish ideas where they fit (mover dot, earcon on a Realm change, Bluetooth hint on the
+      input picker, content descriptions) and the 100 Hz accelerometer trial.
+    - Build in stages, each checked on the phone: split screens with no behaviour change, then tabs, then ingredient
+      switches, then the rename. The tester guide gets rewritten once, after this lands.
 
 Release prep (separate list): final name + applicationId (not "RjDj"), `source_url`, privacy policy, Play foreground-service
 and microphone declarations, icon, store listing, numbered pd-core release.
