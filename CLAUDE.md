@@ -132,6 +132,12 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   found; 0 synth, 2 both): per role, found when caught, else the synth (fallback). Its audio is switched (`fsound`,
   on while rhythm_src x beat_level > 0). Reports `fs_caught <role>`: the Now line shows "kit K2 S1 H3", the event
   log each catch with "kit K3 S2 H1 · 24 caught" (the slots fill to 3, the total keeps counting). Pd lessons again: a running max needs its own output fed back; a stored decay never banged was 0.
+- **Learned groove** (roadmap 16 C4, replacing "rhythm memory": with the beat always on it never stopped cold
+  anyway): at each catch the spot in the bar is noted (the last `tick16`, +1 past half a 16th: `fs_pos`), and when the
+  slice is filed, `rh_heard[role*16+spot]` gains `FS_HEARD_ADD` (0.8, max 1). Every bar all 48 spots keep
+  `FS_HEARD_KEEP` (0.55); a spot >= `FS_HEARD_MIN` (0.3) plays that role at 0.9x its value on top of the pattern. So
+  claps on one off-beat put snares there from the next bar, echoing ~2 bars after the clapping stops. Tests sync on
+  the clock's own ticks (the harness runs a little audio while setting a patch up, so bar 0 isn't at load).
 - **Dropdowns keep their value** (fixed Oct 12): rows are created at their stored value and a Spinner selects it
   before its listener is set; a Spinner reports its first entry as selected on first layout, and folded rows aren't
   refreshed, so key and scale kept snapping back to C major.

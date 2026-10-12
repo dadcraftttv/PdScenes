@@ -1366,6 +1366,30 @@ check(f120 > 3 * s120 and s55 > 3 * f55 and fallback > 0.002,
       "found sounds: the kicks play the caught thump (120 Hz %.4f vs synth %.4f; synth 55 Hz %.4f vs %.4f), nothing caught -> synth (rms %.4f)"
       % (f120, s120, s55, f55, fallback))
 
+# the learned groove (C4): claps on one off-beat spot teach the snare that spot; a few quiet bars later it's gone
+def learned_spots(clap_bars, bars, spot=6):
+    """Standing still at the default 100 BPM (a 16th = 150 ms). Syncs on the clock's own ticks, then claps 20 ms after
+    tick `spot` in clap_bars; returns, per bar, whether a snare played on that spot."""
+    thump, clap, tick = fs_sounds()
+    e = fresh(dry=0, wet=0, beat_level=1, beat_follow=1, beat_when=1, rhythm_src=1); e.listen("drum_snare", "tick16")
+    while not e.heard["tick16"]:
+        e.run(np.zeros(128, np.float32))
+    v = int(e.heard["tick16"][-1]); hit = {}
+    n = int(0.15 * SR) // 64 * 64; snares_at = []
+    for j in range(16 * bars + 16):
+        k = (v + j) % 16; b = (j + v) // 16                                # chunk j starts just after tick k of bar b
+        x = (np.random.default_rng(j).standard_normal(n) * 0.0005).astype(np.float32)
+        if b in clap_bars and k == spot:
+            c = clap(); i0 = int(0.02 * SR); x[i0:i0 + len(c)] += c[:n - i0].astype(np.float32)
+        s0 = len(e.heard["drum_snare"]); t0 = len(e.heard["tick16"]); e.run(x)
+        if len(e.heard["drum_snare"]) > s0 and len(e.heard["tick16"]) > t0:
+            snares_at.append((b if (k + 1) % 16 else b + 1, int(e.heard["tick16"][-1])))
+    return [any(bb == b and tt == spot for bb, tt in snares_at) for b in range(bars)]
+hit6 = learned_spots({1, 2, 3}, 11)
+check(hit6[2] and hit6[3] and hit6[4] and not any(hit6[8:]) and not hit6[0] and not hit6[1],
+      "learned groove: claps on one off-beat teach the snare that spot, then it fades (snare on that spot per bar: %s)"
+      % "".join("x" if h else "." for h in hit6))
+
 # input shaping: the gate's own fast meter, hysteresis, hold, attack and release; the compressor's attack and release
 def db_tone(db, secs, f=1000):
     return sine(f, np.sqrt(2) * 10 ** (db / 20), secs)

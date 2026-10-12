@@ -179,6 +179,9 @@ FS_SLICE_S = 0.25                  # a caught slice...
 FS_PREROLL_MS = 15                 # ...starting this long before the sound was noticed (keeps its attack)
 FS_SLOTS = 3                       # slices kept per role (kick, snare, hat); the oldest is replaced
 FS_MIN_DB = 55                     # quieter than this (-45 dBFS at its loudest) is not worth keeping
+FS_HEARD_ADD = 0.8                 # the learned groove: a catch adds this at its spot in the bar...
+FS_HEARD_KEEP = 0.55               # ...which keeps this much each bar (a few bars of echo, then gone)
+FS_HEARD_MIN = 0.3                 # below this a spot plays nothing
 FS_ROLE_SPEC = (                   # role: playback rate (pitch), filter, level, decay ms
     ("k", 0.8, "lop~ 1800", 1.0, 260),
     ("s", 1.0, "hip~ 160", 0.8, 200),
@@ -589,6 +592,21 @@ def add_found_kit(P, x):
         P.c("fs_reset", f"fs_max_{nm}", 0, 1); P.c("fs_reset", f"fs_mx_{nm}", 0, 1)
     P.c("fs_go", "fs_reset", 2, 0)
     P.c("fs_go", "fs_rec", 1, 0)                                          # start recording
+    # C4, the learned groove: where in the bar the sound fell, to the nearest 16th
+    P.obj("fs_tick_r", "r tick16", x + 900, y + 40); P.obj("fs_tick_t", "t f b", x + 900, y + 60)
+    P.obj("fs_tick_v", "f", x + 900, y + 80); P.obj("fs_tick_tm", "timer", x + 980, y + 80)
+    P.c("fs_tick_r", "fs_tick_t"); P.c("fs_tick_t", "fs_tick_tm", 1, 0); P.c("fs_tick_t", "fs_tick_v", 0, 1)
+    P.obj("fs_pos_t", "t b b b", x + 900, y + 110)
+    P.c("fs_go", "fs_pos_t", 0, 0)
+    P.obj("fs_pos_P", "value tc_P", x + 1060, y + 130)
+    ex("fs_pos", "($f2+($f1>$f3/8))%16", x + 900, y + 150)
+    P.c("fs_pos_t", "fs_pos_P", 2, 0); P.c("fs_pos_P", "fs_pos", 0, 2)
+    P.c("fs_pos_t", "fs_tick_v", 1, 0); P.c("fs_tick_v", "fs_pos", 0, 1)
+    P.c("fs_pos_t", "fs_tick_tm", 0, 1); P.c("fs_tick_tm", "fs_pos")
+    P.obj("fs_pos_v", "f", x + 900, y + 170); P.c("fs_pos", "fs_pos_v", 0, 1)
+    if os.environ.get("FS_DEBUG"):
+        P.obj("fsdbg_pk", "pack f f f", x + 1100, y + 150); P.obj("fsdbg_ps", "s fsdbg_pos", x + 1100, y + 170)
+        P.c("fs_pos_P", "fsdbg_pk", 0, 2); P.c("fs_tick_v", "fsdbg_pk", 0, 1); P.c("fs_tick_tm", "fsdbg_pk", 0, 0); P.c("fsdbg_pk", "fsdbg_ps")
     P.obj("fs_done", f"del {int(FS_SLICE_S * 1000) + 10}", x + 400, y + 140); P.c("fs_go", "fs_done", 0, 0)
     # ---- done: which role, worth keeping? ----
     P.obj("fs_d_t", "t b b b b", x + 400, y + 170)
@@ -610,6 +628,15 @@ def add_found_kit(P, x):
     P.obj("fs_k_t", "t f f f f", x + 400, y + 280)
     P.c("fs_keep", "fs_k_t", 1, 0)
     P.obj("fs_s_r", "s fs_caught", x + 700, y + 280); P.c("fs_k_t", "fs_s_r", 3, 0)
+    P.obj("fs_heard_t", "table rh_heard 48", x + 1100, y)
+    P.obj("fs_hd_t", "t b f", x + 1000, y + 280); P.c("fs_k_t", "fs_hd_t", 3, 0)
+    ex("fs_hd_i", "$f2*16+$f1", x + 1000, y + 300)                       # (the role first, cold; then the spot)
+    P.c("fs_hd_t", "fs_hd_i", 1, 1); P.c("fs_hd_t", "fs_pos_v", 0, 0); P.c("fs_pos_v", "fs_hd_i", 0, 0)
+    P.obj("fs_hd_it", "t f f", x + 1000, y + 320); P.c("fs_hd_i", "fs_hd_it")
+    P.obj("fs_hd_rd", "tabread rh_heard", x + 1000, y + 340)
+    ex("fs_hd_new", f"min($f1+{FS_HEARD_ADD},1)", x + 1000, y + 360)
+    P.obj("fs_hd_wr", "tabwrite rh_heard", x + 1000, y + 380)
+    P.c("fs_hd_it", "fs_hd_wr", 1, 1); P.c("fs_hd_it", "fs_hd_rd", 0, 0); P.c("fs_hd_rd", "fs_hd_new"); P.c("fs_hd_new", "fs_hd_wr")
     for k in range(3):
         P.obj(f"fs_rr{k}", "f", x + 500 + 60 * k, y + 330)
         P.obj(f"fs_rr{k}_add", "+ 1", x + 500 + 60 * k, y + 350)
@@ -781,6 +808,18 @@ def add_rhythm(P, x):
     # new bar: bar count, the patterns, the fill
     P.obj("rh_bar_t", "t b b b b b", x + 300, y + 80)
     P.c("rh_bar_sel", "rh_bar_cnt_t")
+    # the learned groove fades every bar (48 spots x FS_HEARD_KEEP)
+    P.obj("rh_hd_fade", "t b", x + 600, y + 40); P.c("rh_bar_sel", "rh_hd_fade")
+    P.msg("rh_hd_48", "48", x + 600, y + 55); P.obj("rh_hd_until", "until", x + 600, y + 70)
+    P.obj("rh_hd_i", "f", x + 600, y + 85); P.obj("rh_hd_inc", "+ 1", x + 640, y + 85)
+    P.msg("rh_hd_0", "0", x + 680, y + 55)
+    P.c("rh_hd_fade", "rh_hd_0"); P.c("rh_hd_0", "rh_hd_i", 0, 1)
+    P.c("rh_hd_fade", "rh_hd_48"); P.c("rh_hd_48", "rh_hd_until"); P.c("rh_hd_until", "rh_hd_i")
+    P.c("rh_hd_i", "rh_hd_inc"); P.c("rh_hd_inc", "rh_hd_i", 0, 1)
+    P.obj("rh_hd_it", "t f f", x + 600, y + 100); P.c("rh_hd_i", "rh_hd_it")
+    P.obj("rh_hd_rd", "tabread rh_heard", x + 600, y + 115); P.obj("rh_hd_mul", f"* {FS_HEARD_KEEP}", x + 600, y + 130)
+    P.obj("rh_hd_wr", "tabwrite rh_heard", x + 600, y + 145)
+    P.c("rh_hd_it", "rh_hd_wr", 1, 1); P.c("rh_hd_it", "rh_hd_rd", 0, 0); P.c("rh_hd_rd", "rh_hd_mul"); P.c("rh_hd_mul", "rh_hd_wr")
     P.obj("rh_bar_cnt_t", "t b b", x + 380, y + 70)
     P.obj("rh_bar_cnt", "f", x + 460, y + 70); P.obj("rh_bar_cnt_add", "+ 1", x + 500, y + 70)
     P.c("rh_bar_cnt_t", "rh_bar_cnt", 1, 0); P.c("rh_bar_cnt", "rh_bar_cnt_add"); P.c("rh_bar_cnt_add", "rh_bar_cnt", 0, 1)
@@ -823,7 +862,11 @@ def add_rhythm(P, x):
     hv = "rh_hpat[$f4*16+$f1]"
     kick = f"if({kv}>0,{kv}*($f7>=40),($f1%2==0)*($f1>0)*($f7<10+20*$f6)*0.55)"
     snare = f"if($f5&&$f1>=12,rh_fpat[$f1-12]*(0.75+0.25*$f8/1000),if({sv}>0,{sv},($f8<8+17*$f6)*0.22))"
-    hat = f"if({hv}>=2,{hv}-2,{hv})*($f9>=30) ; if({hv}>=2,240,30+60*$f6)"
+    hat = f"if({hv}>=2,{hv}-2,{hv})*($f9>=30)"
+    # the learned groove (C4): a spot where a sound was caught lately plays that role too, as loud as it's remembered
+    learn = lambda k: f"(rh_heard[{16 * k}+$f1]>={FS_HEARD_MIN})*rh_heard[{16 * k}+$f1]*0.9"
+    kick, snare = f"max({kick},{learn(0)})", f"max({snare},{learn(1)})"
+    hat = f"max({hat},{learn(2)}) ; if({hv}>=2,240,30+60*$f6)"
     ex("rh_hits", f"{kick} ; {snare} ; {hat}".replace(" ; ", " " + BS + "; "), x, y + 260)
     P.c("rh_t", "rh_r2", 2, 0); P.c("rh_r2", "rh_hits", 0, 8)
     P.c("rh_t", "rh_r1", 3, 0); P.c("rh_r1", "rh_hits", 0, 7)

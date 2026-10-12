@@ -139,7 +139,7 @@ Plan first, agreed with Samuel, then build; test on the phone after every step. 
        land on the tempo: maybe natural kicks, maybe mush.
     3. **(BUILT 2026-10-12 as the pattern engine, C1, on the synth kit; always on, softer standing still) Sequencer:** slices on the grid, patterns busier with pace (like ARP_PATTERNS), shaped to sit in the mix
        (pitch drop for kicks, high-pass for hats, a short envelope: ties in with item 15).
-    4. **Rhythm memory:** like MotifMemory but looping and decaying: the last bar or two of hits carry on a few bars
+    4. **(BUILT 2026-10-12 as the learned groove: where sounds fall in the bar is learned and echoes for a few bars) Rhythm memory:** like MotifMemory but looping and decaying: the last bar or two of hits carry on a few bars
        after the room goes quiet, varied each pass, thinning with density memory, then fading out.
     5. **Loop layering:** glitch-cloud results (stutter, reverse, stretch) captured and layered into the rhythm.
     6. **"Rhythm source" setting:** Synth drums / Found sounds / Both; the current walking beat stays as an option.
