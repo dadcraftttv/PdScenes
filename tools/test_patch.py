@@ -965,6 +965,50 @@ check(None not in off and any(abs(t - 2.75) < 0.006 for t in walk_t) and 4.5 in 
       "music: walking, chimes fall on steps or half-steps (%d notes; clap at 2.58 s chimed at %s, clap at 4.35 s waited for the 4.5 s step)"
       % (len(walk_t), [round(t, 3) for t in walk_t if 2.5 < t < 3.0]))
 
+# with the walking beat on its tempo clock, notes land on the drums' grid standing still too: sudden-sound chimes
+# on the clock's 8ths, motif notes on its 16ths; with the beat off a clap's chime still plays at once
+def grid_times(e, mic, chunk=64, motif_at=()):
+    """Runs `mic` in chunks: (times of chime_deg notes, {time: tick16} of the clock's ticks). motif_at: times to send
+    a motif note."""
+    notes, ticks, todo = [], {}, sorted(motif_at)
+    for i in range(0, len(mic), chunk):
+        while todo and todo[0] <= i / SR:
+            e.send_list("motif", 3, 0.5); todo.pop(0)
+        n, k = len(e.heard["chime_deg"]), len(e.heard["tick16"])
+        e.run(mic[i:i + chunk]); t = (i + chunk) / SR
+        notes += [t] * (len(e.heard["chime_deg"]) - n)
+        for v in e.heard["tick16"][k:]:
+            ticks[t] = int(v)
+    return notes, ticks
+def synced(**over):
+    e = fresh(**dict(dict(music_on=1, music_pad=0, music_arp=1, wet=0, gain=1, beat_level=1, beat_follow=1, beat_when=1), **over))
+    e.listen("chime_deg", "tick16"); e.run(clap_at(3.0, None)); return e
+rng = np.random.default_rng(8); x = rng.standard_normal(8 * SR) * 0.0005
+claps = [0.43, 1.61, 2.97, 4.18, 5.55, 6.9]
+for c in claps:
+    k = np.arange(int(0.03 * SR)); a = int(c * SR); x[a:a + len(k)] += rng.standard_normal(len(k)) * 0.5 * np.exp(-k / (0.008 * SR))
+e = synced(); notes, ticks = grid_times(e, x.astype(np.float32))
+on8 = [t in ticks and ticks[t] % 2 == 0 for t in notes]
+waits = [min([t - c for t in notes if t >= c] or [9]) for c in claps]
+check(len(notes) >= 4 and all(on8) and max(waits) < 0.4,
+      "music synced to the beat: standing still, chimes land on the clock's 8ths (%d notes, all on 8ths: %s, longest wait %.0f ms)"
+      % (len(notes), all(on8), max(waits) * 1000))
+e = synced(); motif_t = [0.37, 0.52, 0.91, 1.33, 2.08]
+mnotes, mticks = grid_times(e, clap_at(3.0, None), motif_at=motif_t)
+last_tick = lambda t: t - max(u for u in mticks if u <= t)
+check(len(mnotes) == len(motif_t) and all(last_tick(t) < 0.002 or t - mt < 0.04 for t, mt in zip(mnotes, motif_t)),
+      "music synced: motif notes go to the nearest 16th (%s)" % [round(t, 3) for t in mnotes])
+e = synced(beat_level=0); still_s = note_times(e, clap_at(1.0, 0.3))
+check(still_s and 0.3 < still_s[0] < 0.36,
+      "music: with the beat off nothing waits (a clap's chime %.0f ms after)" % ((still_s[0] - 0.3) * 1000 if still_s else -1))
+# the still pattern keeps about its density on the 8ths (a lively room: noise swinging every half second)
+def still_count(**over):
+    e = synced(**over); r = np.random.default_rng(11)
+    lv = np.repeat(r.uniform(0.005, 0.05, 80), SR // 2)
+    e.run((r.standard_normal(len(lv)) * lv).astype(np.float32)); return len(e.heard["chime_deg"])
+c_sync, c_free = still_count(), still_count(beat_level=0)
+check(c_free > 0 and 0.5 * c_free <= c_sync <= 2 * c_free, "music synced: the still chimes keep their density (%d vs %d free)" % (c_sync, c_free))
+
 # echo follows the steps while walking: half a step at 0.5 s steps = 250 ms; the slider's 350 ms otherwise
 def echo_delay(sync, walk, after=0.0):
     e = fresh(echo_time=350, feedback=0, wet=1, dry=0, echo_sync=sync, beat_level=0)

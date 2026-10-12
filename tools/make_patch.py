@@ -1372,12 +1372,11 @@ def add_music(P):
     P.obj("mu_chime_s", "s chime_note", cx - 100, cy + 180)            # chimes only: the app's motif memory listens
     P.c("mu_pick_t", "mu_chime_s")
     # A remembered phrase coming back (motif memory, in the app): [motif <scale step> <velocity>( plays one chime.
-    P.obj("mu_mo_r", "r motif", cx - 300, cy)
     P.obj("mu_mo_up", "unpack f f", cx - 300, cy + 20)
     P.obj("mu_mo_vel", "value cvel", cx - 240, cy + 40)
     P.obj("mu_mo_t", "t f f f", cx - 300, cy + 60)
     P.obj("mu_mo_s", "s chime_deg", cx - 300, cy + 90)
-    P.c("mu_mo_r", "mu_mo_up"); P.c("mu_mo_up", "mu_mo_vel", 1, 0); P.c("mu_mo_up", "mu_mo_t", 0, 0)
+    P.c("mu_mo_q", "mu_mo_up"); P.c("mu_mo_up", "mu_mo_vel", 1, 0); P.c("mu_mo_up", "mu_mo_t", 0, 0)
     P.c("mu_mo_t", "mu_mo_s", 2, 0); P.c("mu_mo_t", "mu_reg_add", 0, 0)
     P._late_dn = getattr(P, "_late_dn", []) + [("mu_mo_t", "mu_dnc_t")]   # it counts as a chime for density
 
@@ -1437,24 +1436,28 @@ def add_music(P):
     P.c("mu_q_store", "mu_q_has"); P.c("mu_q_has", "mu_q_go", 1, 0)
     P.c("mu_q_go", "mu_q_clear", 1, 0); P.c("mu_q_clear", "mu_q_store", 0, 1)
     P.c("mu_q_go", "mu_deg", 0, 0)
+    P.obj("mu_q_flush", "spigot 1", x + 380, 720); P.c("mu_q_flush", "mu_q_store")   # (stopping plays a waiting chime)
 
     # Path 2, a slow pattern while you are still: now and then a chime, more often in a livelier room.
     P.obj("mu_still_tick", "metro 250", x + 800, 600)
     P.c("mu_load", "mu_still_tick")
+    P.obj("mu_still_free", "spigot 1", x + 800, 615)                       # (synced: the clock's 8ths instead)
     P.obj("mu_still_gate", "spigot 1", x + 800, 630)
     P.obj("mu_still_on", "spigot", x + 800, 660)
-    P.c("mu_still_tick", "mu_still_gate"); P.c("mu_still_gate", "mu_still_on")
+    P.c("mu_still_tick", "mu_still_free"); P.c("mu_still_free", "mu_still_gate"); P.c("mu_still_gate", "mu_still_on")
     P.obj("mu_still_t", "t b b", x + 800, 690)
     P.c("mu_still_on", "mu_still_t")
     P.obj("mu_roll", "random 1000", x + 800, 720)
     ex("mu_chance", "$f1<$f2", x + 800, 750)
-    ex("mu_p", f"320*pow($f1,3)/(1+pow($f2/{DENSITY_BUSY},2))", x + 900, 720)   # chance in 1000 every 0.25 s: 0 in a quiet room, about 1 in 3 when lively (less when busy lately)
+    ex("mu_p", f"320*pow($f1,3)/(1+pow($f2/{DENSITY_BUSY},2))*$f3/250", x + 900, 720)   # chance in 1000 every 0.25 s: 0 in a quiet room, about 1 in 3 when lively (less when busy lately)
     P.obj("mu_p_dn", "value mdens", x + 980, 690)
     P.obj("mu_rd_p", "value mloud", x + 900, 690)
     P.c("mu_still_t", "mu_roll", 0, 0)
     P.obj("mu_p_t", "t b b", x + 900, 680)
     P.c("mu_still_t", "mu_p_t", 1, 0); P.c("mu_p_t", "mu_p_dn", 1, 0); P.c("mu_p_dn", "mu_p", 0, 1)
     P.c("mu_p_t", "mu_rd_p", 0, 0); P.c("mu_rd_p", "mu_p"); P.c("mu_p", "mu_chance", 0, 1)
+    P.obj("mu_p_len", "f 250", x + 1060, 690); P.c("mu_p_len", "mu_p", 0, 2)  # ms between rolls (set by "sync")
+    P.msg("mu_p_len0", "250", x + 1060, 670); P.c("mu_load", "mu_p_len0"); P.c("mu_p_len0", "mu_p", 0, 2)
     P.c("mu_roll", "mu_chance")
     P.obj("mu_chance_sel", "sel 1", x + 800, 780)
     P.c("mu_chance", "mu_chance_sel")
@@ -1542,20 +1545,25 @@ def add_music(P):
     P.c("mu_walk_t", "mu_still_off", 1, 0); P.c("mu_walk_t", "mu_walk_del", 0, 0)
     P.c("mu_walk_del", "mu_still_back")
     # Chime slots: every footstep, and halfway to the next one. Walking ends -> anything waiting plays.
-    P.msg("mu_q_walk", "0", x + 200, 660); P.msg("mu_q_walk_h", "1", x + 260, 660)
-    P.msg("mu_q_stop", "1", x + 200, 630); P.msg("mu_q_stop_h", "0", x + 260, 630)
-    P.c("mu_walk_t", "mu_q_walk", 1, 0); P.c("mu_walk_t", "mu_q_walk_h", 1, 0)
-    P.c("mu_q_walk", "mu_q_now", 0, 1); P.c("mu_q_walk_h", "mu_q_hold", 0, 1)
-    P.c("mu_walk_del", "mu_q_stop"); P.c("mu_walk_del", "mu_q_stop_h")
-    P.c("mu_q_stop", "mu_q_now", 0, 1); P.c("mu_q_stop_h", "mu_q_hold", 0, 1)
-    P.c("mu_walk_del", "mu_q_store")
+    # (with the beat synced, chimes wait for the clock's next 8th walking or standing: see "sync" below)
+    P.msg("mu_q_walk", "1", x + 200, 660); P.msg("mu_q_stop", "0", x + 200, 630)
+    P.obj("mu_q_w", "f", x + 230, 645)
+    P.c("mu_walk_t", "mu_q_walk", 1, 0); P.c("mu_walk_del", "mu_q_stop")
+    P.c("mu_q_walk", "mu_q_w"); P.c("mu_q_stop", "mu_q_w")
+    ex("mu_q_wait", "$f1||$f2", x + 230, 665)                          # walking, or synced to the beat
+    P.c("mu_q_w", "mu_q_wait", 0, 0)
+    P.obj("mu_q_wait_t", "t f f", x + 230, 675); P.c("mu_q_wait", "mu_q_wait_t")
+    P.obj("mu_q_now_v", "== 0", x + 180, 680)
+    P.c("mu_q_wait_t", "mu_q_now_v", 0, 0); P.c("mu_q_now_v", "mu_q_now", 0, 1); P.c("mu_q_wait_t", "mu_q_hold", 1, 1)
+    P.c("mu_walk_del", "mu_q_flush")
     P.obj("mu_q_half_clip", "clip 0.25 1.2", x + 1250, 930)
     P.obj("mu_q_half_ms", "* 500", x + 1250, 960)
     P.obj("mu_q_half", "del 250", x + 1160, 990)
     P.c("mu_step_t", "mu_q_half_clip", 1, 0); P.c("mu_q_half_clip", "mu_q_half_ms"); P.c("mu_q_half_ms", "mu_q_half", 0, 1)
     P.c("mu_walk_t", "mu_q_half", 0, 0)                                  # restarts the half-step timer
-    P.c("mu_walk_t", "mu_q_store", 0, 0)                                 # on the step itself
-    P.c("mu_q_half", "mu_q_store")
+    P.obj("mu_q_steps", "spigot 1", x + 1100, 1000)                       # (the step slots only when not synced)
+    P.c("mu_walk_t", "mu_q_steps", 0, 0)                                 # on the step itself
+    P.c("mu_q_half", "mu_q_steps"); P.c("mu_q_steps", "mu_q_store")
     # Groove: after half a minute of steady steps (the app sends "groove 1"), a soft note joins on every
     # half-step, a third above the last arpeggio note, fading in over a few seconds. It stops with the groove
     # or when you stop walking.
@@ -1587,6 +1595,58 @@ def add_music(P):
     P.c("mu_pace_vel", "mu_ap_store")
     P.obj("mu_al_store", "value alast", x + 1150, 900)
     P.c("mu_rest_gate", "mu_al_store")
+    # ---- sync: with the walking beat on its tempo clock, every note lands on the drums' grid, walking or still.
+    # Sudden-sound chimes wait for the next 8th, the still pattern rolls on the 8ths, motif notes go to the
+    # nearest 16th. (Harmony answers stay live: they follow a voice. Pad changes are slow fades.) ----
+    sy = 1150
+    P.obj("mu_sy_go", "t b b b", x + 200, sy + 40)
+    for k, nm in enumerate(("beat_on", "beat_level", "beat_follow")):
+        P.obj(f"mu_sy_r{k}", f"r {nm}", x + 200 + 80 * k, sy); P.obj(f"mu_sy_w{k}", f"value msy{k}", x + 200 + 80 * k, sy + 20)
+        P.obj(f"mu_sy_b{k}", "t b f", x + 200 + 80 * k, sy + 10)
+        P.c(f"mu_sy_r{k}", f"mu_sy_b{k}"); P.c(f"mu_sy_b{k}", f"mu_sy_w{k}", 1, 0); P.c(f"mu_sy_b{k}", "mu_sy_go", 0, 0)
+    for k in range(3):
+        P.obj(f"mu_sy_v{k}", f"value msy{k}", x + 300 + 80 * k, sy + 60); P.c("mu_sy_go", f"mu_sy_v{k}", k, 0)
+    ex("mu_sy", "($f1>0)*($f2>0)*($f3>0.5)", x + 200, sy + 80)
+    # (outlets fire right to left: v2 and v1 into the cold inlets, v0 into the hot one last)
+    P.c("mu_sy_v0", "mu_sy", 0, 0); P.c("mu_sy_v1", "mu_sy", 0, 1); P.c("mu_sy_v2", "mu_sy", 0, 2)
+    P.obj("mu_sy_chg", "change -1", x + 200, sy + 100); P.c("mu_sy", "mu_sy_chg")
+    P.obj("mu_sy_t", "t b f f f f", x + 200, sy + 120); P.c("mu_sy_chg", "mu_sy_t")
+    P.obj("mu_sy_not", "== 0", x + 300, sy + 140)
+    P.obj("mu_sy_s", "s msync", x + 400, sy + 160); P.c("mu_sy_t", "mu_sy_s", 4, 0)   # (for the tests)
+    P.c("mu_sy_t", "mu_sy_not", 3, 0)
+    P.c("mu_sy_not", "mu_q_steps", 0, 1); P.c("mu_sy_not", "mu_still_free", 0, 1); P.c("mu_sy_not", "mu_q_flush", 0, 1)
+    P.c("mu_sy_t", "mu_sy_8", 2, 1); P.c("mu_sy_t", "mu_mo_sy", 2, 1)
+    P.c("mu_sy_t", "mu_q_wait", 1, 1)                                     # chimes wait...
+    P.c("mu_sy_t", "mu_q_w", 0, 0)                                        # (...applied by re-sending the walking flag)
+    # the clock's 8ths: the chime slot and the still pattern's roll
+    P.obj("mu_sy_tick", "r tick16", x + 500, sy); P.obj("mu_sy_tk", "t f b", x + 500, sy + 20)
+    P.c("mu_sy_tick", "mu_sy_tk")
+    P.obj("mu_sy_mod", "mod 2", x + 500, sy + 40); P.obj("mu_sy_ev", "sel 0", x + 500, sy + 60)
+    P.obj("mu_sy_8", "spigot 0", x + 500, sy + 80)
+    P.c("mu_sy_tk", "mu_sy_mod", 0, 0); P.c("mu_sy_mod", "mu_sy_ev"); P.c("mu_sy_ev", "mu_sy_8")
+    P.obj("mu_sy_8t", "t b b b", x + 500, sy + 100); P.c("mu_sy_8", "mu_sy_8t")
+    P.obj("mu_sy_P", "value tc_P", x + 600, sy + 120); P.obj("mu_sy_half", "/ 2", x + 600, sy + 140)
+    P.c("mu_sy_8t", "mu_sy_P", 2, 0); P.c("mu_sy_P", "mu_sy_half"); P.c("mu_sy_half", "mu_p_len", 0, 1)
+    P.c("mu_sy_8t", "mu_q_store", 1, 0)                                    # a waiting chime plays
+    P.c("mu_sy_8t", "mu_still_gate", 0, 0)                                 # the still pattern rolls
+    P.obj("mu_sy_250_sel", "sel 1", x + 700, sy + 120); P.msg("mu_sy_250", "250", x + 700, sy + 140)
+    P.c("mu_sy_not", "mu_sy_250_sel"); P.c("mu_sy_250_sel", "mu_sy_250"); P.c("mu_sy_250", "mu_p_len", 0, 1)  # (free again)
+    # motif notes: played at once if the last 16th was under half a 16th ago, else held until the next one
+    P.obj("mu_tk_tm", "timer", x + 800, sy + 40); P.c("mu_sy_tk", "mu_tk_tm", 1, 0)
+    P.obj("mu_mo_r", "r motif", x + 800, sy); P.obj("mu_mo_in", "t l b", x + 800, sy + 20)
+    P.c("mu_mo_r", "mu_mo_in")
+    P.obj("mu_mo_bt", "t b b b", x + 880, sy + 30)
+    P.obj("mu_mo_P", "value tc_P", x + 900, sy + 50); P.obj("mu_mo_sy", "f 0", x + 960, sy + 50)
+    ex("mu_mo_dl", "if($f3>0.5&&$f1>$f2/8,max($f2/4-$f1,0),0)", x + 800, sy + 80)
+    P.c("mu_mo_in", "mu_mo_bt", 1, 0)
+    P.c("mu_mo_bt", "mu_mo_sy", 2, 0); P.c("mu_mo_sy", "mu_mo_dl", 0, 2)
+    P.c("mu_mo_bt", "mu_mo_P", 1, 0); P.c("mu_mo_P", "mu_mo_dl", 0, 1)
+    P.c("mu_mo_bt", "mu_tk_tm", 0, 1); P.c("mu_tk_tm", "mu_mo_dl")
+    P.obj("mu_mo_pk", "list append", x + 800, sy + 110)
+    P.c("mu_mo_dl", "mu_mo_pk", 0, 1); P.c("mu_mo_in", "mu_mo_pk", 0, 0)
+    P.obj("mu_mo_pipe", "pipe 0 0 0", x + 800, sy + 130); P.c("mu_mo_pk", "mu_mo_pipe")
+    P.obj("mu_mo_q", "pack f f", x + 800, sy + 150)
+    P.c("mu_mo_pipe", "mu_mo_q", 1, 1); P.c("mu_mo_pipe", "mu_mo_q", 0, 0)
     # Gates follow the on/off switch.
     for g in ("mu_ons_gate_on", "mu_still_on", "mu_arp_gate"):
         P.c("mu_r_on", g, 0, 1)

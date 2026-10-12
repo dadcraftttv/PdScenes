@@ -173,6 +173,11 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   `ARP_PATTERNS` every bar with ~12% rests, and the pad's chord pick wanders more (jitter 0.9). Notes played go to `s chime_deg`.
   While walking (a step in the last 2.5 s), a sudden-sound chime waits for the next footstep or half-step so it falls
   in with the arpeggio (latest one wins); standing still it plays at once. Samuel liked it on a walk (Oct 9).
+  **Synced to the beat** (Samuel, Oct 12: "it should be on the same quantization as the drums"): while the walking
+  beat runs on its tempo clock (`beat_on`, `beat_level` > 0, `beat_follow` 1; `s msync`), walking or standing,
+  sudden-sound chimes wait for the clock's next 8th (tick16 even), the still pattern rolls on the 8ths (its chance
+  scaled by 8th/250 ms, so the density holds), and motif notes go to the nearest 16th (`pipe`). Arpeggio and groove
+  were already on the pulse. Harmony answers stay live, pad changes free. Beat off or "Your steps": as before.
   **Pad register** (`music_pad_reg` Low/Mid/Both, default Both, noPreset; Samuel's idea, he likes it: deep without overpowering): a bass voice (sine + 0.35 2nd + 0.15
   3rd harmonic, folded to 65-131 Hz) on the key root, moving to the chord root on 40% of chord changes; note changes dip out
   and back in (no slides); each footstep ducks it 60% while the walking beat is audible. It rides the pad level/swell.
