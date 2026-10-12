@@ -137,7 +137,7 @@ Plan first, agreed with Samuel, then build; test on the phone after every step. 
        sorted by simple traits (low and thumpy -> kick, mid and noisy -> snare, high and short -> hat), keeping the
        best few recent ones per role. Pocket hush stays in front of it. In a pocket, footfall thumps will be caught and
        land on the tempo: maybe natural kicks, maybe mush.
-    3. **Sequencer:** slices on the grid, patterns busier with pace (like ARP_PATTERNS), shaped to sit in the mix
+    3. **(BUILT 2026-10-12 as the pattern engine, C1, on the synth kit; always on, softer standing still) Sequencer:** slices on the grid, patterns busier with pace (like ARP_PATTERNS), shaped to sit in the mix
        (pitch drop for kicks, high-pass for hats, a short envelope: ties in with item 15).
     4. **Rhythm memory:** like MotifMemory but looping and decaying: the last bar or two of hits carry on a few bars
        after the room goes quiet, varied each pass, thinning with density memory, then fading out.

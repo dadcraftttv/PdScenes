@@ -35,7 +35,7 @@ DEFAULTS = [
     ("phaser_on", 1), ("phaser_mix", 0), ("phaser_rate", 0.4), ("phaser_depth", 0.7), ("phaser_fb", 0.4),
     ("beat_on", 1), ("beat_level", 0), ("beat_hats", 0.5), ("beat_snare", 0.6), ("beat_pitch", 55),
     ("music_on", 0), ("music_key", 0), ("music_scale", 0), ("music_pad", 0.33), ("music_arp", 0.4),
-    ("music_tone", 0.5), ("music_react", 0.8), ("music_res", 0.8), ("music_harm", 0.6), ("beat_follow", 1), ("gate_attack", 5), ("gate_hold", 0), ("gate_release", 80), ("comp_attack", 40),
+    ("music_tone", 0.5), ("music_react", 0.8), ("music_res", 0.8), ("music_harm", 0.6), ("beat_follow", 1), ("beat_when", 1), ("gate_attack", 5), ("gate_hold", 0), ("gate_release", 80), ("comp_attack", 40),
     ("comp_release", 40), ("music_drift", 1), ("echo_scatter", 0.5), ("gc_amount", 0), ("gc_level", 0.7), ("gc_pct_stutter", 35), ("gc_pct_reverse", 25),
     ("gc_pct_shuffle", 20), ("gc_pct_stretch", 20), ("music_pad_reg", 2), ("pocket_hush", 0.5), ("pocket_guard", 0.6),
 ]
@@ -148,6 +148,31 @@ HARM_HIGH = 76             # a pitch from E5 up (a whistle, a bird) is answered 
 HARM_RANGE = (36, 104)     # heard pitches outside C2..G#7 are hiss or rumble, not a voice, whistle or bird
 HARM_ATTACK_MS = 150
 # Glitch cloud: bits of what the mic heard (kept in memory only, a few seconds) come back mangled, around you.
+# Drum patterns for the tempo clock (16 steps = one bar of 16th notes), calm -> busy; the value is the hit's
+# velocity, 0 = rest. Hats above 2 are open hats (velocity = value - 2). Each bar a pattern near the "drive" (pace when
+# walking, liveliness of the room when standing) is picked per lane, never the same kick pattern twice in a row.
+KICK_PATS = [
+    (1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+    (1, 0, 0, 0, 0, 0, 0, 0, .8, 0, 0, 0, 0, 0, 0, 0),
+    (1, 0, 0, 0, 0, 0, .6, 0, .85, 0, 0, 0, 0, 0, 0, 0),
+    (1, 0, 0, 0, 0, 0, .6, 0, .85, 0, .6, 0, 0, 0, 0, 0),
+    (1, 0, 0, .5, 0, 0, .7, 0, .9, 0, 0, 0, 0, .6, 0, 0),
+]
+SNARE_PATS = [
+    (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, .6, 0, 0, 0),
+    (0, 0, 0, 0, .9, 0, 0, 0, 0, 0, 0, 0, .9, 0, 0, 0),
+    (0, 0, 0, 0, .9, 0, 0, 0, 0, 0, 0, 0, .9, 0, 0, .35),
+    (0, 0, 0, 0, .9, 0, 0, .3, 0, .3, 0, 0, .9, 0, 0, 0),
+    (0, 0, 0, 0, 1, 0, 0, .3, 0, 0, .35, 0, 1, 0, .3, 0),
+]
+HAT_PATS = [
+    (.6, 0, 0, 0, .5, 0, 0, 0, .6, 0, 0, 0, .5, 0, 0, 0),
+    (.6, 0, .35, 0, .55, 0, .35, 0, .6, 0, .35, 0, .55, 0, .35, 0),
+    (0, 0, .6, 0, 0, 0, .6, 0, 0, 0, .6, 0, 0, 0, 2.5, 0),
+    (.6, .25, .4, .25, .55, .25, .4, .25, .6, .25, .4, .25, .55, .25, 2.45, 0),
+    (.6, 0, .4, .3, .55, 0, 2.4, 0, .6, 0, .4, .3, .55, .3, 2.5, 0),
+]
+FILL_PAT = (.45, .6, .75, .95)     # snare over the last beat of every 4th bar (when the drive is up)
 CLOCK_MIN_MS, CLOCK_MAX_MS = 375, 750   # beats are folded into 80-160 BPM
 CLOCK_DEFAULT_MS = 600       # 100 BPM before any walking
 CLOCK_PHASE_GAIN = 0.35      # each step moves the next beat this much of the way to it...
@@ -463,10 +488,34 @@ def add_tempo_clock(P):
     P.c("tc_next", "tc_p_t", 2, 0)
     P.c("tc_p_t", "tc_walk", 1, 0)                                         # walking? -> the pulse gate
     P.c("tc_p_t", "tc_del", 0, 0)                                          # next beat in P ms
+    P.obj("tc_walk_s", "s clock_walking", x + 300, y + 450); P.c("tc_walk", "tc_walk_s")
     P.obj("tc_walk_sel", "sel 1", x + 220, y + 450)
     P.c("tc_walk", "tc_walk_sel")
     P.obj("tc_bP2", "value tc_P", x + 220, y + 480); P.obj("tc_sec", "/ 1000", x + 220, y + 510)
     P.c("tc_walk_sel", "tc_bP2"); P.c("tc_bP2", "tc_sec")
+    # 16th-note ticks: each beat restarts a metro at a quarter of the beat; tick16 = position in the bar, 0-15
+    P.obj("tc_q_t", "t b b b", x + 700, y + 330)                         # read, reset the count, start the metro
+    P.c("tc_beat", "tc_q_t", 0, 0)                                          # (after the beat's own work)
+    P.obj("tc_q_P", "value tc_P", x + 760, y + 350); P.obj("tc_q_div", "/ 4", x + 760, y + 370)
+    P.obj("tc_q_metro", "metro 150", x + 700, y + 400)
+    P.c("tc_q_t", "tc_q_P", 2, 0); P.c("tc_q_P", "tc_q_div"); P.c("tc_q_div", "tc_q_metro", 0, 1)
+    P.obj("tc_beat_n", "f", x + 860, y + 330); P.obj("tc_beat_add", "+ 1", x + 900, y + 330)
+    P.obj("tc_beat_mod", "mod 4", x + 940, y + 330)
+    P.c("tc_q_t", "tc_beat_n", 2, 0); P.c("tc_beat_n", "tc_beat_add"); P.c("tc_beat_add", "tc_beat_mod")
+    P.c("tc_beat_mod", "tc_beat_n", 0, 1)
+    P.obj("tc_sub", "f", x + 700, y + 430); P.obj("tc_sub_add", "+ 1", x + 760, y + 430)
+    P.msg("tc_sub0", "0", x + 760, y + 400)
+    P.c("tc_q_t", "tc_sub0", 1, 0); P.c("tc_sub0", "tc_sub", 0, 1); P.c("tc_q_t", "tc_q_metro", 0, 0)
+    P.c("tc_q_metro", "tc_sub"); P.c("tc_sub", "tc_sub_add"); P.c("tc_sub_add", "tc_sub", 0, 1)
+    P.obj("tc_sub_ok", "moses 4", x + 700, y + 460)                     # a slowing walk: no 5th tick before the beat
+    P.c("tc_sub", "tc_sub_ok")
+    P.obj("tc_b4", "value tc_beatpos", x + 860, y + 360); P.c("tc_beat_mod", "tc_b4")   # (already the next beat)
+    P.obj("tc_pos_t", "t f b", x + 700, y + 490)
+    P.obj("tc_b4r", "value tc_beatpos", x + 780, y + 500)
+    ex("tc_pos", "($f2+3)%4*4+$f1", x + 700, y + 520)                     # (the beat counter already moved on)
+    P.c("tc_sub_ok", "tc_pos_t", 0, 0); P.c("tc_pos_t", "tc_b4r", 1, 0); P.c("tc_b4r", "tc_pos", 0, 1)
+    P.c("tc_pos_t", "tc_pos", 0, 0)
+    P.obj("tc_tick_s", "s tick16", x + 700, y + 550); P.c("tc_pos", "tc_tick_s")
     # the router: beat_follow 1 = the clock's beats, 0 = the steps themselves
     P.obj("tc_r_mode", "r beat_follow", x + 500, y + 450)
     P.obj("tc_clock_on", "spigot 1", x + 220, y + 540); P.obj("tc_steps_on", "spigot 0", x + 600, y + 540)
@@ -478,6 +527,143 @@ def add_tempo_clock(P):
     P.c("tc_clock_on", "tc_pulse_s"); P.c("tc_steps_on", "tc_pulse_s")
 
 
+def add_rhythm(P, x):
+    """The pattern engine (roadmap 16, step C1): on the tempo clock's 16th ticks it plays bars from KICK/SNARE/HAT_PATS
+    on the drum voices. Each bar picks per lane a pattern near the drive (or a neighbour), the kick never the same
+    twice; each hit may drop out, the kick gets an extra 8th now and then, the snare a ghost note, and every 4th bar
+    ends in a snare fill when the drive is up. Drive: walking 0.55 + 0.45 x pace; standing 0.1 + 0.5 x the room's
+    liveliness (sparse and soft in a quiet room). It plays while the walking beat follows the tempo clock, and with
+    beat_when 1 also standing still, softer (rh_gain). The old one-hit-per-step drums stay for "your steps"."""
+    y = 600
+    def ex(name, text, xx, yy):
+        return P.obj(name, "expr " + text.replace(",", BS + ",").replace("$", BS + "$"), xx, yy)
+    for k, (nm, pats) in enumerate((("rh_kpat", KICK_PATS), ("rh_spat", SNARE_PATS), ("rh_hpat", HAT_PATS),
+                                     ("rh_fpat", (FILL_PAT,)))):
+        P.obj(nm, f"table {nm} {16 * len(pats)}", x + 1500, y + 20 * k)
+    P.obj("rh_lb", "loadbang", x + 1500, y - 40)
+    vals = lambda pats: " ".join(str(v) for pat in pats for v in pat)
+    P.msg("rh_tabs", f"{BS}; rh_kpat 0 {vals(KICK_PATS)} {BS}; rh_spat 0 {vals(SNARE_PATS)} {BS}; rh_hpat 0 {vals(HAT_PATS)}"
+                     f" {BS}; rh_fpat 0 {vals((FILL_PAT,))}", x + 1500, y - 20)
+    P.c("rh_lb", "rh_tabs")
+    # ---- walking? pace? the room? -> drive (0..1) and the drums' level ----
+    P.obj("rh_r_walk", "r clock_walking", x + 1700, y)                   # the clock knows: a step within 1.25 intervals
+    P.obj("rh_walk", "value rh_walking", x + 1700, y + 80)
+    P.c("rh_r_walk", "rh_walk")
+    # stopping: in "only while walking" the drums fade at once (150 ms) instead of at the next room reading
+    P.obj("rh_stop_sel", "sel 0", x + 1780, y + 20); P.c("rh_r_walk", "rh_stop_sel")
+    P.obj("rh_stop_when", "f 1", x + 1780, y + 40); P.c("rh_stop_sel", "rh_stop_when")
+    P.obj("rh_stop_sel2", "sel 0", x + 1780, y + 60); P.c("rh_stop_when", "rh_stop_sel2")
+    P.msg("rh_stop_fade", "0 150", x + 1780, y + 80)
+    P.c("rh_stop_sel2", "rh_stop_fade")
+    P.obj("rh_r_step", "r step", x + 1900, y)
+    ex("rh_pace", "min(max((1/max($f1,0.25)-1)/1.6,0),1)", x + 1900, y + 20)
+    P.obj("rh_pace_v", "value rh_pace", x + 1900, y + 40)
+    P.c("rh_r_step", "rh_pace"); P.c("rh_pace", "rh_pace_v")
+    # the room: a slow level against its own quiet floor (follows down at once, creeps up 0.5 dB a second)
+    P.obj("rh_r_lvl", "r mic_level", x + 2100, y)
+    P.obj("rh_lvl_v", "f", x + 2100, y + 20); P.c("rh_r_lvl", "rh_lvl_v", 0, 1)
+    P.obj("rh_tick", "metro 100", x + 2000, y + 60); P.c("rh_lb", "rh_tick")
+    P.obj("rh_room_t", "t b b b b", x + 2000, y + 80)
+    P.c("rh_tick", "rh_room_t")
+    P.obj("rh_slow", "f", x + 2100, y + 100); P.obj("rh_floor", "f 50", x + 2200, y + 100)
+    ex("rh_room", "$f1*0.05+$f2*0.95 ; min($f1,$f3+0.05) ; min(max((($f1*0.05+$f2*0.95)-$f3-3)/25,0),1)"
+       .replace(" ; ", " " + BS + "; "), x + 2100, y + 130)
+    P.c("rh_room_t", "rh_slow", 3, 0); P.c("rh_slow", "rh_room", 0, 1)
+    P.c("rh_room_t", "rh_floor", 3, 0); P.c("rh_floor", "rh_room", 0, 2)
+    P.c("rh_room_t", "rh_lvl_v", 2, 0); P.c("rh_lvl_v", "rh_room", 0, 0)
+    P.c("rh_room", "rh_slow", 0, 1); P.c("rh_room", "rh_floor", 1, 1)
+    P.obj("rh_loud", "f", x + 2100, y + 160); P.c("rh_room", "rh_loud", 2, 1)
+    P.obj("rh_walk_rd", "value rh_walking", x + 1700, y + 180); P.obj("rh_pace_rd", "value rh_pace", x + 1800, y + 180)
+    P.obj("rh_when", "f 1", x + 1900, y + 180); P.obj("rh_r_when", "r beat_when", x + 1900, y + 160)
+    P.c("rh_r_when", "rh_when", 0, 1); P.c("rh_r_when", "rh_stop_when", 0, 1)
+    P.obj("rh_mode", "f 1", x + 1960, y + 180); P.obj("rh_r_mode", "r beat_follow", x + 1960, y + 160)
+    P.c("rh_r_mode", "rh_mode", 0, 1)
+    # out: drive ; gain (0 when the pattern engine shouldn't play)
+    ex("rh_dg", "if($f2,0.55+0.45*$f3,0.1+0.5*$f1) ; if($f5,if($f2,1,$f4*(0.35+0.4*$f1)),1)".replace(" ; ", " " + BS + "; "),
+       x + 1700, y + 210)
+    P.c("rh_room_t", "rh_walk_rd", 1, 0); P.c("rh_walk_rd", "rh_dg", 0, 1)
+    P.c("rh_room_t", "rh_pace_rd", 1, 0); P.c("rh_pace_rd", "rh_dg", 0, 2)
+    P.c("rh_room_t", "rh_when", 1, 0); P.c("rh_when", "rh_dg", 0, 3)
+    P.c("rh_room_t", "rh_mode", 1, 0); P.c("rh_mode", "rh_dg", 0, 4)
+    P.c("rh_room_t", "rh_loud", 0, 0); P.c("rh_loud", "rh_dg", 0, 0)
+    P.obj("rh_drive_v", "value rh_drive", x + 1700, y + 240); P.c("rh_dg", "rh_drive_v", 0, 0)
+    # only real changes move the level (a ramp restarted every 100 ms never quite arrives), and to 0 always quickly
+    P.obj("rh_gain_chg", "change", x + 1800, y + 225)
+    ex("rh_gain_ms", "$f1 ; if($f1<=0,150,400)".replace(" ; ", " " + BS + "; "), x + 1800, y + 235)
+    P.obj("rh_gain_pk", "pack f 400", x + 1800, y + 245); P.obj("rh_gain", "line~", x + 1800, y + 260)
+    P.c("rh_dg", "rh_gain_chg", 1, 0); P.c("rh_gain_chg", "rh_gain_ms")
+    P.c("rh_gain_ms", "rh_gain_pk", 1, 1); P.c("rh_gain_ms", "rh_gain_pk", 0, 0)
+    P.c("rh_gain_pk", "rh_gain"); P.c("rh_stop_fade", "rh_gain")
+    # in "your steps" mode the old drums play at full level (and only on steps)
+    # ---- each 16th tick: a new bar picks patterns; every tick reads them, with the bar's variations ----
+    P.obj("rh_r_tick", "r tick16", x, y)
+    P.obj("rh_on", "spigot 1", x, y + 20)
+    P.c("rh_r_tick", "rh_on"); P.c("rh_r_mode", "rh_on", 0, 1)            # (only in tempo clock mode)
+    P.obj("rh_t", "t f f b b b b", x, y + 40)
+    P.c("rh_on", "rh_t")
+    P.obj("rh_bar_sel", "sel 15", x + 300, y + 60)                      # (after tick 15's hits: the next bar's patterns)
+    P.c("rh_t", "rh_bar_sel", 1, 0)
+    # new bar: bar count, the patterns, the fill
+    P.obj("rh_bar_t", "t b b b b b", x + 300, y + 80)
+    P.c("rh_bar_sel", "rh_bar_t")
+    P.obj("rh_bar", "f", x + 300, y + 100); P.obj("rh_bar_add", "+ 1", x + 340, y + 100)
+    P.c("rh_bar_t", "rh_bar", 4, 0); P.c("rh_bar", "rh_bar_add"); P.c("rh_bar_add", "rh_bar", 0, 1)
+    P.obj("rh_dr_rd", "value rh_drive", x + 420, y + 100)
+    for k, lane in enumerate("ksh"):
+        P.obj(f"rh_rp{lane}", "random 3", x + 500 + 60 * k, y + 100)
+    P.obj("rh_rf", "random 100", x + 680, y + 100)
+    top = len(KICK_PATS) - 1
+    pick = lambda r: f"min(max(int($f1*{top}+0.5)+{r}-1,0),{top})"
+    ex("rh_pick", f"if({pick('$f2')}==$f6,if($f6<{top},$f6+1,$f6-1),{pick('$f2')}) ; {pick('$f3')} ; {pick('$f4')} ; "
+                  f"($f7%4==3)*($f1>0.35)*($f5<70)".replace(" ; ", " " + BS + "; "), x + 300, y + 130)
+    # inlets: $f1 drive (hot, last), $f2-$f4 the lanes' randoms, $f5 fill roll, $f6 last kick pattern, $f7 bar
+    P.c("rh_bar_t", "rh_rpk", 3, 0); P.c("rh_rpk", "rh_pick", 0, 1)
+    P.c("rh_bar_t", "rh_rps", 3, 0); P.c("rh_rps", "rh_pick", 0, 2)
+    P.c("rh_bar_t", "rh_rph", 2, 0); P.c("rh_rph", "rh_pick", 0, 3)
+    P.c("rh_bar_t", "rh_rf", 1, 0); P.c("rh_rf", "rh_pick", 0, 4)
+    P.c("rh_bar", "rh_pick", 0, 6)
+    P.c("rh_bar_t", "rh_dr_rd", 0, 0); P.c("rh_dr_rd", "rh_pick", 0, 0)
+    for k, nm in enumerate(("kp", "sp", "hp", "fill")):
+        P.obj(f"rh_{nm}", f"value rh_{nm}", x + 300 + 70 * k, y + 170)
+        P.c("rh_pick", f"rh_{nm}", k, 0)
+    P.obj("rh_kp_last", "f", x + 300, y + 150); P.c("rh_pick", "rh_kp_last", 0, 0); P.c("rh_kp_last", "rh_pick", 0, 5)
+    P.obj("rh_bar_s", "s rh_bar_patterns", x + 600, y + 170)              # (for the tests: which kick pattern)
+    P.c("rh_pick", "rh_bar_s", 0, 0)
+    # every tick: read the bar's choices and three randoms, then the hits
+    for k, nm in enumerate(("kp", "sp", "hp", "fill")):
+        P.obj(f"rh_rd_{nm}", f"value rh_{nm}", x + 60 * k, y + 220)
+    P.obj("rh_rd_dr", "value rh_drive", x + 240, y + 220)
+    for k in range(3):
+        P.obj(f"rh_r{k}", "random 1000", x + 300 + 60 * k, y + 220)
+    # $f1 tick (hot), $f2 kp, $f3 sp, $f4 hp, $f5 fill, $f6 drive, $f7-$f9 randoms 0..999
+    kv = "rh_kpat[$f2*16+$f1]"
+    sv = "rh_spat[$f3*16+$f1]"
+    hv = "rh_hpat[$f4*16+$f1]"
+    kick = f"if({kv}>0,{kv}*($f7>=80),($f1%2==0)*($f1>0)*($f7<40+60*$f6)*0.55)"
+    snare = f"if($f5&&$f1>=12,rh_fpat[$f1-12]*(0.75+0.25*$f8/1000),if({sv}>0,{sv},($f8<30+70*$f6)*0.22))"
+    hat = f"if({hv}>=2,{hv}-2,{hv})*($f9>=50) ; if({hv}>=2,240,30+60*$f6)"
+    ex("rh_hits", f"{kick} ; {snare} ; {hat}".replace(" ; ", " " + BS + "; "), x, y + 260)
+    P.c("rh_t", "rh_r2", 2, 0); P.c("rh_r2", "rh_hits", 0, 8)
+    P.c("rh_t", "rh_r1", 3, 0); P.c("rh_r1", "rh_hits", 0, 7)
+    P.c("rh_t", "rh_r0", 4, 0); P.c("rh_r0", "rh_hits", 0, 6)
+    P.c("rh_t", "rh_rd_dr", 5, 0); P.c("rh_rd_dr", "rh_hits", 0, 5)
+    for k, nm in enumerate(("kp", "sp", "hp", "fill")):
+        P.c("rh_t", f"rh_rd_{nm}", 5, 0); P.c(f"rh_rd_{nm}", "rh_hits", 0, k + 1)
+    P.c("rh_t", "rh_hits", 0, 0)
+    # hits -> voices (the hat's decay first)
+    P.obj("rh_k_ok", "moses 0.001", x, y + 300); P.c("rh_hits", "rh_k_ok", 0, 0); P.c("rh_k_ok", "kick_in", 1, 0)
+    P.obj("rh_s_ok", "moses 0.001", x + 100, y + 300); P.c("rh_hits", "rh_s_ok", 1, 0); P.c("rh_s_ok", "snare_in", 1, 0)
+    P.obj("rh_h_pk", "pack f f", x + 200, y + 300)
+    P.c("rh_hits", "rh_h_pk", 3, 1); P.c("rh_hits", "rh_h_pk", 2, 0)
+    P.obj("rh_h_ok", "route 0", x + 200, y + 320); P.c("rh_h_pk", "rh_h_ok")
+    P.obj("rh_h_v", "unpack f f", x + 260, y + 340); P.c("rh_h_ok", "rh_h_v", 1, 0)
+    P.obj("rh_h_pk2", "pack f f", x + 260, y + 360)
+    P.c("rh_h_v", "rh_h_pk2", 1, 1); P.c("rh_h_v", "rh_h_pk2", 0, 0); P.c("rh_h_pk2", "h_amp_msg")
+    for k, lane in enumerate(("kick", "snare", "hat")):
+        P.obj(f"rh_s_{lane}", f"s drum_{lane}", x + 400 + 70 * k, y + 330)
+    P.c("rh_k_ok", "rh_s_kick", 1, 0); P.c("rh_s_ok", "rh_s_snare", 1, 0); P.c("rh_h_v", "rh_s_hat", 0, 0)
+
+
 def add_beat(P):
     """Footstep drums. The app sends [step( with the time since the previous step (seconds) at every
     footstep. Steps alternate kick and snare, and a hi-hat falls half a step after each one. Returns the
@@ -485,7 +671,10 @@ def add_beat(P):
     x = 2300
     P.obj("r_step", "r pulse", x, 20)                                  # steps or the tempo clock (add_tempo_clock)
     P.obj("step_t", "t b b f", x, 50)
-    P.c("r_step", "step_t")
+    P.obj("step_old", "spigot 1", x, 35)                                # the old one-hit-per-step drums: "your steps" only
+    P.obj("step_old_r", "r beat_follow", x + 80, 20); P.obj("step_old_i", "== 0", x + 80, 35)
+    P.c("step_old_r", "step_old_i"); P.c("step_old_i", "step_old", 0, 1)
+    P.c("r_step", "step_old"); P.c("step_old", "step_t")
     # Half the interval, in ms, sets the hi-hat delay (right inlet of [del]: sets without starting it).
     P.obj("step_clip", "clip 0.25 1.2", x + 250, 80)
     P.obj("step_half_ms", "* 500", x + 250, 110)
@@ -511,18 +700,22 @@ def add_beat(P):
         P.c(name + "_msg", name)
         return name
 
+    # Each voice takes a velocity (0..1): the old step path sends 1, the pattern engine its pattern's value.
+    P.obj("kick_in", "t b f", x, 200); P.obj("snare_in", "t f f", x + 300, 200)
+    P.msg("cnt_k1", "1", x, 185); P.msg("cnt_s1", "1", x + 300, 185)
+    P.c("cnt_sel", "cnt_k1", 0, 0); P.c("cnt_k1", "kick_in"); P.c("cnt_sel", "cnt_s1", 1, 0); P.c("cnt_s1", "snare_in")
     # Kick: a sine whose pitch falls from 3.5x to 1x of the "pitch" setting in 70 ms.
     pitch = smoothed(P, "beat_pitch", "beat_pitch", x + 500, 20)
-    k_amp = env("k_amp", "0, 1 2, 0 260 2", "cnt_sel", 0, x, 220)
-    k_pit = env("k_pit", "3.5, 1 70", "cnt_sel", 0, x + 150, 220)
+    k_amp = env("k_amp", "0, $1 2, 0 260 2".replace("$", BS + "$"), "kick_in", 1, x, 220)
+    k_pit = env("k_pit", "3.5, 1 70", "kick_in", 0, x + 150, 220)
     P.sig2("k_freq", "*~", k_pit, pitch, x + 150, 290)
     P.obj("k_osc", "osc~", x + 150, 320)
     P.c("k_freq", "k_osc")
     P.sig2("kick", "*~", "k_osc", k_amp, x, 350)
 
     # Snare: noise and a short tone.
-    s_amp = env("s_amp", "0, 1 1, 0 150 1", "cnt_sel", 1, x + 300, 220)
-    s_ton = env("s_ton", "0, 1 1, 0 90 1", "cnt_sel", 1, x + 450, 220)
+    s_amp = env("s_amp", "0, $1 1, 0 150 1".replace("$", BS + "$"), "snare_in", 1, x + 300, 220)
+    s_ton = env("s_ton", "0, $1 1, 0 90 1".replace("$", BS + "$"), "snare_in", 0, x + 450, 220)
     P.obj("noise", "noise~", x + 600, 220)
     P.obj("s_hp", "hip~ 1800", x + 600, 250)
     P.c("noise", "s_hp")
@@ -552,6 +745,7 @@ def add_beat(P):
     P.msg("h_amp_msg", ("0, " + BS + "$1 1, 0 " + BS + "$2 1").replace(",", comma), x + 750, 220)
     P.obj("h_amp", "vline~", x + 750, 250)
     P.c("h_pack", "h_amp_msg"); P.c("h_amp_msg", "h_amp")
+    add_rhythm(P, x)                                                    # the pattern engine plays these voices too
     h_amp = "h_amp"
     P.obj("h_hp", "hip~ 7000", x + 750, 250)
     P.c("noise", "h_hp")
@@ -567,7 +761,8 @@ def add_beat(P):
     P.obj("ks_gain", "line~", x + 1200, 230)
     P.c("ks_r_str", "ks_calc"); P.c("ks_calc", "ks_pk"); P.c("ks_pk", "ks_gain")
     P.sig2("beat_kick_snare", "*~", "beat_ks0", "ks_gain", x, 500)   # a harder step lifts kick and snare a little
-    P.sig2("beat_sum", "+~", "beat_kick_snare", "hat", x, 530)
+    P.sig2("beat_sum0", "+~", "beat_kick_snare", "hat", x, 530)
+    P.sig2("beat_sum", "*~", "beat_sum0", "rh_gain", x, 535)            # softer standing still (the pattern engine)
     lvl = smoothed(P, "beat_level", "beat_level", x + 1050, 20)
     bon = smoothed(P, "beat_on", "beat_on", x + 1150, 20)
     P.sig2("beat_gain0", "*~", lvl, bon, x + 1050, 120)

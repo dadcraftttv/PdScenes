@@ -106,6 +106,18 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   followed within ~2 steps, a missed step leaves no hole. Tests run with `beat_follow=0` unless they test the clock.
   **Pd lessons:** a [t] outlet feeding two objects has no defined order (one read a stale time and the tempo ran away);
   an interval of 0 made a 0 ms beat that rescheduled itself forever (guarded). `CLOCK_DEBUG=1` prints P, N, I, now.
+- **Pattern engine** (roadmap 16 step C1, `add_rhythm`; Samuel: the old kick-snare-hat "never changes, grows stale"):
+  the clock also sends `tick16 <0-15>` (a metro at a quarter beat, restarted on each beat; no 5th tick when slowing).
+  Bars from `KICK_PATS`/`SNARE_PATS`/`HAT_PATS` (calm -> busy; hats > 2 = open) play the drum voices (which now take a
+  velocity). On tick 15 the next bar picks per lane a pattern near the drive (or a neighbour), the kick never the same
+  twice; hits may drop (8%), extra 8th kicks and ghost snares come with the drive, every 4th bar ends in a snare fill
+  when the drive is up. Drive: walking 0.55 + 0.45 x pace; standing 0.1 + 0.5 x the room's liveliness (slow mic
+  level vs a creeping floor). `beat_when` (Walking beat, noPreset): 1 = Always (default; standing still at
+  0.35-0.75 of the level, Samuel: "the rhythm should be constant... always making a rhythm out of what it hears"),
+  0 = only while walking (the clock's `clock_walking` turns it off, 150 ms fade, ~0.75 s after the last step).
+  Only with `beat_follow` 1; "Your steps" keeps the old one-hit-per-step drums. The level moves only on real changes
+  (a ramp restarted every 100 ms never arrived). Tests hear `drum_kick/snare/hat` and `rh_bar_patterns`.
+  Next (C2/C3): found sounds from the mic become the kit; synth drums stay as the fallback.
 - **Dropdowns keep their value** (fixed Oct 12): rows are created at their stored value and a Spinner selects it
   before its listener is set; a Spinner reports its first entry as selected on first layout, and folded rows aren't
   refreshed, so key and scale kept snapping back to C major.

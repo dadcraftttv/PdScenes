@@ -118,7 +118,10 @@ final class Params {
             new Param("beat_follow", "Walking beat follows", 0f, 1f, 1f, "", Param.Curve.LINEAR)
                     .choices("Your steps (as before)", "Tempo clock (steadier, follows your pace)")
                     .inSection("beat").noPreset().resetWhenAbsent(),
-            new Param("beat_level", "Beat level (plays when you walk; 0 = off)", 0f, 1f, 0f, "",
+            new Param("beat_when", "Beat plays", 0f, 1f, 1f, "", Param.Curve.LINEAR)
+                    .choices("Only while walking", "Always (softly when you stand still)")
+                    .inSection("beat").noPreset().resetWhenAbsent(),
+            new Param("beat_level", "Beat level (0 = off)", 0f, 1f, 0f, "",
                     Param.Curve.LINEAR).inSection("beat").rand(0f, 0.7f).resetWhenAbsent(),
             new Param("beat_hats", "Hi-hat level", 0f, 1f, 0.5f, "", Param.Curve.LINEAR)
                     .inSection("beat").rand(0f, 1f).resetWhenAbsent(),
