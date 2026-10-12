@@ -1362,9 +1362,33 @@ def kick_tones(src, catch):
 f120, f55, _ = kick_tones(1, True)
 s120, s55, _ = kick_tones(0, True)
 _, _, fallback = kick_tones(1, False)
-check(f120 > 3 * s120 and s55 > 3 * f55 and fallback > 0.002,
-      "found sounds: the kicks play the caught thump (120 Hz %.4f vs synth %.4f; synth 55 Hz %.4f vs %.4f), nothing caught -> synth (rms %.4f)"
-      % (f120, s120, s55, f55, fallback))
+_, _, synth_full = kick_tones(0, False)
+check(f120 > 3 * s120 and s55 > 3 * f55 and 0.1 * synth_full < fallback < 0.4 * synth_full,
+      "found sounds: the kicks play the caught thump (120 Hz %.4f vs synth %.4f; synth 55 Hz %.4f vs %.4f), nothing caught -> "
+      "the synth faintly (rms %.4f vs %.4f)" % (f120, s120, s55, f55, fallback, synth_full))
+# one catch makes the whole kit found: a lone clap (a snare) also plays as the kick and hat, the synth stays silent
+def band(y, lo, hi):
+    S = np.abs(np.fft.rfft(y)); f = np.fft.rfftfreq(len(y), 1 / SR); return float(np.sqrt(np.mean(S[(f >= lo) & (f < hi)] ** 2)))
+e, y, caught = fs_catch([(0.5, "s")], 14.0, beat_pitch=55)
+tail = y[4 * SR:]; kicks = len(e.heard["drum_kick"])
+check(caught == [1] and kicks > 0 and band(tail, 40, 70) < 0.2 * band(tail, 800, 3000) and rms(tail) > 0.01,
+      "found sounds: one clap makes the whole kit found (no synth kick at 55 Hz: %.2f vs the clap's band %.2f, rms %.4f)"
+      % (band(tail, 40, 70), band(tail, 800, 3000), rms(tail)))
+# each voice plays its own role's slice (the voices once all read the first kick slot): the clap is heard as a snare
+_, y1, _ = fs_catch([(0.5, "k")], 14.0, beat_hats=0)
+_, y2, c2 = fs_catch([(0.5, "k"), (1.5, "s")], 14.0, beat_hats=0)
+check(c2 == [0, 1] and band(y2[4 * SR:], 800, 3000) > 3 * band(y1[4 * SR:], 800, 3000),
+      "found sounds: with a kick and a snare caught, the snare plays the clap (1-3 kHz %.2f vs kick only %.2f)"
+      % (band(y2[4 * SR:], 800, 3000), band(y1[4 * SR:], 800, 3000)))
+# in a loud, steady room (-30 dBFS) a sound 8 dB over it is caught, a 4 dB bump is not
+def loud_room_catch(lift):
+    x = (np.random.default_rng(4).standard_normal(7 * SR) * 0.03).astype(np.float32)
+    for t in (3.0, 4.5, 6.0):
+        i = int(t * SR); x[i:i + int(0.08 * SR)] *= lift
+    e = fresh(dry=0, wet=0, beat_level=1, beat_follow=1, beat_when=1, rhythm_src=1); e.listen("fs_caught")
+    e.run(x[:2 * SR]); n0 = len(e.heard["fs_caught"]); e.run(x[2 * SR:]); return len(e.heard["fs_caught"]) - n0
+l8, l4 = loud_room_catch(2.5), loud_room_catch(1.6)
+check(l8 == 3 and l4 == 0, "found sounds: in a loud room, sounds 8 dB over it are caught (%d of 3), 4 dB bumps are not (%d)" % (l8, l4))
 
 # a snap right at the mic overloads it: a clipped, dense slice must not come back as a deafening boom
 def found_playback(sound):
@@ -1376,11 +1400,11 @@ def found_playback(sound):
 thump = fs_sounds()[0]()
 k = np.arange(int(0.25 * SR)); boom = np.clip(3 * np.sin(2 * np.pi * 90 * k / SR) + np.random.default_rng(5).standard_normal(len(k)), -0.99, 0.99)
 p_t, r_t = found_playback(thump); p_b, r_b = found_playback(boom)
-e = fresh(dry=0, wet=0, beat_level=1, beat_follow=1, beat_when=1, rhythm_src=0, beat_snare=0, beat_hats=0)
-r_syn = rms(e.run(np.zeros(14 * SR, np.float32))[4 * SR:, 0])
-check(r_b < 1.6 * r_t and p_b < 0.75 and r_t > 0.25 * r_syn,
-      "found sounds: a clipped snap at the mic plays back no louder than a thump (rms %.3f vs %.3f, peak %.2f), and the found kick "
-      "is near the synth kick's level (%.3f)" % (r_b, r_t, p_b, r_syn))
+e = fresh(dry=0, wet=0, beat_level=1, beat_follow=1, beat_when=1, rhythm_src=0)                # (the whole synth kit)
+r_syn = rms(e.run((np.random.default_rng(3).standard_normal(14 * SR) * 0.0005).astype(np.float32))[4 * SR:, 0])
+check(r_b < 1.15 * r_syn and p_b < 0.75 and r_t > 0.45 * r_syn,
+      "found sounds: a clipped snap at the mic plays back no louder than the synth kit (rms %.3f vs %.3f, peak %.2f), and a thump "
+      "kit is near it (%.3f)" % (r_b, r_syn, p_b, r_t))
 
 # glitch loops (C5): a glitch is recorded and comes back every bar at its own spot, fading, inside the beat
 def glitch_loop(beat_glitch):

@@ -128,10 +128,16 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   the whole -> kick, highs within 6 dB (3 caught no real taps) and lows 15 dB under -> hat, else snare; copied (`array get/set`) into the
   role's next slot `fs_<role><slot>` (3 per role, round robin, memory only) with a gain levelling its peak to 0.5
   (`fs_gains`) but its loudest 10 ms no higher than `FS_RMS_TARGET` (0.3; a snap at the mic overloaded it into a
-  clipped, dense slice that played as a "deafening boom"), and the found drums are soft-limited (`FS_LIMIT` 0.7
-  tanh); `fs_filled` counts. Voices (one per role): a random filled slot through `tabread4~` at rate 0.8/1/1.15,
-  lop 1.8k / hip 160 / hip 4k, level 1/0.8/0.7, decay 260/200/hat's own. `rhythm_src` ("Beat sounds", default 1 =
-  found; 0 synth, 2 both): per role, found when caught, else the synth (fallback). Its audio is switched (`fsound`,
+  clipped, dense slice that played as a "deafening boom"), and the found drums get `FS_MAKEUP` (3x) into a tanh
+  limit at `FS_LIMIT` (0.9): a thump kit ~5 dB under the synth kit, a clipped boom at its level, never above
+  (Samuel, Oct 12: "not quite present enough"). `fs_filled` counts. Voices (one per role): a random filled slot of
+  its role through `tabread4~` at rate 0.8/1/1.3, lop 3.5k / hip 160 / hip 1.5k, level 1/0.8/0.7, decay
+  260/200/hat's own; a role with nothing of its own borrows any caught slot, so one catch makes the whole kit found.
+  The slot switch is a `[set $1(` message (a `makefilename set ...` symbol was ignored: until Oct 12 every voice
+  played fs_00 only, and the snare/hat were silent without a kick). `rhythm_src` ("Beat sounds", default 1 =
+  found; 0 synth, 2 both): found mode plays the synth at `FS_PLACEHOLDER` (0.25) until the first catch, then never.
+  The catcher has its own detector (`fs_det`): in a loud room (average > -35 dBFS) a 6 dB jump counts (else 10,
+  like the glitch cloud's, which is unchanged). Its audio is switched (`fsound`,
   on while rhythm_src x beat_level > 0). Reports `fs_caught <role>`: the Now line shows "kit K2 S1 H3", the event
   log each catch with "kit K3 S2 H1 · 24 caught" (the slots fill to 3, the total keeps counting). Pd lessons again: a running max needs its own output fed back; a stored decay never banged was 0.
 - **Learned groove** (roadmap 16 C4, replacing "rhythm memory": with the beat always on it never stopped cold

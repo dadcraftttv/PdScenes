@@ -123,5 +123,17 @@ class Engine:
         self.lib.libpd_process_float(ticks, mic.ctypes.data, out.ctypes.data)
         return out.reshape(n, 2)  # interleaved L,R
 
+    def array(self, name):
+        """The contents of a Pd array (table) as a numpy array."""
+        L = self.lib
+        L.libpd_arraysize.argtypes = [ctypes.c_char_p]
+        n = L.libpd_arraysize(name.encode())
+        if n < 0:
+            raise KeyError(name)
+        buf = np.zeros(n, dtype=np.float32)
+        L.libpd_read_array.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_int, ctypes.c_int]
+        L.libpd_read_array(buf.ctypes.data, name.encode(), 0, n)
+        return buf
+
     def silence(self, seconds):
         return np.zeros(int(seconds * self.sr), dtype=np.float32)

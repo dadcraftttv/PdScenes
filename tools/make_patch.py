@@ -180,7 +180,11 @@ FS_PREROLL_MS = 15                 # ...starting this long before the sound was 
 FS_SLOTS = 3                       # slices kept per role (kick, snare, hat); the oldest is replaced
 FS_MIN_DB = 55                     # quieter than this (-45 dBFS at its loudest) is not worth keeping
 FS_RMS_TARGET = 0.3                # a slice's loudest 10 ms is brought no higher than this (a clipped snap was a boom)
-FS_LIMIT = 0.7                     # the found drums are soft-limited to this
+FS_LOUD_DB = 65                   # a room louder than this (-35 dBFS on average)...
+FS_ONSET_LOUD_DB = 6               # ...needs only this jump for a catch (else GC_ONSET_DB, 10)
+FS_PLACEHOLDER = 0.25             # before anything is caught, the synth kit plays this softly (a pulse to start from)
+FS_MAKEUP = 3.0                    # real sounds are short and thin next to synth drums: lifted this much...
+FS_LIMIT = 0.9                     # ...into a soft limit at this (tanh), which also thickens them
 GL_KEEP = 0.65                     # a glitch loop keeps this much of its level each bar
 GL_MAX_S = 3.2                     # the longest bar a loop can hold (80 BPM = 3 s)
 GL_MIN_PEAK = 0.02                 # a recorded glitch quieter than this (the free clock on near-silence) is not kept
@@ -188,9 +192,9 @@ FS_HEARD_ADD = 0.8                 # the learned groove: a catch adds this at it
 FS_HEARD_KEEP = 0.55               # ...which keeps this much each bar (a few bars of echo, then gone)
 FS_HEARD_MIN = 0.3                 # below this a spot plays nothing
 FS_ROLE_SPEC = (                   # role: playback rate (pitch), filter, level, decay ms
-    ("k", 0.8, "lop~ 1800", 1.0, 260),
+    ("k", 0.8, "lop~ 3500", 1.0, 260),   # (gentle filters: a borrowed sound must keep its character)
     ("s", 1.0, "hip~ 160", 0.8, 200),
-    ("h", 1.15, "hip~ 4000", 0.7, 90),
+    ("h", 1.3, "hip~ 1500", 0.7, 90),
 )
 RH_FILL_EVERY = 8                  # bars
 CLOCK_MIN_MS, CLOCK_MAX_MS = 375, 750   # beats are folded into 80-160 BPM
@@ -589,7 +593,7 @@ def add_found_kit(P, x):
     P.obj("fs_pocket", "spigot 1", x + 400, y + 70)                      # nothing is caught in a pocket (Samuel)
     P.obj("fs_r_pocket", "r pocket", x + 600, y + 40); P.obj("fs_not_pocket", "== 0", x + 600, y + 60)
     P.c("fs_r_pocket", "fs_not_pocket"); P.c("fs_not_pocket", "fs_pocket", 0, 1)
-    P.c("gc_det_sel", "fs_use"); P.c("fs_use", "fs_pocket"); P.c("fs_pocket", "fs_on")
+    P.c("fs_det_sel", "fs_use"); P.c("fs_use", "fs_pocket"); P.c("fs_pocket", "fs_on")
     P.obj("fs_go", "t b b b b", x + 400, y + 100)
     P.c("fs_on", "fs_go")
     P.msg("fs_closed", "0", x + 480, y + 120); P.c("fs_go", "fs_closed", 3, 0); P.c("fs_closed", "fs_on", 0, 1)
@@ -627,7 +631,7 @@ def add_found_kit(P, x):
     P.c("fs_d_t", "fs_max_all", 1, 0); P.c("fs_max_all", "fs_role", 0, 0)
     P.obj("fs_keep", "moses 0", x + 400, y + 250); P.c("fs_role", "fs_keep")
     if os.environ.get("FS_DEBUG"):
-        for nm, src, o in (("go", "fs_go", 0), ("onset", "gc_det_sel", 0), ("role", "fs_role", 0), ("all", "fs_max_all", 0),
+        for nm, src, o in (("go", "fs_go", 0), ("onset", "fs_det_sel", 0), ("role", "fs_role", 0), ("all", "fs_max_all", 0),
                            ("lo", "fs_max_lo", 0), ("hi", "fs_max_hi", 0), ("use", "fs_use", 0)):
             P.obj(f"fsdbg_{nm}", f"s fsdbg_{nm}", x + 900, y + 200 + 20 * len(nm)); P.c(src, f"fsdbg_{nm}", o, 0)
     # ---- file it: the role's next slot, the level-matching gain, the copy ----
@@ -687,21 +691,28 @@ def add_found_kit(P, x):
     for k, (r, rate, filt, lvl, decay) in enumerate(FS_ROLE_SPEC):
         vx, vy = x + 1000 + 400 * k, y + 600
         P.obj(f"fsv_{r}_in", "t f b b", vx, vy)                            # velocity in (decay set beforehand)
-        P.obj(f"fsv_{r}_n", "tabread fs_filled", vx + 100, vy + 20)
-        P.msg(f"fsv_{r}_k", str(k), vx + 100, vy)
-        P.c(f"fsv_{r}_in", f"fsv_{r}_k", 2, 0); P.c(f"fsv_{r}_k", f"fsv_{r}_n")
         P.obj(f"fsv_{r}_rnd", "random 1000", vx + 180, vy + 20)
         P.c(f"fsv_{r}_in", f"fsv_{r}_rnd", 1, 0)
-        ex(f"fsv_{r}_pick", f"{k * FS_SLOTS}+int($f1*max($f2,1)/1000)", vx + 180, vy + 40)
-        P.c(f"fsv_{r}_n", f"fsv_{r}_pick", 0, 1); P.c(f"fsv_{r}_rnd", f"fsv_{r}_pick")
+        # its own role's slices; while it has none, any caught slice (played through this role's pitch and filter),
+        # so one catch already makes the whole kit found
+        own, S = f"fs_filled[{k}]", FS_SLOTS
+        i = "int($f1*max(fs_filled[0]+fs_filled[1]+fs_filled[2],1)/1000)"
+        ex(f"fsv_{r}_pick", f"if({own}>=1,{k * S}+int($f1*{own}/1000),if({i}<fs_filled[0],{i},"
+                            f"if({i}<fs_filled[0]+fs_filled[1],{S}+{i}-fs_filled[0],{2 * S}+{i}-fs_filled[0]-fs_filled[1])))",
+           vx + 180, vy + 40)
+        P.c(f"fsv_{r}_rnd", f"fsv_{r}_pick")
+        if os.environ.get("FS_DEBUG"):
+            P.obj(f"fsdbg_pick_{r}", f"s fsdbg_pick_{r}", vx + 300, vy + 40); P.c(f"fsv_{r}_pick", f"fsdbg_pick_{r}")
+            P.obj(f"fsdbg_amp_{r}", f"s fsdbg_amp_{r}", vx + 300, vy + 160); P.c(f"fsv_{r}_amp", f"fsdbg_amp_{r}")
         P.obj(f"fsv_{r}_slot", "t f f", vx + 180, vy + 60); P.c(f"fsv_{r}_pick", f"fsv_{r}_slot")
         P.obj(f"fsv_{r}_g", "tabread fs_gains", vx + 260, vy + 80); P.c(f"fsv_{r}_slot", f"fsv_{r}_g", 1, 0)
         P.obj(f"fsv_{r}_gv", "f 1", vx + 260, vy + 100); P.c(f"fsv_{r}_g", f"fsv_{r}_gv", 0, 1)
         ex(f"fsv_{r}_ni", f"int($f1/{FS_SLOTS})*10+$f1%{FS_SLOTS}", vx + 180, vy + 80)
-        P.obj(f"fsv_{r}_name", "makefilename set fs_%02d", vx + 180, vy + 100)
-        P.c(f"fsv_{r}_slot", f"fsv_{r}_ni", 0, 0); P.c(f"fsv_{r}_ni", f"fsv_{r}_name")
+        P.obj(f"fsv_{r}_name", "makefilename fs_%02d", vx + 180, vy + 100)
+        P.msg(f"fsv_{r}_set", f"set {BS}$1", vx + 180, vy + 120)            # (a symbol "set fs_NN" would be ignored)
+        P.c(f"fsv_{r}_slot", f"fsv_{r}_ni", 0, 0); P.c(f"fsv_{r}_ni", f"fsv_{r}_name"); P.c(f"fsv_{r}_name", f"fsv_{r}_set")
         P.obj(f"fsv_{r}_rd", "tabread4~ fs_00", vx, vy + 160)
-        P.c(f"fsv_{r}_name", f"fsv_{r}_rd")                                 # (a "set fs_NN" message)
+        P.c(f"fsv_{r}_set", f"fsv_{r}_rd")
         # the read position: 0 -> the slice's samples, over its length / rate
         P.obj(f"fsv_{r}_srv", "value fs_srv", vx + 100, vy + 120)
         ex(f"fsv_{r}_ix", f"$f1*{FS_SLICE_S} ; {FS_SLICE_S * 1000}/{rate}".replace(" ; ", " " + BS + "; "), vx + 100, vy + 140)
@@ -733,7 +744,7 @@ def add_found_kit(P, x):
         outs.append(f"fsv_{r}_f")
     P.sig2("fs_ks0", "+~", outs[0], outs[1], x + 1000, y + 900)
     # a soft limit, so no caught sound can jump out of the beat (tanh: gentle below, never above FS_LIMIT)
-    lim = f"{FS_LIMIT}*tanh($v1/{FS_LIMIT})".replace("$", BS + "$")
+    lim = f"{FS_LIMIT}*tanh($v1*{FS_MAKEUP}/{FS_LIMIT})".replace("$", BS + "$")
     P.obj("fs_ks", "expr~ " + lim, x + 1000, y + 920); P.c("fs_ks0", "fs_ks")
     P.obj("fs_hat_lim", "expr~ " + lim, x + 1100, y + 920); P.c(outs[2], "fs_hat_lim")
     return "fs_ks", "fs_hat_lim"
@@ -966,7 +977,7 @@ def add_rhythm(P, x):
         P.c("rh_t", f"rh_rd_{nm}", 5, 0); P.c(f"rh_rd_{nm}", "rh_hits", 0, k + 1)
     P.c("rh_t", "rh_hits", 0, 0)
     # hits -> voices: per role the synth drum, the found sound, or both ("Beat sounds", rhythm_src 0 synth, 1 found,
-    # 2 both); a role with nothing caught yet falls back to the synth
+    # 2 both); with found sounds, until the first catch the synth plays faintly (FS_PLACEHOLDER), after it never
     P.obj("rh_src", "f 1", x + 600, y + 280); P.obj("rh_r_src", "r rhythm_src", x + 600, y + 260)
     P.c("rh_r_src", "rh_src", 0, 1)
     P.obj("rh_k_ok", "moses 0.001", x, y + 300); P.c("rh_hits", "rh_k_ok", 0, 0)
@@ -981,13 +992,14 @@ def add_rhythm(P, x):
         rx = x + 700 + 250 * k
         P.obj(f"rh_{lane}r_t", "t f b b", rx, y + 380)
         P.c(src, f"rh_{lane}r_t", 1 if lane != "h" else 0, 0)
-        P.msg(f"rh_{lane}r_k", str(k), rx + 80, y + 380); P.obj(f"rh_{lane}r_n", "tabread fs_filled", rx + 80, y + 400)
+        P.msg(f"rh_{lane}r_k", "0", rx + 80, y + 380)
+        ex(f"rh_{lane}r_n", "$f1+fs_filled[0]+fs_filled[1]+fs_filled[2]", rx + 80, y + 400)   # (anything caught yet?)
         P.obj(f"rh_{lane}r_src", "f", rx + 160, y + 400); P.c("rh_r_src", f"rh_{lane}r_src", 0, 1)
         P.obj(f"rh_{lane}r_init", "loadbang", rx + 160, y + 360); P.msg(f"rh_{lane}r_init1", "1", rx + 160, y + 370)
         P.c(f"rh_{lane}r_init", f"rh_{lane}r_init1"); P.c(f"rh_{lane}r_init1", f"rh_{lane}r_src", 0, 1)
         P.c(f"rh_{lane}r_t", f"rh_{lane}r_k", 2, 0); P.c(f"rh_{lane}r_k", f"rh_{lane}r_n")
         P.c(f"rh_{lane}r_t", f"rh_{lane}r_src", 1, 0)
-        ex(f"rh_{lane}r", "if($f2==0||$f2==2||$f3<1,$f1,0) ; if($f2>=1&&$f3>=1,$f1,0)".replace(" ; ", " " + BS + "; "),
+        ex(f"rh_{lane}r", f"if($f2==0||$f2==2,$f1,if($f3<1,$f1*{FS_PLACEHOLDER},0)) ; if($f2>=1&&$f3>=1,$f1,0)".replace(" ; ", " " + BS + "; "),
            rx, y + 420)
         P.c(f"rh_{lane}r_n", f"rh_{lane}r", 0, 2); P.c(f"rh_{lane}r_src", f"rh_{lane}r", 0, 1)
         P.c(f"rh_{lane}r_t", f"rh_{lane}r", 0, 0)
@@ -2005,13 +2017,17 @@ def add_glitch_cloud(P):
     P.obj("gc_amt", "f", x + 300, y + 30)
     P.c("gc_r_amt", "gc_amt", 0, 1)
     # ---- sudden sounds: the 5 ms level against its own recent average ----
-    P.obj("gc_m_t", "t f f", x, y + 80)
+    P.obj("gc_m_t", "t f f f", x, y + 80)
     P.c("meter", "gc_m_t")
+    # the found-sound catcher's own detector: the same jump, but in a loud room (a steady roar) a smaller one counts
+    ex("fs_det", f"($f1-$f2>if($f2>{FS_LOUD_DB},{FS_ONSET_LOUD_DB},{GC_ONSET_DB}))*($f1>{GC_MIN_DB})", x + 250, y + 110)
+    P.obj("fs_det_chg", "change", x + 250, y + 140); P.obj("fs_det_sel", "sel 1", x + 250, y + 170)
+    P.c("gc_m_t", "fs_det", 2, 0); P.c("fs_det", "fs_det_chg"); P.c("fs_det_chg", "fs_det_sel")
     ex("gc_det", f"($f1-$f2>{GC_ONSET_DB})*($f1>{GC_MIN_DB})", x, y + 110)
     ex("gc_slow", "$f1*0.04+$f2*0.96", x + 120, y + 110)                # about a quarter second
     P.obj("gc_slow_t", "t f f", x + 120, y + 140)
     P.c("gc_m_t", "gc_det", 1, 0); P.c("gc_m_t", "gc_slow", 0, 0)
-    P.c("gc_slow", "gc_slow_t"); P.c("gc_slow_t", "gc_slow", 1, 1); P.c("gc_slow_t", "gc_det", 0, 1)
+    P.c("gc_slow", "gc_slow_t"); P.c("gc_slow_t", "gc_slow", 1, 1); P.c("gc_slow_t", "gc_det", 0, 1); P.c("gc_slow_t", "fs_det", 0, 1)
     P.obj("gc_det_chg", "change", x, y + 140)
     P.obj("gc_det_sel", "sel 1", x, y + 170)
     P.c("gc_det", "gc_det_chg"); P.c("gc_det_chg", "gc_det_sel")
