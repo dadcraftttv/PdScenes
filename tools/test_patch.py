@@ -1346,6 +1346,13 @@ e, y, caught = fs_catch([(1.0 + 0.6 * k, "k") for k in range(5)], 5.0)
 check(len(caught) == 5, "found sounds: every thump is caught (%d), the kit keeps the latest %d of them" % (len(caught), 3))
 _, _, none = fs_catch([], 4.0)
 check(not none, "found sounds: a quiet room catches nothing (%s)" % none)
+def pocketed_catch():
+    thump, clap, tick = fs_sounds()
+    x = (np.random.default_rng(3).standard_normal(4 * SR) * 0.0005).astype(np.float32)
+    s = clap(); x[2 * SR:2 * SR + len(s)] += s.astype(np.float32)
+    e = fresh(dry=0, wet=0, beat_level=1, beat_follow=1, beat_when=1, rhythm_src=1, pocket_hush=0); e.listen("fs_caught")
+    e.send("pocket", 1); e.run(x); return [int(v) for v in e.heard["fs_caught"]]
+check(not pocketed_catch(), "found sounds: nothing is caught while the phone is in a pocket")
 # the patterns play the caught sound: a 150 Hz thump comes back as kicks at 150 x 0.8 = 120 Hz; the synth kick is lower
 def kick_tones(src, catch):
     ev = [(0.5, "k")] if catch else []

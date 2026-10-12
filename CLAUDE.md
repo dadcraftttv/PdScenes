@@ -122,16 +122,16 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   (a ramp restarted every 100 ms never arrived). Tests hear `drum_kick/snare/hat` and `rh_bar_patterns`.
   Next (C2/C3): found sounds from the mic become the kit; synth drums stay as the fallback.
 - **Found-sound kit** (roadmap 16 C2/C3, `add_found_kit`; Samuel: "the sounds around you become the rhythm"): on each
-  sudden sound (the glitch cloud's detector, `gc_det_sel`, always running) a `FS_SLICE_S` (0.25 s) slice of the hushed
+  sudden sound (the glitch cloud's detector, `gc_det_sel`, always running; never while in a pocket) a `FS_SLICE_S` (0.25 s) slice of the hushed
   mic from `FS_PREROLL_MS` (15 ms) earlier is recorded (`tabwrite~ fs_stage` from a 100 ms `fs_buf`) while env~ maxima
   of all/lows (<150 Hz)/highs (>4 kHz) are kept; then filed: below `FS_MIN_DB` (-45 dBFS) dropped, lows within 6 dB of
-  the whole -> kick, highs within 3 dB and lows 15 dB under -> hat, else snare; copied (`array get/set`) into the
+  the whole -> kick, highs within 6 dB (3 caught no real taps) and lows 15 dB under -> hat, else snare; copied (`array get/set`) into the
   role's next slot `fs_<role><slot>` (3 per role, round robin, memory only) with a gain levelling its peak to 0.5
   (`fs_gains`), `fs_filled` counts. Voices (one per role): a random filled slot through `tabread4~` at rate 0.8/1/1.15,
   lop 1.8k / hip 160 / hip 4k, level 1/0.8/0.7, decay 260/200/hat's own. `rhythm_src` ("Beat sounds", default 1 =
   found; 0 synth, 2 both): per role, found when caught, else the synth (fallback). Its audio is switched (`fsound`,
   on while rhythm_src x beat_level > 0). Reports `fs_caught <role>`: the Now line shows "kit K2 S1 H3", the event
-  log each catch. Pd lessons again: a running max needs its own output fed back; a stored decay never banged was 0.
+  log each catch with "kit K3 S2 H1 · 24 caught" (the slots fill to 3, the total keeps counting). Pd lessons again: a running max needs its own output fed back; a stored decay never banged was 0.
 - **Dropdowns keep their value** (fixed Oct 12): rows are created at their stored value and a Spinner selects it
   before its listener is set; a Spinner reports its first entry as selected on first layout, and folded rows aren't
   refreshed, so key and scale kept snapping back to C major.

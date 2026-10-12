@@ -577,7 +577,10 @@ def add_found_kit(P, x):
     P.obj("fs_use", "spigot 0", x + 400, y + 60)                         # (only when found sounds are used)
     P.obj("fs_r_src", "r rhythm_src", x + 500, y + 40); P.obj("fs_use_v", "> 0", x + 500, y + 60)
     P.c("fs_r_src", "fs_use_v"); P.c("fs_use_v", "fs_use", 0, 1)
-    P.c("gc_det_sel", "fs_use"); P.c("fs_use", "fs_on")
+    P.obj("fs_pocket", "spigot 1", x + 400, y + 70)                      # nothing is caught in a pocket (Samuel)
+    P.obj("fs_r_pocket", "r pocket", x + 600, y + 40); P.obj("fs_not_pocket", "== 0", x + 600, y + 60)
+    P.c("fs_r_pocket", "fs_not_pocket"); P.c("fs_not_pocket", "fs_pocket", 0, 1)
+    P.c("gc_det_sel", "fs_use"); P.c("fs_use", "fs_pocket"); P.c("fs_pocket", "fs_on")
     P.obj("fs_go", "t b b b b", x + 400, y + 100)
     P.c("fs_on", "fs_go")
     P.msg("fs_closed", "0", x + 480, y + 120); P.c("fs_go", "fs_closed", 3, 0); P.c("fs_closed", "fs_on", 0, 1)
@@ -592,7 +595,8 @@ def add_found_kit(P, x):
     P.c("fs_done", "fs_d_t")
     P.msg("fs_open", "1", x + 600, y + 170); P.c("fs_d_t", "fs_open", 0, 0); P.c("fs_open", "fs_on", 0, 1)
     # kick: the lows carry it; hat: nearly all of it bright (within 3 dB) and little low; anything else is a snare
-    ex("fs_role", f"if($f1<{FS_MIN_DB},-1,if($f2-$f1>-6,0,if($f3-$f1>-3&&$f2-$f1<-15,2,1)))", x + 400, y + 220)
+    # (hats loosened to 6 dB after the first phone test caught no hats at all from real taps)
+    ex("fs_role", f"if($f1<{FS_MIN_DB},-1,if($f2-$f1>-6,0,if($f3-$f1>-6&&$f2-$f1<-15,2,1)))", x + 400, y + 220)
     # inlets: $f1 overall (hot, last), $f2 lows, $f3 highs
     P.c("fs_d_t", "fs_max_hi", 2, 0); P.c("fs_max_hi", "fs_role", 0, 2)
     P.c("fs_d_t", "fs_max_lo", 2, 0); P.c("fs_max_lo", "fs_role", 0, 1)

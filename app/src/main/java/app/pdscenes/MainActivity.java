@@ -487,7 +487,7 @@ public class MainActivity extends Activity {
         why.add(getString(room, Math.round(Worlds.roomLevelDb())));
         if (ParamStore.get("beat_level") > 0 && ParamStore.get("beat_follow") >= 0.5f && ParamStore.get("rhythm_src") >= 0.5f) {
             int[] kit = AudioService.kit();
-            why.add(getString(R.string.why_kit, kit[0], kit[1], kit[2]));
+            why.add(getString(R.string.why_kit, kit[0], kit[1], kit[2], kit[3]));
         }
         String line = getString(R.string.now_line, name, String.join(" \u00b7 ", why));
         if (Worlds.isHeld()) {

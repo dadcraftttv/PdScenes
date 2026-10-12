@@ -15,7 +15,7 @@
     <string name="why_night">night</string>
     <string name="why_walking">walking</string>
     <string name="why_walking_bpm">walking %d BPM</string>
-    <string name="why_kit">kit K%1$d S%2$d H%3$d</string>
+    <string name="why_kit">kit K%1$d S%2$d H%3$d · %4$d caught</string>
     <string name="why_shaken">shaken</string>
     <string name="glitch_budget">Glitch budget: %1$d%% used · %2$d%% left to silence</string>
     <string name="glitch_budget_over">Glitch budget: %1$d%% (over 100, shared out in proportion)</string>

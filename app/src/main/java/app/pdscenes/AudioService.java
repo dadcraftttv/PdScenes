@@ -98,7 +98,8 @@ public class AudioService extends Service {
     /** Kicks, snares and hats in the found-sound kit now (0-3 each). */
     static int[] kit() {
         synchronized (kitCaught) {
-            return new int[]{Math.min(kitCaught[0], 3), Math.min(kitCaught[1], 3), Math.min(kitCaught[2], 3)};
+            return new int[]{Math.min(kitCaught[0], 3), Math.min(kitCaught[1], 3), Math.min(kitCaught[2], 3),
+                    kitCaught[0] + kitCaught[1] + kitCaught[2]};   // ...and how many were caught in all
         }
     }
 
