@@ -35,7 +35,7 @@ DEFAULTS = [
     ("phaser_on", 1), ("phaser_mix", 0), ("phaser_rate", 0.4), ("phaser_depth", 0.7), ("phaser_fb", 0.4),
     ("beat_on", 1), ("beat_level", 0), ("beat_hats", 0.5), ("beat_snare", 0.6), ("beat_pitch", 55),
     ("music_on", 0), ("music_key", 0), ("music_scale", 0), ("music_pad", 0.33), ("music_arp", 0.4),
-    ("music_tone", 0.5), ("music_react", 0.8), ("music_res", 0.8), ("music_harm", 0.6), ("beat_follow", 1), ("beat_when", 1), ("rhythm_src", 1), ("gate_attack", 5), ("gate_hold", 0), ("gate_release", 80), ("comp_attack", 40),
+    ("music_tone", 0.5), ("music_react", 0.8), ("music_res", 0.8), ("music_harm", 0.6), ("beat_follow", 1), ("beat_when", 1), ("rhythm_src", 1), ("beat_glitch", 0.4), ("gate_attack", 5), ("gate_hold", 0), ("gate_release", 80), ("comp_attack", 40),
     ("comp_release", 40), ("music_drift", 1), ("echo_scatter", 0.5), ("gc_amount", 0), ("gc_level", 0.7), ("gc_pct_stutter", 35), ("gc_pct_reverse", 25),
     ("gc_pct_shuffle", 20), ("gc_pct_stretch", 20), ("music_pad_reg", 2), ("pocket_hush", 0.5), ("pocket_guard", 0.6),
 ]
@@ -181,6 +181,9 @@ FS_SLOTS = 3                       # slices kept per role (kick, snare, hat); th
 FS_MIN_DB = 55                     # quieter than this (-45 dBFS at its loudest) is not worth keeping
 FS_RMS_TARGET = 0.3                # a slice's loudest 10 ms is brought no higher than this (a clipped snap was a boom)
 FS_LIMIT = 0.7                     # the found drums are soft-limited to this
+GL_KEEP = 0.65                     # a glitch loop keeps this much of its level each bar
+GL_MAX_S = 3.2                     # the longest bar a loop can hold (80 BPM = 3 s)
+GL_MIN_PEAK = 0.02                 # a recorded glitch quieter than this (the free clock on near-silence) is not kept
 FS_HEARD_ADD = 0.8                 # the learned groove: a catch adds this at its spot in the bar...
 FS_HEARD_KEEP = 0.55               # ...which keeps this much each bar (a few bars of echo, then gone)
 FS_HEARD_MIN = 0.3                 # below this a spot plays nothing
@@ -736,6 +739,84 @@ def add_found_kit(P, x):
     return "fs_ks", "fs_hat_lim"
 
 
+def add_glitch_loop(P, x):
+    """C5, loop layering: when the glitch cloud fires, one bar of its own sound (gcx_mono: the glitch voices, not the
+    room or the beat) is recorded, noting the 16th it began on. Every bar, at that same 16th, the loop plays again
+    inside the beat, fading GL_KEEP per bar; the next glitch replaces it. Level: beat_glitch, then the beat's own
+    level (it joins the drum mix). Returns the loop's signal."""
+    y = 1700
+    def ex(name, text, xx, yy):
+        return P.obj(name, "expr " + text.replace(",", BS + ",").replace("$", BS + "$"), xx, yy)
+    n = int(GL_MAX_S * 48000) + 1000
+    P.obj("gl_tab", f"table gl_loop {n}", x, y)
+    P.obj("gl_stab", f"table gl_stage {n}", x + 100, y)
+    P.obj("gl_rec", "tabwrite~ gl_stage", x, y + 40)
+    P.obj("gl_rec_in", "*~ 0.5", x, y + 30); P.c("gc_pre_mono", "gl_rec_in"); P.c("gl_rec_in", "gl_rec")
+    # a glitch fired (and nothing is being recorded): record a bar of it into the scratch table, remembering its 16th
+    P.obj("gl_r_mode", "r gc_mode", x, y + 60)
+    P.obj("gl_free", "spigot 1", x, y + 70); P.c("gl_r_mode", "gl_free")
+    P.obj("gl_t", "t b b b b", x, y + 80); P.c("gl_free", "gl_t")
+    P.msg("gl_busy", "0", x + 60, y + 95); P.c("gl_t", "gl_busy", 3, 0); P.c("gl_busy", "gl_free", 0, 1)
+    P.obj("gl_tick_r", "r tick16", x + 200, y + 60); P.obj("gl_tick_v", "f", x + 200, y + 80)
+    P.c("gl_tick_r", "gl_tick_v", 0, 1)
+    P.obj("gl_pend", "f", x + 200, y + 110)                                 # the 16th of the take being recorded
+    P.c("gl_t", "gl_tick_v", 2, 0); P.c("gl_tick_v", "gl_pend", 0, 1)
+    P.c("gl_t", "gl_rec", 1, 0)
+    P.obj("gl_rP", "value tc_P", x + 120, y + 110); P.obj("gl_rdur", "* 4", x + 120, y + 125)
+    P.obj("gl_rdur2", "min " + str(int(GL_MAX_S * 1000)), x + 120, y + 135)
+    P.obj("gl_rdone", "del 2400", x + 60, y + 150)
+    P.c("gl_t", "gl_rP", 0, 0); P.c("gl_rP", "gl_rdur"); P.c("gl_rdur", "gl_rdur2"); P.c("gl_rdur2", "gl_rdone")
+    # the take is done: loud enough? then it becomes the loop, at its 16th, at full level; either way, free again
+    P.obj("gl_d_t", "t b b b", x + 60, y + 170); P.c("gl_rdone", "gl_d_t")
+    P.msg("gl_free1", "1", x + 140, y + 170); P.c("gl_d_t", "gl_free1", 0, 0); P.c("gl_free1", "gl_free", 0, 1)
+    P.obj("gl_mx", "array max gl_stage", x + 60, y + 190); P.obj("gl_mn", "array min gl_stage", x + 140, y + 190)
+    ex("gl_loud", f"max(abs($f1),abs($f2))>={GL_MIN_PEAK}", x + 60, y + 210)
+    P.c("gl_d_t", "gl_mn", 2, 0); P.c("gl_mn", "gl_loud", 0, 1); P.c("gl_d_t", "gl_mx", 1, 0); P.c("gl_mx", "gl_loud")
+    P.obj("gl_keep", "sel 1", x + 60, y + 230); P.c("gl_loud", "gl_keep")
+    P.obj("gl_k_t", "t b b b", x + 60, y + 250); P.c("gl_keep", "gl_k_t")
+    P.obj("gl_get", "array get gl_stage", x + 200, y + 250); P.obj("gl_set", "array set gl_loop", x + 200, y + 270)
+    P.c("gl_k_t", "gl_get", 2, 0); P.c("gl_get", "gl_set")
+    P.obj("gl_start", "f -1", x + 200, y + 110 + 180)                       # -1 = no loop yet
+    P.c("gl_k_t", "gl_pend", 1, 0); P.c("gl_pend", "gl_start", 0, 1)
+    P.msg("gl_full", "1", x + 300, y + 110)                                  # a fresh loop starts at full level
+    P.obj("gl_lvl", "f 1", x + 300, y + 140); P.c("gl_k_t", "gl_full", 0, 0); P.c("gl_full", "gl_lvl", 0, 1)
+    # every 16th: is it the loop's spot? then play one bar of it from the start, a little quieter each time
+    P.obj("gl_tick_t", "t f b b", x, y + 170); P.c("gl_tick_r", "gl_tick_t")
+    P.c("gl_tick_t", "gl_start", 2, 0)
+    ex("gl_here", "$f1==$f2", x, y + 200); P.c("gl_start", "gl_here", 0, 1); P.c("gl_tick_t", "gl_here", 0, 0)
+    P.obj("gl_here_sel", "sel 1", x, y + 220); P.c("gl_here", "gl_here_sel")
+    # order: the sample rate, the beat (-> the bar's length, the read ramp starts), the bar for the fades, the level
+    P.obj("gl_play", "t b b b b", x, y + 240); P.c("gl_here_sel", "gl_play")
+    P.obj("gl_lvl_rd", "t f f", x + 300, y + 270)
+    P.c("gl_play", "gl_lvl", 0, 0); P.c("gl_lvl", "gl_lvl_rd")
+    P.obj("gl_lvl_dec", f"* {GL_KEEP}", x + 380, y + 290); P.c("gl_lvl_rd", "gl_lvl_dec", 1, 0); P.c("gl_lvl_dec", "gl_lvl", 0, 1)
+    P.obj("gl_s", "s gloop_play", x + 380, y + 310); P.c("gl_lvl_rd", "gl_s", 0, 0)     # (for the tests)
+    # the bar's length now: 4 beats of the clock
+    P.obj("gl_P", "value tc_P", x + 100, y + 270); P.c("gl_play", "gl_P", 2, 0)
+    P.obj("gl_srv", "value fs_srv", x + 160, y + 270); P.c("gl_play", "gl_srv", 3, 0)
+    # out: samples to read (hot for the ramp, last) ; the bar in ms (first)
+    ex("gl_bar", f"min($f1*4,{GL_MAX_S * 1000})*$f2/1000 ; min($f1*4,{GL_MAX_S * 1000})".replace(" ; ", " " + BS + "; "), x + 100, y + 300)
+    P.c("gl_srv", "gl_bar", 0, 1); P.c("gl_P", "gl_bar")
+    P.obj("gl_ix_pk", "pack f f", x + 100, y + 330)
+    P.c("gl_bar", "gl_ix_pk", 1, 1); P.c("gl_bar", "gl_ix_pk", 0, 0)
+    P.msg("gl_ix_msg", f"0 {BS}, {BS}$1 {BS}$2", x + 100, y + 350)
+    P.obj("gl_ix", "vline~", x + 100, y + 370)
+    P.obj("gl_rd", "tabread4~ gl_loop", x + 100, y + 390)
+    P.c("gl_ix_pk", "gl_ix_msg"); P.c("gl_ix_msg", "gl_ix"); P.c("gl_ix", "gl_rd")
+    # its loudness: the level now, with 5 ms fades at the loop's ends
+    ex("gl_env_v", "$f1 ; max($f2-10,0)".replace(" ; ", " " + BS + "; "), x + 300, y + 330)
+    P.obj("gl_bar_ms", "f", x + 360, y + 310); P.c("gl_bar", "gl_bar_ms", 1, 1)
+    P.c("gl_lvl_rd", "gl_env_v", 0, 0); P.c("gl_play", "gl_bar_ms", 1, 0); P.c("gl_bar_ms", "gl_env_v", 0, 1)
+    P.obj("gl_env_pk", "pack f f", x + 300, y + 350)
+    P.c("gl_env_v", "gl_env_pk", 1, 1); P.c("gl_env_v", "gl_env_pk", 0, 0)
+    P.msg("gl_env_msg", f"0 {BS}, {BS}$1 5 {BS}, 0 5 {BS}$2", x + 300, y + 370)
+    P.obj("gl_env", "vline~", x + 300, y + 390)
+    P.c("gl_env_pk", "gl_env_msg"); P.c("gl_env_msg", "gl_env")
+    P.sig2("gl_s0", "*~", "gl_rd", "gl_env", x + 100, y + 420)
+    lvl = smoothed(P, "beat_glitch", "beat_glitch", x + 500, y + 300)
+    return P.sig2("gl_out", "*~", "gl_s0", lvl, x + 100, y + 440)
+
+
 def add_rhythm(P, x):
     """The pattern engine (roadmap 16, step C1): on the tempo clock's 16th ticks it plays bars from KICK/SNARE/HAT_PATS
     on the drum voices. Each bar picks per lane a pattern near the drive (or a neighbour), the kick never the same
@@ -1025,7 +1106,8 @@ def add_beat(P):
     P.sig2("beat_kick_snare", "*~", "beat_ks1", "ks_gain", x, 500)   # a harder step lifts kick and snare a little
     P.sig2("fs_hat_l", "*~", fs_hat, hats, x + 900, 400)
     P.sig2("beat_hats_all", "+~", "hat", "fs_hat_l", x + 750, 410)
-    P.sig2("beat_sum0", "+~", "beat_kick_snare", "beat_hats_all", x, 530)
+    P.sig2("beat_sum00", "+~", "beat_kick_snare", "beat_hats_all", x, 525)
+    P.sig2("beat_sum0", "+~", "beat_sum00", add_glitch_loop(P, x + 3000), x, 530)   # (C5: glitch loops in the beat)
     P.sig2("beat_sum", "*~", "beat_sum0", "rh_gain", x, 535)            # softer standing still (the pattern engine)
     lvl = smoothed(P, "beat_level", "beat_level", x + 1050, 20)
     bon = smoothed(P, "beat_on", "beat_on", x + 1150, 20)
@@ -2199,6 +2281,7 @@ def add_glitch_cloud(P):
     P.sig2("gc2_l", "*~", "gc2_s", "gc2_gl", vx, vy + 310); P.sig2("gc2_r", "*~", "gc2_s", "gc2_gr", vx + 100, vy + 310)
     P.sig2("gc_mix_l", "+~", outs_l[0], "gc2_l", vx, vy + 330); P.sig2("gc_mix_r", "+~", outs_r[0], "gc2_r", vx + 100, vy + 330)
     outs_l[0], outs_r[0] = "gc_mix_l", "gc_mix_r"
+    P.sig2("gc_pre_mono", "+~", "gc_mix_l", "gc_mix_r", vx, vy + 340)    # (for the glitch loops: before the level)
     for i, sig in enumerate(getattr(P, "_probes", [])):
         P.obj(f"gcdbg_E{i}", "env~ 4096", x + 300 + 60 * i, y + 1000); P.obj(f"gcdbg_S{i}", f"s dbg_{sig}", x + 300 + 60 * i, y + 1030)
         P.c(sig, f"gcdbg_E{i}"); P.c(f"gcdbg_E{i}", f"gcdbg_S{i}")
@@ -3060,6 +3143,8 @@ def build():
     add_switch(P, "roomnotes", ("music_on", "music_res"), 2500)       # rings run up to ~2 s
     P.group("music", r"^(mu_|ba_)")
     add_switch(P, "music", ("music_on",), 3000)                       # chimes fade over up to 2.6 s
+    P.group("gloop", r"^gl_(rec_in|rec|ix|rd|env|s0|out)$")                    # the glitch loop's audio
+    add_switch(P, "gloop", ("beat_glitch", "beat_level", "gc_amount"), 3500)
     P.group("fsound", r"^(fs_(src|wr|rd|rec|lo|hi|env_\w+|ks0|ks|hat_lim)|fsv_\w+_(rd|ixl|env|s|f))$")    # the found-sound kit's audio
     add_switch(P, "fsound", ("rhythm_src", "beat_level"), 500)
     P.group("gcv", r"^gc0_")                                           # the glitch voices: on only while playing

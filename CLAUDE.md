@@ -140,6 +140,12 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   `FS_HEARD_KEEP` (0.55); a spot >= `FS_HEARD_MIN` (0.3) plays that role at 0.9x its value on top of the pattern. So
   claps on one off-beat put snares there from the next bar, echoing ~2 bars after the clapping stops. Tests sync on
   the clock's own ticks (the harness runs a little audio while setting a patch up, so bar 0 isn't at load).
+- **Glitch loops** (roadmap 16 C5, `add_glitch_loop`; `beat_glitch` "Glitch loops woven into the beat", Walking beat,
+  default 0.4, in presets): on `gc_mode` (a glitch fired) one bar of the glitch voices' own sound (`gc_pre_mono`,
+  before the glitch level) is recorded into `gl_stage`, noting its 16th; when done, a take whose peak is >=
+  `GL_MIN_PEAK` (0.02) is copied to `gl_loop` (quiet free-clock takes on near-silence used to overwrite good loops),
+  and from then on it plays one bar every bar at that 16th inside the beat mix, keeping `GL_KEEP` (0.65) per bar,
+  until a new loud take replaces it. Audio switched (`gloop`: beat_glitch x beat_level x gc_amount > 0).
 - **Dropdowns keep their value** (fixed Oct 12): rows are created at their stored value and a Spinner selects it
   before its listener is set; a Spinner reports its first entry as selected on first layout, and folded rows aren't
   refreshed, so key and scale kept snapping back to C major.

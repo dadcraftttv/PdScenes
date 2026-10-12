@@ -77,7 +77,7 @@ check(not bad, "patch loads with no Pd errors" + (": %s" % bad if bad else ""))
 
 jp = java_params()
 patch_text = open(PATCH).read()
-receivers = set(re.findall(r"#X obj \d+ \d+ r (\w+);", patch_text)) - {"step", "scale_n", "pad_glide", "mic_level", "pad_slot", "pool_n", "pool_x", "pocket", "pocket_down", "duck", "step_strength", "step_hit", "beat_sure", "groove", "gc_mode", "gc_try", "density_on", "motif", "drift_now", "drift_set", "drift_n", "music_register", "music_warm", "pulse", "tick16", "clock_walking"} - {r for r in re.findall(r"#X obj \d+ \d+ r (sw_\w+);", open(PATCH).read())}   # events and internal links, not settings
+receivers = set(re.findall(r"#X obj \d+ \d+ r (\w+);", patch_text)) - {"step", "scale_n", "pad_glide", "mic_level", "pad_slot", "pool_n", "pool_x", "pocket", "pocket_down", "duck", "step_strength", "step_hit", "beat_sure", "groove", "gc_mode", "gc_try", "density_on", "motif", "drift_now", "drift_set", "drift_n", "music_register", "music_warm", "pulse", "tick16", "clock_walking", "gc_mode"} - {r for r in re.findall(r"#X obj \d+ \d+ r (sw_\w+);", open(PATCH).read())}   # events and internal links, not settings
 pd_ids = {i for i, _, nopd in jp if not nopd}
 check(len(jp) >= 10, "parsed %d params from Params.java" % len(jp))
 check(pd_ids == receivers, "Params.java ids == patch receivers (java-only %s, patch-only %s)"
@@ -1381,6 +1381,23 @@ r_syn = rms(e.run(np.zeros(14 * SR, np.float32))[4 * SR:, 0])
 check(r_b < 1.6 * r_t and p_b < 0.75 and r_t > 0.25 * r_syn,
       "found sounds: a clipped snap at the mic plays back no louder than a thump (rms %.3f vs %.3f, peak %.2f), and the found kick "
       "is near the synth kick's level (%.3f)" % (r_b, r_t, p_b, r_syn))
+
+# glitch loops (C5): a glitch is recorded and comes back every bar at its own spot, fading, inside the beat
+def glitch_loop(beat_glitch):
+    x = (np.random.default_rng(6).standard_normal(16 * SR) * 0.0005).astype(np.float32)
+    k = np.arange(int(0.3 * SR)); x[int(1.0 * SR):int(1.0 * SR) + len(k)] += (0.3 * np.sin(2 * np.pi * 700 * k / SR)).astype(np.float32)
+    e = fresh(dry=0, wet=0, beat_level=1, beat_follow=1, beat_when=1, rhythm_src=0, beat_snare=0, beat_hats=0, beat_pitch=40,
+              gc_amount=1, gc_level=0, beat_glitch=beat_glitch, gc_pct_stutter=100, gc_pct_reverse=0, gc_pct_shuffle=0, gc_pct_stretch=0)
+    e.listen("gloop_play", "gc_mode")
+    y = e.run(x)[:, 0]
+    return [round(v, 2) for v in e.heard["gloop_play"]], tone_level(y[4 * SR:], 700), e.heard["gc_mode"]
+plays, tone, modes = glitch_loop(1)
+_, tone0, _ = glitch_loop(0)
+# (at Amount 1 new glitches keep restarting the loop at full level; between them it fades)
+fades = any(abs(b - a * 0.65) < 0.02 for a, b in zip(plays, plays[1:]))
+check(len(modes) >= 1 and len(plays) >= 3 and fades and tone > 5 * tone0 + 1e-4,
+      "glitch loops: a glitch (glitch level 0) comes back in the beat every bar, fading (%s), its 700 Hz in the beat %.4f vs off %.4f"
+      % (plays[:6], tone, tone0))
 
 # the learned groove (C4): claps on one off-beat spot teach the snare that spot; a few quiet bars later it's gone
 def learned_spots(clap_bars, bars, spot=6):

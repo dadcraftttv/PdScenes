@@ -141,7 +141,7 @@ Plan first, agreed with Samuel, then build; test on the phone after every step. 
        (pitch drop for kicks, high-pass for hats, a short envelope: ties in with item 15).
     4. **(BUILT 2026-10-12 as the learned groove: where sounds fall in the bar is learned and echoes for a few bars) Rhythm memory:** like MotifMemory but looping and decaying: the last bar or two of hits carry on a few bars
        after the room goes quiet, varied each pass, thinning with density memory, then fading out.
-    5. **Loop layering:** glitch-cloud results (stutter, reverse, stretch) captured and layered into the rhythm.
+    5. **(BUILT 2026-10-12) Loop layering:** glitch-cloud results (stutter, reverse, stretch) captured and layered into the rhythm.
     6. **"Rhythm source" setting:** Synth drums / Found sounds / Both; the current walking beat stays as an option.
     Watch: sounds can't land on the beat as they happen, so they come back in later bars as echoes on the grid; a quiet
     room means an empty kit (fall back to soft synth drums or silence); slice choice and shaping decide musical vs

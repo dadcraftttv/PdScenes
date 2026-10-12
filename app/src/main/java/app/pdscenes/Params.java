@@ -124,6 +124,8 @@ final class Params {
             new Param("rhythm_src", "Beat sounds", 0f, 2f, 1f, "", Param.Curve.LINEAR)
                     .choices("Synth drums", "Found sounds (made from what the mic hears)", "Both")
                     .inSection("beat").noPreset().resetWhenAbsent(),
+            new Param("beat_glitch", "Glitch loops woven into the beat (needs Glitch cloud amount)", 0f, 1f, 0.4f, "",
+                    Param.Curve.LINEAR).inSection("beat").rand(0f, 0.8f).resetWhenAbsent(),
             new Param("beat_level", "Beat level (0 = off)", 0f, 1f, 0f, "",
                     Param.Curve.LINEAR).inSection("beat").rand(0f, 0.7f).resetWhenAbsent(),
             new Param("beat_hats", "Hi-hat level", 0f, 1f, 0.5f, "", Param.Curve.LINEAR)
