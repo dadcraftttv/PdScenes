@@ -71,6 +71,15 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   the darkest/brightest of the last ~90 s (min span 10x lux, steady = 0.5), 25% the fixed sun scale. Pocket detection still uses absolute lux. Pocket is a *layer*, not a rival world (Samuel's idea): in a pocket the world still follows night/walking/room, the pocket hush
   rides on top, and the Pocket world only plays when nothing else fits. In a pocket, loudness is judged from the room's floor
   (quietest moments, rising <= 3 dB/s, +6 dB for cloth muffling) so rustle bursts don't count as a loud room. Tuning of the Pocket world preset and the climb scale (`CLIMB_FULL_HPA`) is untested on a real phone.
+- **Mic input shaping** (roadmap 15, Samuel Oct 12; section "Gate and compressor shape", folded, noPreset/noRandom/
+  `noMover()`): the gate has its own fast meter (`env~ 256 64`: 5 ms window every 1.3 ms; the shared 21 ms meter
+  still drives the compressor, triggers and movers) so it opens on time without a lookahead delay (the room is heard
+  live: Android already adds 20-40 ms). It opens at the threshold, starts closing only `GATE_HYST_DB` (4) below it,
+  stays open `gate_hold` ms, opens over `gate_attack` (default 5) and fades over `gate_release` (80). The compressor's
+  gain moves at `comp_attack` going down and `comp_release` going up (both 40 = before); an unchanged target keeps
+  its last speed, and changes under ~0.1 dB don't count (the meter ripples). Measured: defaults open 3 ms after a
+  sound, rise 3 ms, fade 64 ms; attack 30/hold 150/release 400 -> 23/196/320 ms; a level hovering at the threshold
+  doesn't flutter; the fastest release doesn't chop harmony. +6% of the idle patch.
 - **Pocket hush** (`pocket_hush`, main section, noPreset, default 0.5 = -12 dB; 0.9 hid a finger snap next to the pocket): AudioService sends `pocket 0|1` to the built-in
   patch whenever `PhoneContext.inPocket()` flips, whether or not Auto Worlds is on. The mic is turned down after the compressor (so it
   cannot lift the rustle back up), Room notes hear the hushed mic, and rustle-triggered chimes are scaled by the hush. Footstep

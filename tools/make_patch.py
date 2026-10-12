@@ -35,7 +35,8 @@ DEFAULTS = [
     ("phaser_on", 1), ("phaser_mix", 0), ("phaser_rate", 0.4), ("phaser_depth", 0.7), ("phaser_fb", 0.4),
     ("beat_on", 1), ("beat_level", 0), ("beat_hats", 0.5), ("beat_snare", 0.6), ("beat_pitch", 55),
     ("music_on", 0), ("music_key", 0), ("music_scale", 0), ("music_pad", 0.33), ("music_arp", 0.4),
-    ("music_tone", 0.5), ("music_react", 0.8), ("music_res", 0.8), ("music_harm", 0.6), ("music_drift", 1), ("echo_scatter", 0.5), ("gc_amount", 0), ("gc_level", 0.7), ("gc_pct_stutter", 35), ("gc_pct_reverse", 25),
+    ("music_tone", 0.5), ("music_react", 0.8), ("music_res", 0.8), ("music_harm", 0.6), ("gate_attack", 5), ("gate_hold", 0), ("gate_release", 80), ("comp_attack", 40),
+    ("comp_release", 40), ("music_drift", 1), ("echo_scatter", 0.5), ("gc_amount", 0), ("gc_level", 0.7), ("gc_pct_stutter", 35), ("gc_pct_reverse", 25),
     ("gc_pct_shuffle", 20), ("gc_pct_stretch", 20), ("music_pad_reg", 2), ("pocket_hush", 0.5), ("pocket_guard", 0.6),
 ]
 
@@ -147,6 +148,7 @@ HARM_HIGH = 76             # a pitch from E5 up (a whistle, a bird) is answered 
 HARM_RANGE = (36, 104)     # heard pitches outside C2..G#7 are hiss or rumble, not a voice, whistle or bird
 HARM_ATTACK_MS = 150
 # Glitch cloud: bits of what the mic heard (kept in memory only, a few seconds) come back mangled, around you.
+GATE_HYST_DB = 4             # the gate opens at its threshold and only closes this far below it (no flutter)
 GC_BUF_MS = 4000
 GC_ONSET_DB = 10           # a sudden sound: the 5 ms level jumps this far above its recent average...
 GC_MIN_DB = 55             # ...and is at least this loud (-45 dBFS), so a quiet room's flicker doesn't count
@@ -1758,16 +1760,56 @@ def build():
     P.c("meter", "level_hold", 0, 1); P.c("level_hold", "level_send")
 
     # --- noise gate: closes when the level is under the threshold (-80 = never closes) ---
-    P.obj("r_gate_thresh", "r gate_thresh", 250, 170)
-    P.obj("gate_open", "expr ($f1>=$f2)||($f2<=-79.9)".replace("$", BS + "$"), 250, 200)
-    P.obj("gate_change", "change", 250, 230)
-    P.obj("gate_sel", "sel 0 1", 250, 260)
-    P.msg("gate_close", "0 80", 250, 290)                        # fade out over 80 ms
-    P.msg("gate_open_msg", "1 5", 330, 290)                      # open within 5 ms
+    # Its own fast meter (5 ms window, every 1.3 ms) so it opens on time without delaying what you hear (you hear the
+    # room live through the headphones). It opens at the threshold but only starts closing GATE_HYST_DB below it (no
+    # flutter at the edge), stays open at least gate_hold ms, then fades shut over gate_release; opens over gate_attack.
+    P.obj("gate_meter", "env~ 256 64", 250, 140)
+    P.c("mic", "gate_meter")
+    P.obj("gate_m_t", "t f b", 250, 155)
+    P.obj("r_gate_thresh", "r gate_thresh", 330, 140)
+    P.obj("gate_thr_v", "f -80", 330, 160)
+    P.c("r_gate_thresh", "gate_thr_v", 0, 1)
+    P.obj("gate_act", ("expr if($f2<=-79.9||$f1-100>=$f2,1,if($f1-100<$f2-" + str(GATE_HYST_DB) + ",2,0))")
+          .replace("$", BS + "$").replace(",", BS + ","), 250, 175)
+    P.c("gate_meter", "gate_m_t"); P.c("gate_m_t", "gate_thr_v", 1, 0); P.c("gate_thr_v", "gate_act", 0, 1)
+    P.c("gate_m_t", "gate_act", 0, 0)
+    P.obj("gate_sel", "sel 1 2", 250, 190)
+    P.c("gate_act", "gate_sel")
+    # loud enough: cancel any pending close, open
+    P.obj("gate_on_t", "t b b b", 250, 205)
+    P.msg("gate_stop", "stop", 330, 220); P.msg("gate_pend0", "0", 380, 220); P.msg("gate_one", "1", 250, 220)
+    P.obj("gate_hold", "del 0", 330, 245)
+    P.obj("gate_pend", "f", 450, 245)
+    P.c("gate_sel", "gate_on_t", 0, 0)
+    P.c("gate_on_t", "gate_stop", 2, 0); P.c("gate_stop", "gate_hold")
+    P.c("gate_on_t", "gate_pend0", 1, 0); P.c("gate_pend0", "gate_pend", 0, 1)
+    P.c("gate_on_t", "gate_one", 0, 0)
+    # clearly under: start the hold once (not again every reading, or it would never run out), then close
+    P.obj("gate_pend_rd", "t b", 450, 205)
+    P.c("gate_sel", "gate_pend_rd", 1, 0); P.c("gate_pend_rd", "gate_pend")
+    P.obj("gate_pend_sel", "sel 0", 450, 225)
+    P.c("gate_pend", "gate_pend_sel")
+    P.obj("gate_hold_go", "t b b", 450, 235)
+    P.msg("gate_pend1", "1", 520, 235)
+    P.obj("gate_r_hold", "r gate_hold", 520, 140); P.obj("gate_hold_v", "f 0", 520, 160)
+    P.c("gate_r_hold", "gate_hold_v", 0, 1)
+    P.c("gate_pend_sel", "gate_hold_go"); P.c("gate_hold_go", "gate_pend1", 1, 0); P.c("gate_pend1", "gate_pend", 0, 1)
+    P.c("gate_hold_go", "gate_hold_v", 0, 0); P.c("gate_hold_v", "gate_hold")
+    P.msg("gate_zero", "0", 330, 265)
+    P.c("gate_hold", "gate_zero"); P.c("gate_zero", "gate_pend", 0, 1)
+    # the gate's state: 1 open, 0 shut; only changes move it, each at its own speed
+    P.obj("gate_change", "change -1", 250, 280)
+    P.c("gate_one", "gate_change"); P.c("gate_zero", "gate_change")
+    P.obj("gate_state_sel", "sel 0 1", 250, 290)
+    P.c("gate_change", "gate_state_sel")
+    P.obj("gate_r_att", "r gate_attack", 600, 140); P.obj("gate_att_v", "f 5", 600, 160)
+    P.obj("gate_r_rel", "r gate_release", 680, 140); P.obj("gate_rel_v", "f 80", 680, 160)
+    P.c("gate_r_att", "gate_att_v", 0, 1); P.c("gate_r_rel", "gate_rel_v", 0, 1)
+    P.c("gate_state_sel", "gate_rel_v", 0, 0); P.c("gate_state_sel", "gate_att_v", 1, 0)
+    P.msg("gate_close", "0 " + BS + "$1", 250, 300)                    # fade out over the release
+    P.msg("gate_open_msg", "1 " + BS + "$1", 330, 300)                 # open over the attack
+    P.c("gate_rel_v", "gate_close"); P.c("gate_att_v", "gate_open_msg")
     P.obj("ln_gate", "line~", 250, 320)
-    P.c("meter_fs", "gate_open"); P.c("r_gate_thresh", "gate_open", 0, 1)
-    P.c("gate_open", "gate_change"); P.c("gate_change", "gate_sel")
-    P.c("gate_sel", "gate_close", 0); P.c("gate_sel", "gate_open_msg", 1)
     P.c("gate_close", "ln_gate"); P.c("gate_open_msg", "ln_gate")
     P.sig2("mic_gated", "*~", "mic", "ln_gate", 20, 350)
 
@@ -1779,9 +1821,23 @@ def build():
     P.c("meter_fs", "comp_calc"); P.c("r_comp_ratio", "comp_calc", 0, 1)
     P.c("r_comp_thresh", "comp_calc", 0, 2); P.c("r_comp_makeup", "comp_calc", 0, 3)
     P.obj("comp_lin", "dbtorms", 450, 230)                       # 100 + dB -> linear gain
+    # Squeezing (the gain going down) takes comp_attack ms, letting go comp_release ms.
+    P.obj("comp_t", "t f f f", 450, 240)
+    # (an unchanged target keeps the speed it had, so a squeeze that has settled still finishes at the attack speed)
+    # (the meter ripples a little even on a steady sound: changes under ~0.1 dB don't count as a direction)
+    P.obj("comp_time", "expr if($f1<$f2*0.99,$f3,if($f1>$f2*1.01,$f4,$f5))".replace("$", BS + "$").replace(",", BS + ","), 520, 250)
+    P.obj("r_comp_att", "r comp_attack", 600, 230); P.obj("r_comp_rel", "r comp_release", 680, 230)
+    P.c("r_comp_att", "comp_time", 0, 2); P.c("r_comp_rel", "comp_time", 0, 3)
+    P.obj("comp_time_init", "loadbang", 760, 230); P.msg("comp_time_def", "40", 760, 250)
+    P.c("comp_time_init", "comp_time_def"); P.c("comp_time_def", "comp_time", 0, 2); P.c("comp_time_def", "comp_time", 0, 3)
+    P.c("comp_time_def", "comp_time", 0, 4)
     P.obj("pk_comp", "pack f 40", 450, 260)
     P.obj("ln_comp", "line~", 450, 290)
-    P.c("comp_calc", "comp_lin"); P.c("comp_lin", "pk_comp"); P.c("pk_comp", "ln_comp")
+    P.c("comp_calc", "comp_lin"); P.c("comp_lin", "comp_t")
+    P.c("comp_t", "comp_time", 2, 0); P.c("comp_time", "pk_comp", 0, 1)   # with the old gain: down or up?
+    P.c("comp_time", "comp_time", 0, 4)                                     # (remembered for an unchanged target)
+    P.c("comp_t", "comp_time", 1, 1)                                        # then this one is the old gain
+    P.c("comp_t", "pk_comp", 0, 0); P.c("pk_comp", "ln_comp")
     P.sig2("mic_comp0", "*~", "mic_gated", "ln_comp", 20, 380)
 
     # --- pocket hush: in a pocket the mic hears cloth and rustle, so turn it down after the compressor

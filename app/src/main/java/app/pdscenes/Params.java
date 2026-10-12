@@ -31,6 +31,7 @@ final class Params {
     /** Input & output and Music start open; the rest start folded so a first look isn't a wall of sliders. */
     static final List<Section> SECTIONS = Collections.unmodifiableList(Arrays.asList(
             new Section("main", "Input & output", true),
+            new Section("shape", "Gate and compressor shape", false),
             new Section("beat", "Walking beat", false),
             new Section("music", "Music", true),
             new Section("echo", "Echo", false),
@@ -89,6 +90,18 @@ final class Params {
                     .inSection("main").noRandom().noPreset().decimals(1),
             new Param("comp_makeup", "Compressor make-up gain", 0f, 24f, 0f, " dB",
                     Param.Curve.LINEAR).inSection("main").noRandom().noPreset().decimals(0),
+            // How the gate and compressor take hold and let go, like a mixing desk's (Samuel). About the mic and the
+            // room, so kept out of presets, the dice and movers. The defaults are the old fixed times.
+            new Param("gate_attack", "Gate attack (how fast it opens)", 0.5f, 50f, 5f, " ms", Param.Curve.LOG)
+                    .inSection("shape").noRandom().noPreset().noMover().decimals(1),
+            new Param("gate_hold", "Gate hold (stays open at least this long)", 0f, 500f, 0f, " ms", Param.Curve.LINEAR)
+                    .inSection("shape").noRandom().noPreset().noMover().decimals(0),
+            new Param("gate_release", "Gate release (how fast it fades shut)", 10f, 1000f, 80f, " ms", Param.Curve.LOG)
+                    .inSection("shape").noRandom().noPreset().noMover().decimals(0),
+            new Param("comp_attack", "Compressor attack (how fast it squeezes)", 1f, 200f, 40f, " ms",
+                    Param.Curve.LOG).inSection("shape").noRandom().noPreset().noMover().decimals(0),
+            new Param("comp_release", "Compressor release (how fast it lets go)", 10f, 1000f, 40f, " ms",
+                    Param.Curve.LOG).inSection("shape").noRandom().noPreset().noMover().decimals(0),
             // In a pocket the mic hears cloth and rustle: turn it down (1 = -24 dB, default 0.5 = -12 dB) before the effects and music.
             // Samuel found 0.9 too much: a finger snap next to the pocket got lost.
             new Param("pocket_hush", "Pocket hush (mic quieter while in a pocket)", 0f, 1f, 0.5f, "",
@@ -327,7 +340,7 @@ final class Params {
 
     /** True for sliders that can have a mover: not switches, dropdowns or app-only settings. */
     private static boolean movable(Param p) {
-        return !p.toggle && p.choices == null && p.sendToPd;
+        return !p.toggle && p.choices == null && p.sendToPd && p.movable;
     }
 
     /**

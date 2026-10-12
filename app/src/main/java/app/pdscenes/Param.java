@@ -36,6 +36,8 @@ final class Param {
     String moverOf = null;
     /** When a preset doesn't mention this parameter, reset it to its default instead of keeping it. */
     boolean resetWhenAbsent = false;
+    /** False: no mover for this slider (settings about the mic, where automatic wandering would only confuse). */
+    boolean movable = true;
     /** Sliders with the same budget share it: together they may not go past their max (the glitch matrix: 100%). */
     String budget;
 
@@ -54,6 +56,11 @@ final class Param {
     Param rand(float lo, float hi) {
         randMin = lo;
         randMax = hi;
+        return this;
+    }
+
+    Param noMover() {
+        movable = false;
         return this;
     }
 

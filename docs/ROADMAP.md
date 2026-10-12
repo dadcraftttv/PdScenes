@@ -104,7 +104,7 @@ Plan first, agreed with Samuel, then build; test on the phone after every step. 
     - Not now (Samuel): anything that records audio ("sound capsule", "remember this minute"). Only if it would unlock a
       lot; he isn't ready to make that concession.
 
-15. **Mic input shaping: attack, hold, release (Samuel, Oct 12; the order's step A).** Like Ableton's Gate and Compressor,
+15. **(BUILT 2026-10-12, needs Samuel's pocket check) Mic input shaping: attack, hold, release (Samuel, Oct 12; the order's step A).** Like Ableton's Gate and Compressor,
     the way he shaped drums in his mixes. Today (make_patch.py input stage): `env~ 1024 256` meter (21 ms window,
     every 5 ms); the gate opens in 5 ms and closes over 80 ms, one threshold, no hold, so it can flutter near it; the
     compressor's gain moves with a fixed `pack f 40` both ways. Plan:

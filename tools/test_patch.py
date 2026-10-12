@@ -1235,6 +1235,8 @@ _, degs_w, root_w = harmony(hum(1568, 1.5, amp=0.05))         # a whistled G6: a
 dw = step_of(91)
 check(len(degs_w) == 1 and is_chord_note(degs_w[0], root_w) and dw - 7 - 4 <= degs_w[0] <= dw - 7 - 2,
       "harmony: a whistle gets a chord note a third or more below it, an octave down (step %s for %d)" % (degs_w, dw))
+_, degs_g, _ = harmony(hum(220, 1.5), gate_thresh=-50, gate_release=10, gate_hold=0)
+check(len(degs_g) == 1, "harmony: the fastest gate release doesn't chop a held hum (%s)" % degs_g)
 _, degs_m, root_m = harmony(hum(220, 1.5), music_key=2, music_scale=1)   # D minor
 dm = step_of(57, 2, 1)
 check(len(degs_m) == 1 and is_chord_note(degs_m[0], root_m) and dm + 9 <= degs_m[0] <= dm + 11,
@@ -1246,6 +1248,55 @@ _, degs_b, _ = harmony(hum(330, 0.08))
 _, degs_q, _ = harmony(hum(220, 1.5, amp=0.0008))
 check(not degs_n and not degs_b and not degs_q,
       "harmony: noise, a short blip and a hum lost in the room's quiet play nothing (%s %s %s)" % (degs_n, degs_b, degs_q))
+
+# input shaping: the gate's own fast meter, hysteresis, hold, attack and release; the compressor's attack and release
+def db_tone(db, secs, f=1000):
+    return sine(f, np.sqrt(2) * 10 ** (db / 20), secs)
+def gain_curve(segments, **over):
+    """Plays tone segments [(dB rms, seconds), ...] and returns (times of the steps, the output/input gain every 1 ms)."""
+    e = fresh(wet=0, **over)
+    x = np.concatenate([db_tone(d, t) for d, t in segments]); y = e.run(x)[:, 0]
+    lv = np.repeat([10 ** (d / 20) for d, t in segments], [int(t * SR) for d, t in segments])
+    w = int(0.001 * SR); n = len(y) // w
+    g = np.array([rms(y[i * w:(i + 1) * w]) / max(lv[i * w], 1e-9) for i in range(n)])
+    steps = np.cumsum([0] + [t for _, t in segments])
+    return steps, g
+def crossing(g, start_ms, level, falling):
+    for i in range(int(start_ms), len(g)):
+        if (g[i] <= level) if falling else (g[i] >= level):
+            return i
+    return None
+def gate_times(**over):
+    steps, g = gain_curve([(-60, 0.5), (-20, 0.6), (-55, 1.5)], gate_thresh=-40, comp_thresh=0, **over)
+    up, dn = steps[1] * 1000, steps[2] * 1000
+    o10, o90 = crossing(g, up, 0.1, False), crossing(g, up, 0.9, False)
+    c90, c10 = crossing(g, dn + 3, 0.9, True), crossing(g, dn + 3, 0.1, True)
+    return o10 - up, o90 - o10, c90 - dn, c10 - c90
+d_open, rise, hold, fall = gate_times()
+check(d_open <= 8 and rise <= 8 and hold <= 20 and 45 <= fall <= 85,   # (hold = until the fade crosses 90%)
+      "gate shape: the defaults behave as before (opens %d ms after the sound, rises in %d ms, lets go %d ms after, fades in %d ms)" % (d_open, rise, hold, fall))
+d_open, rise, hold, fall = gate_times(gate_attack=30, gate_hold=150, gate_release=400)
+check(d_open <= 8 and 18 <= rise <= 32 and 180 <= hold <= 215 and 280 <= fall <= 360,   # hold + meter + 10% of the fade
+      "gate shape: attack 30, hold 150, release 400 ms (rises in %d ms, holds %d ms, fades in %d ms)" % (rise, hold, fall))
+segs = [(-60, 0.3)] + [(-39 if k % 2 == 0 else -42, 0.03) for k in range(40)]   # hovering at the threshold
+steps, g = gain_curve(segs, gate_thresh=-40, comp_thresh=0)
+# (the output lags the input ~1.5 ms, so the first 5 ms of each 30 ms level are left out of the measure)
+after = np.concatenate([g[int(a * 1000) + 5:int(a * 1000) + 30] for a in steps[2:-1]])
+check(np.min(after) > 0.8, "gate shape: a level hovering 1-2 dB around the threshold doesn't flutter (lowest gain %.2f)" % np.min(after))
+def comp_times(**over):
+    steps, g = gain_curve([(-40, 0.5), (-10, 0.6), (-40, 0.8)], gate_thresh=-80, comp_thresh=-30, comp_ratio=4, **over)
+    up, dn = steps[1] * 1000, steps[2] * 1000
+    half = 10 ** (-7.5 / 20)                                       # halfway (in dB) to the 15 dB squeeze
+    squeeze = crossing(g, up + 5, half, True) - up                  # (from 5 ms: the output lags the input a little)
+    letgo = crossing(g, dn + 5, half, False) - dn
+    return squeeze, letgo
+sq_def, lg_def = comp_times()
+sq_fast, lg_slow = comp_times(comp_attack=3, comp_release=400)
+sq_slow, lg_fast = comp_times(comp_attack=150, comp_release=15)
+# (letting go can't be much quicker than the 21 ms meter window lets the level fall)
+check(sq_fast < 0.6 * sq_def and sq_slow > 1.6 * sq_def and lg_fast < lg_def and lg_slow > 1.6 * lg_def,
+      "compressor shape: halfway squeeze in %d ms (attack 3) / %d (40, default) / %d (150); let go in %d (release 15) / %d (40) / %d (400)"
+      % (sq_fast, sq_def, sq_slow, lg_fast, lg_def, lg_slow))
 
 # glitch cloud: a sudden sound comes back mangled; each kind does what it says
 GC_KINDS = ("gc_pct_stutter", "gc_pct_reverse", "gc_pct_shuffle", "gc_pct_stretch")
@@ -1339,16 +1390,17 @@ check(sum(abs(b) > 0.3 for b in bal) >= 4, "glitch cloud: each glitch sits well 
 
 # echo scatter: each repeat lands somewhere else; at 0 the echo stays in the middle
 def echo_balance(scatter):
-    x = np.zeros(4 * SR, np.float32); x[SR:SR + 40] = 0.5
-    e = fresh(dry=0, wet=1, feedback=0.75, echo_time=300, echo_sync=0, echo_scatter=scatter, reverb_mix=0)
+    x = np.zeros(5 * SR, np.float32); x[SR:SR + 40] = 0.5
+    e = fresh(dry=0, wet=1, feedback=0.8, echo_time=300, echo_sync=0, echo_scatter=scatter, reverb_mix=0)
     y = e.run(x); out = []
-    for k in range(1, 7):
+    for k in range(1, 12):
         a = int((1.0 + 0.3 * k) * SR); w = y[a - int(0.02 * SR):a + int(0.06 * SR)]
         l, r = rms(w[:, 0]), rms(w[:, 1]); out.append((l - r) / max(l + r, 1e-9))
     return out
 b1, b0 = echo_balance(1), echo_balance(0)
+# (the place changes every echo period at its own phase, so a window can straddle a move: most, not all, jump clearly)
 moves = sum(abs(b - a) > 0.3 for a, b in zip(b1, b1[1:]))
-check(moves >= 3 and max(abs(v) for v in b0) < 0.02,
+check(moves >= 5 and max(abs(v) for v in b0) < 0.02,
       "echo scatter: repeats jump between places (%s), at 0 they stay centred (max %.3f)" % (["%.2f" % v for v in b1], max(abs(v) for v in b0)))
 
 # CPU: what the glitch cloud costs while it runs, and that at Amount 0 it costs nothing
@@ -1416,10 +1468,10 @@ check(float(np.abs(y).max()) <= 0.31, "room notes: a loud note sung right on a r
 
 # echo, reverb and the ear stage shape the music like any other sound
 def tail(**over):
-    e = fresh(music_on=1, music_pad=0, music_arp=1, dry=1, **over)
+    e = fresh(music_on=1, music_pad=0, music_arp=1, dry=1, music_react=1, **over)   # (react 1: a silent room plays no still-pattern chime)
     for _ in range(4):
         e.send("step", 0.4); e.run(e.silence(0.4))
-    return rms(e.run(e.silence(3.0))[int(1.9 * SR):int(2.4 * SR), 0])   # after the chime has faded, before the still pattern resumes
+    return rms(e.run(e.silence(3.6))[int(2.9 * SR):int(3.4 * SR), 0])   # after the longest chime fade (2.6 s), reverb still ringing
 t_dry, t_rev = tail(wet=0, reverb_mix=0), tail(wet=0, reverb_mix=1, reverb_size=0.95)
 check(t_rev > 5 * t_dry + 1e-5, "music: the reverb gives the notes a tail (%.5f vs %.5f)" % (t_rev, t_dry))
 t_echo = tail(wet=1, feedback=0.5, echo_time=700, reverb_mix=0, echo_sync=0)   # the slider's time, not the steps'
