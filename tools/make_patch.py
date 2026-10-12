@@ -178,6 +178,7 @@ RH_HOLD_BARS = 2                   # a pattern choice lasts this many bars
 FS_SLICE_S = 0.25                  # a caught slice...
 FS_PREROLL_MS = 15                 # ...starting this long before the sound was noticed (keeps its attack)
 FS_SLOTS = 3                       # slices kept per role (kick, snare, hat); the oldest is replaced
+FS_POP_DB = 94                    # louder than this (-6 dBFS) and mostly lows: a mic pop, not kept
 FS_MIN_DB = 55                     # quieter than this (-45 dBFS at its loudest) is not worth keeping
 FS_RMS_TARGET = 0.3                # a slice's loudest 10 ms is brought no higher than this (a clipped snap was a boom)
 FS_LOUD_DB = 65                   # a room louder than this (-35 dBFS on average)...
@@ -624,11 +625,17 @@ def add_found_kit(P, x):
     P.msg("fs_open", "1", x + 600, y + 170); P.c("fs_d_t", "fs_open", 0, 0); P.c("fs_open", "fs_on", 0, 1)
     # kick: the lows carry it; hat: nearly all of it bright (within 3 dB) and little low; anything else is a snare
     # (hats loosened to 6 dB after the first phone test caught no hats at all from real taps)
-    ex("fs_role", f"if($f1<{FS_MIN_DB},-1,if($f2-$f1>-6,0,if($f3-$f1>-6&&$f2-$f1<-15,2,1)))", x + 400, y + 220)
+    # a mic pop: louder than FS_POP_DB and carried by its lows (a snap at the mic overloads it into a low thump; on
+    # the phone +8 dBFS with all its weight below 150 Hz, where real knocks were -16 to -42) is not kept
+    ex("fs_role", f"if($f1<{FS_MIN_DB},-1,if($f1>{FS_POP_DB}&&$f2-$f1>-6,-1,if($f2-$f1>-6,0,if($f3-$f1>-6&&$f2-$f1<-15,2,1))))", x + 400, y + 220)
     # inlets: $f1 overall (hot, last), $f2 lows, $f3 highs
     P.c("fs_d_t", "fs_max_hi", 2, 0); P.c("fs_max_hi", "fs_role", 0, 2)
     P.c("fs_d_t", "fs_max_lo", 2, 0); P.c("fs_max_lo", "fs_role", 0, 1)
-    P.c("fs_d_t", "fs_max_all", 1, 0); P.c("fs_max_all", "fs_role", 0, 0)
+    P.c("fs_d_t", "fs_max_all", 1, 0)
+    # (the slice's levels go to the app first, for the event log: all, lows, highs)
+    P.obj("fs_all_t", "t f f", x + 300, y + 230); P.c("fs_max_all", "fs_all_t"); P.c("fs_all_t", "fs_role", 0, 0)
+    P.obj("fs_lv_pk", "pack f f f", x + 300, y + 250); P.obj("fs_lv_s", "s fs_levels", x + 300, y + 270)
+    P.c("fs_all_t", "fs_lv_pk", 1, 0); P.c("fs_max_lo", "fs_lv_pk", 0, 1); P.c("fs_max_hi", "fs_lv_pk", 0, 2); P.c("fs_lv_pk", "fs_lv_s")
     P.obj("fs_keep", "moses 0", x + 400, y + 250); P.c("fs_role", "fs_keep")
     if os.environ.get("FS_DEBUG"):
         for nm, src, o in (("go", "fs_go", 0), ("onset", "fs_det_sel", 0), ("role", "fs_role", 0), ("all", "fs_max_all", 0),

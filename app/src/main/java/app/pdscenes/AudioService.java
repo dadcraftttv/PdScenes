@@ -93,6 +93,9 @@ public class AudioService extends Service {
     /** The found-sound kit: how many kicks, snares and hats have been caught (the patch keeps the latest 3 of each). */
     private static final String FS_CAUGHT = "fs_caught";
     private static final int[] kitCaught = new int[3];
+    /** The last judged slice's levels (dBFS: all, lows, highs), logged with its catch. */
+    private static final String FS_LEVELS = "fs_levels";
+    private volatile String fsLevels = "";
     private final MotifMemory motif = new MotifMemory(new java.util.Random());
     private final NoteRegister noteRegister = new NoteRegister();
     /** Kicks, snares and hats in the found-sound kit now (0-3 each). */
@@ -473,7 +476,7 @@ public class AudioService extends Service {
                         synchronized (kitCaught) {
                             kitCaught[role]++;
                         }
-                        logEvent("Caught a " + new String[]{"kick", "snare", "hat"}[role] + " for the found-sound beat");
+                        logEvent("Caught a " + new String[]{"kick", "snare", "hat"}[role] + " for the found-sound beat" + fsLevels);
                     }
                     return;
                 }
@@ -490,6 +493,16 @@ public class AudioService extends Service {
                     return;
                 }
                 Modulation.setMicLevelDb(x - 100f);   // env~ reports dB with 100 = full scale
+            }
+
+            @Override
+            public void receiveList(String source, Object... args) {
+                if (FS_LEVELS.equals(source) && args.length == 3) {
+                    float all = ((Number) args[0]).floatValue() - 100;   // (Pd's dB: 100 = full scale)
+                    float lo = ((Number) args[1]).floatValue() - 100;
+                    float hi = ((Number) args[2]).floatValue() - 100;
+                    fsLevels = String.format(java.util.Locale.US, " (level %.0f dB, lows %+.0f, highs %+.0f)", all, lo - all, hi - all);
+                }
             }
 
             @Override
@@ -511,6 +524,7 @@ public class AudioService extends Service {
         PdBase.subscribe(CHIME_NOTE);
         PdBase.subscribe(TEMPO);
         PdBase.subscribe(FS_CAUGHT);
+        PdBase.subscribe(FS_LEVELS);
         synchronized (kitCaught) {
             java.util.Arrays.fill(kitCaught, 0);   // a fresh patch starts with an empty kit
         }

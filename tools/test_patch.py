@@ -1391,6 +1391,12 @@ l8, l4 = loud_room_catch(2.5), loud_room_catch(1.6)
 check(l8 == 3 and l4 == 0, "found sounds: in a loud room, sounds 8 dB over it are caught (%d of 3), 4 dB bumps are not (%d)" % (l8, l4))
 
 # a snap right at the mic overloads it: a clipped, dense slice must not come back as a deafening boom
+def fs_catch_raw(events, total):
+    x = (np.random.default_rng(3).standard_normal(int(total * SR)) * 0.0005).astype(np.float32)
+    for t, snd in events:
+        i = int(t * SR); x[i:i + len(snd)] += snd.astype(np.float32)
+    e = fresh(dry=0, wet=0, beat_level=1, beat_follow=1, beat_when=1, rhythm_src=1); e.listen("fs_caught")
+    e.run(x); return [int(v) for v in e.heard["fs_caught"]]
 def found_playback(sound):
     x = (np.random.default_rng(3).standard_normal(14 * SR) * 0.0005).astype(np.float32)
     x[int(0.5 * SR):int(0.5 * SR) + len(sound)] += sound.astype(np.float32)
@@ -1400,10 +1406,12 @@ def found_playback(sound):
 thump = fs_sounds()[0]()
 k = np.arange(int(0.25 * SR)); boom = np.clip(3 * np.sin(2 * np.pi * 90 * k / SR) + np.random.default_rng(5).standard_normal(len(k)), -0.99, 0.99)
 p_t, r_t = found_playback(thump); p_b, r_b = found_playback(boom)
+_, _, popped = fs_catch([(0.5, "k")], 2.0); popped2 = fs_catch_raw([(0.5, boom)], 2.0)
+check(popped == [0] and popped2 == [], "found sounds: a thump is kept, a mic pop (clipped and all lows) is not (%s, %s)" % (popped, popped2))
 e = fresh(dry=0, wet=0, beat_level=1, beat_follow=1, beat_when=1, rhythm_src=0)                # (the whole synth kit)
 r_syn = rms(e.run((np.random.default_rng(3).standard_normal(14 * SR) * 0.0005).astype(np.float32))[4 * SR:, 0])
 check(r_b < 1.15 * r_syn and p_b < 0.75 and r_t > 0.45 * r_syn,
-      "found sounds: a clipped snap at the mic plays back no louder than the synth kit (rms %.3f vs %.3f, peak %.2f), and a thump "
+      "found sounds: a clipped snap at the mic (a pop: not kept) plays back no louder than the synth kit (rms %.3f vs %.3f, peak %.2f), and a thump "
       "kit is near it (%.3f)" % (r_b, r_syn, p_b, r_t))
 
 # glitch loops (C5): a glitch is recorded and comes back every bar at its own spot, fading, inside the beat
