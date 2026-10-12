@@ -143,6 +143,19 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   like the glitch cloud's, which is unchanged). Its audio is switched (`fsound`,
   on while rhythm_src x beat_level > 0). Reports `fs_caught <role>`: the Now line shows "kit K2 S1 H3", the event
   log each catch with "kit K3 S2 H1 · 24 caught" (the slots fill to 3, the total keeps counting). Pd lessons again: a running max needs its own output fed back; a stored decay never banged was 0.
+- **Found melody** (Samuel, Oct 12: "can we use the found sound for melodies"; `add_found_note`, `melody_src` "Melody
+  sounds" in Music, noPreset, 0 synth / 1 found (default) / 2 both): every melodic note (chimes, arpeggio, groove,
+  motif) goes through the 4 chime voices; each has a found twin `fm<k>_*`. A note plays a caught slice (snares/hats
+  preferred, kicks only if nothing else) at note / `FM_REF_HZ` (600; kicks / `FM_KICK_REF_HZ` 150, so a knock is
+  pitched up to the note; rate 0.5-4) as a short strike (high-passed twice at 0.8 x the note, so its own low pitch
+  doesn't fight it, `FM_RAW` 2.5) that rings two `vcf~` resonators on the note and its octave (octave by the chime's
+  brightness; Q from the chime's fade, 60 dB over cdec; drive `FM_RES` x Q, kicks x `FM_KICK_GAIN` 0.45). A delay-line
+  string was not possible: Pd's feedback needs a block (64 samples), too slow above ~750 Hz. An automatic level
+  (`env~` every 5 ms, only down, 0.8 of the way to `FM_LEVEL_DB` 88) keeps a clap and a knock within ~5 dB of each
+  other and of the synth chimes, then tanh at 0.9 (without it every found note hit the limiter). Found mode plays
+  the synth until the first catch. Catching and the recording audio now run when the beat OR the melody needs them
+  (`fs_need` = rhythm_src x beat_level or music_on x melody_src). Group `fmelody` (music_on x melody_src). Tests use
+  melody_src 0 unless they test it.
 - **Learned groove** (roadmap 16 C4, replacing "rhythm memory": with the beat always on it never stopped cold
   anyway): at each catch the spot in the bar is noted (the last `tick16`, +1 past half a 16th: `fs_pos`), and when the
   slice is filed, `rh_heard[role*16+spot]` gains `FS_HEARD_ADD` (0.8, max 1). Every bar all 48 spots keep

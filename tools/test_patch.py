@@ -51,7 +51,7 @@ def fresh(**over):
                 phaser_on=1, phaser_mix=0, phaser_rate=0.4, phaser_depth=0.7, phaser_fb=0.4,
                 beat_on=1, beat_level=0, beat_hats=0.5, beat_snare=0.6, beat_pitch=55,
                 music_on=0, music_key=0, music_scale=0, music_pad=0.33, music_arp=0.4,
-                music_tone=0.5, music_react=0.8, music_res=0.8, music_harm=0, echo_scatter=0, beat_follow=0, music_pad_reg=2, pocket_hush=0.5, pocket_guard=0.6)
+                music_tone=0.5, music_react=0.8, music_res=0.8, music_harm=0, echo_scatter=0, beat_follow=0, music_pad_reg=2, pocket_hush=0.5, pocket_guard=0.6, melody_src=0)
     base.update(over)
     for k, v in base.items():
         e.send(k, v)
@@ -77,7 +77,7 @@ check(not bad, "patch loads with no Pd errors" + (": %s" % bad if bad else ""))
 
 jp = java_params()
 patch_text = open(PATCH).read()
-receivers = set(re.findall(r"#X obj \d+ \d+ r (\w+);", patch_text)) - {"step", "scale_n", "pad_glide", "mic_level", "pad_slot", "pool_n", "pool_x", "pocket", "pocket_down", "duck", "step_strength", "step_hit", "beat_sure", "groove", "gc_mode", "gc_try", "density_on", "motif", "drift_now", "drift_set", "drift_n", "music_register", "music_warm", "pulse", "tick16", "clock_walking", "gc_mode"} - {r for r in re.findall(r"#X obj \d+ \d+ r (sw_\w+);", open(PATCH).read())}   # events and internal links, not settings
+receivers = set(re.findall(r"#X obj \d+ \d+ r (\w+);", patch_text)) - {"step", "scale_n", "pad_glide", "mic_level", "pad_slot", "pool_n", "pool_x", "pocket", "pocket_down", "duck", "step_strength", "step_hit", "beat_sure", "groove", "gc_mode", "gc_try", "density_on", "motif", "drift_now", "drift_set", "drift_n", "music_register", "music_warm", "pulse", "tick16", "clock_walking", "gc_mode", "fs_need"} - {r for r in re.findall(r"#X obj \d+ \d+ r (sw_\w+);", open(PATCH).read())}   # events and internal links, not settings
 pd_ids = {i for i, _, nopd in jp if not nopd}
 check(len(jp) >= 10, "parsed %d params from Params.java" % len(jp))
 check(pd_ids == receivers, "Params.java ids == patch receivers (java-only %s, patch-only %s)"
@@ -778,10 +778,13 @@ def spec_peaks(y, rel=0.1):
     w = np.hanning(len(y)); S = np.abs(np.fft.rfft(y * w)); f = np.fft.rfftfreq(len(y), 1 / SR)
     return [float(f[i]) for i in range(2, len(S) - 1)
             if S[i] > rel * S.max() and S[i] >= S[i - 1] and S[i] >= S[i + 1] and f[i] > 60]
-def off_key(freqs, key, scale):
-    """Peaks that are not within 0.25 semitone of a note of the scale."""
+def off_key(freqs, key, scale, overtones=False):
+    """Peaks that are not within 0.25 semitone of a note of the scale (overtones: a chime's 3rd harmonic of an in-key
+    note is not counted; chimes have a random brightness, so now and then that overtone is a peak of its own)."""
     bad = []
     for f in freqs:
+        if overtones and not off_key([f / 3], key, scale):
+            continue
         pc = (69 + 12 * np.log2(f / 440) - key) % 12
         if min(min(abs(pc - n), 12 - abs(pc - n)) for n in SCALE_STEPS[scale]) > 0.25:
             bad.append(round(f, 1))
@@ -910,7 +913,8 @@ def walk(interval, n=10, **over):
 stroll, brisk = walk(1.0), walk(0.38, n=26)
 check(rms(brisk[-SR * 3:]) > 2.0 * rms(stroll[-SR * 3:]) > 1e-4,
       "music: the arpeggio swells with pace (stroll %.4f, brisk %.4f)" % (rms(stroll[-SR * 3:]), rms(brisk[-SR * 3:])))
-check(not off_key(spec_peaks(brisk[-SR * 3:]), 0, 0), "music: the walking arpeggio stays in the key (off-key %s)" % off_key(spec_peaks(brisk[-SR * 3:]), 0, 0))
+check(not off_key(spec_peaks(brisk[-SR * 3:]), 0, 0, True), "music: the walking arpeggio stays in the key (off-key %s)"
+      % off_key(spec_peaks(brisk[-SR * 3:]), 0, 0, True))
 e = fresh(music_on=0, music_pad=1, music_arp=1, wet=0)
 e.send("step", 0.5)
 check(rms(e.run(e.silence(1.0))) < 1e-6, "music: footsteps are silent while the music is off")
@@ -1034,7 +1038,7 @@ for _ in range(8):
     e.send("step", 0.5); e.run(e.silence(0.5))
 lv = [rms(e.run(e.silence(0.5))[:, 0]) for _ in range(28)]   # half-second windows after the last step
 db = lambda a: 20 * np.log10(a / before)
-walking, dipped, back = db(lv[1]), min(db(v) for v in lv[4:9]), db(np.mean(lv[23:28]))
+walking, dipped, back = db(lv[1]), min(db(v) for v in lv[4:9]), db(max(lv[21:28]))   # (its best: a chord change dips the bass)
 check(abs(walking) < 1.5 and -6.5 < dipped < -2.5 and abs(back) < 1.5,
       "music: stopping after a walk, the pad breathes %.1f dB down and comes back (%.1f dB at 12-14 s; 1 s after %.1f dB)"
       % (dipped, back, walking))
@@ -1457,6 +1461,39 @@ r_syn = rms(e.run((np.random.default_rng(3).standard_normal(14 * SR) * 0.0005).a
 check(r_b < 1.15 * r_syn and p_b < 0.75 and r_t > 0.45 * r_syn,
       "found sounds: a clipped snap at the mic (a pop: not kept) plays back no louder than the synth kit (rms %.3f vs %.3f, peak %.2f), and a thump "
       "kit is near it (%.3f)" % (r_b, r_syn, p_b, r_t))
+
+# found melody: the melody's notes play a caught sound striking resonators tuned to the note, in key, about as loud as
+# the synth chimes; before anything is caught, "Found" plays the synth chimes; catching runs for it with the beat off
+def peak_hz(y):
+    S = np.abs(np.fft.rfft(y * np.hanning(len(y)))); f = np.fft.rfftfreq(len(y), 1 / SR)
+    S[f < 80] = 0; return f[np.argmax(S)]
+def melody_notes(src, sound=None, **over):
+    x = (np.random.default_rng(3).standard_normal(7 * SR) * 0.0005).astype(np.float32)
+    if sound is not None:
+        x[SR:SR + len(sound)] += sound.astype(np.float32)
+    e = fresh(**dict(dict(music_on=1, music_pad=0, music_arp=1, wet=0, music_res=0, music_react=0, melody_src=src), **over))
+    e.listen("fs_caught"); e.run(x[:3 * SR]); out = []
+    for deg in (7, 9, 11):
+        e.send_list("motif", deg, 0.5); out.append(e.run(x[3 * SR:4 * SR])[:, 0])
+    return [int(v) for v in e.heard["fs_caught"]], [peak_hz(o) for o in out], [rms(o) for o in out]
+thump, clap, tick = fs_sounds()
+_, syn_hz, syn_r = melody_notes(0, clap())
+for nm, snd in (("clap", clap()), ("thump", thump())):
+    c, hz, r = melody_notes(1, snd)
+    in_key = all(any(abs(h - f * m) < 6 for m in (1, 2)) for h, f in zip(hz, syn_hz))
+    check(len(c) == 1 and in_key and all(0.3 * a < b < 1.8 * a for a, b in zip(syn_r, r)),
+          "found melody: a caught %s plays the notes in key (%s Hz vs the synth's %s) about as loud (rms %s vs %s)"
+          % (nm, [round(h) for h in hz], [round(h) for h in syn_hz], [round(v, 3) for v in r], [round(v, 3) for v in syn_r]))
+_, hz0, r0 = melody_notes(1, None)
+check(all(abs(a - b) < 2 for a, b in zip(hz0, syn_hz)) and all(0.6 * b < a < 1.5 * b for a, b in zip(r0, syn_r)),
+      "found melody: nothing caught yet -> the synth chimes play (rms %s vs %s)" % ([round(v, 3) for v in r0], [round(v, 3) for v in syn_r]))
+_, _, rb = melody_notes(2, clap())
+check(sum(rb) > 1.05 * sum(syn_r), "found melody: Both layers the found notes over the synth chimes (rms %s vs %s)"
+      % ([round(v, 3) for v in rb], [round(v, 3) for v in syn_r]))
+c_beat_off, _, _ = melody_notes(1, clap(), beat_level=0)
+c_none, _, _ = melody_notes(0, clap(), beat_level=0)
+check(c_beat_off == [1] and c_none == [], "found melody: sounds are caught for it with the beat off (%s), not when nothing needs them (%s)"
+      % (c_beat_off, c_none))
 
 # glitch loops (C5): a glitch is recorded and comes back every bar at its own spot, fading, inside the beat
 def glitch_loop(beat_glitch):
