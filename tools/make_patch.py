@@ -179,6 +179,8 @@ FS_SLICE_S = 0.25                  # a caught slice...
 FS_PREROLL_MS = 15                 # ...starting this long before the sound was noticed (keeps its attack)
 FS_SLOTS = 3                       # slices kept per role (kick, snare, hat); the oldest is replaced
 FS_MIN_DB = 55                     # quieter than this (-45 dBFS at its loudest) is not worth keeping
+FS_RMS_TARGET = 0.3                # a slice's loudest 10 ms is brought no higher than this (a clipped snap was a boom)
+FS_LIMIT = 0.7                     # the found drums are soft-limited to this
 FS_HEARD_ADD = 0.8                 # the learned groove: a catch adds this at its spot in the bar...
 FS_HEARD_KEEP = 0.55               # ...which keeps this much each bar (a few bars of echo, then gone)
 FS_HEARD_MIN = 0.3                 # below this a spot plays nothing
@@ -575,6 +577,7 @@ def add_found_kit(P, x):
         ex(f"fs_mx_{nm}", "max($f1,$f2)", x + 100 * k, y + 180)
         P.c(f"fs_env_{nm}", f"fs_mx_{nm}")
         P.c(f"fs_mx_{nm}", f"fs_max_{nm}", 0, 1); P.c(f"fs_mx_{nm}", f"fs_mx_{nm}", 0, 1)   # (the running maximum)
+    P.obj("fs_rmsdb", "f", x + 300, y + 200); P.c("fs_mx_all", "fs_rmsdb", 0, 1)          # (for the gain, read later)
     # ---- a sudden sound: if not already recording and the found kit is in use, record ----
     P.obj("fs_on", "spigot 1", x + 400, y + 80)                          # (closed while recording)
     P.obj("fs_use", "spigot 0", x + 400, y + 60)                         # (only when found sounds are used)
@@ -646,15 +649,17 @@ def add_found_kit(P, x):
     for k in range(3):
         P.c("fs_role_sel", f"fs_rr{k}", k, 0)
         P.obj(f"fs_slot{k}", f"+ {k * FS_SLOTS}", x + 500 + 60 * k, y + 390); P.c(f"fs_rr{k}", f"fs_slot{k}")
-    P.obj("fs_slot", "t f b b f", x + 500, y + 420)                       # slot for the gain, min, max, then the copy
+    P.obj("fs_slot", "t f b b b f", x + 500, y + 420)                     # slot for the gain, loudness, min, max, copy
     for k in range(3):
         P.c(f"fs_slot{k}", "fs_slot")
     # the slice's loudest sample either way -> a gain that brings it to 0.5
     P.obj("fs_peak", "array max fs_stage", x + 700, y + 420)
     P.obj("fs_low", "array min fs_stage", x + 800, y + 420)
-    ex("fs_gain", "0.5/max(max(abs($f1),abs($f2)),0.01)", x + 700, y + 440)
+    # gain: the peak to 0.5, but the loudest 10 ms (dB, 100 = full scale) no higher than FS_RMS_TARGET
+    ex("fs_gain", f"min(0.5/max(max(abs($f1),abs($f2)),0.01),{FS_RMS_TARGET}/max(pow(10,($f3-100)/20),0.001))", x + 700, y + 440)
     P.obj("fs_g_wr", "tabwrite fs_gains", x + 700, y + 460)
-    P.c("fs_slot", "fs_g_wr", 3, 1)
+    P.c("fs_slot", "fs_g_wr", 4, 1)
+    P.c("fs_slot", "fs_rmsdb", 3, 0); P.c("fs_rmsdb", "fs_gain", 0, 2)
     P.c("fs_slot", "fs_low", 2, 0); P.c("fs_low", "fs_gain", 0, 1)
     P.c("fs_slot", "fs_peak", 1, 0); P.c("fs_peak", "fs_gain"); P.c("fs_gain", "fs_g_wr")
     # copy the staging table into the slot's table
@@ -723,8 +728,12 @@ def add_found_kit(P, x):
         P.sig2(f"fsv_{r}_s", "*~", f"fsv_{r}_rd", f"fsv_{r}_env", vx, vy + 190)
         P.c(f"fsv_{r}_s", f"fsv_{r}_f")
         outs.append(f"fsv_{r}_f")
-    P.sig2("fs_ks", "+~", outs[0], outs[1], x + 1000, y + 900)
-    return "fs_ks", outs[2]
+    P.sig2("fs_ks0", "+~", outs[0], outs[1], x + 1000, y + 900)
+    # a soft limit, so no caught sound can jump out of the beat (tanh: gentle below, never above FS_LIMIT)
+    lim = f"{FS_LIMIT}*tanh($v1/{FS_LIMIT})".replace("$", BS + "$")
+    P.obj("fs_ks", "expr~ " + lim, x + 1000, y + 920); P.c("fs_ks0", "fs_ks")
+    P.obj("fs_hat_lim", "expr~ " + lim, x + 1100, y + 920); P.c(outs[2], "fs_hat_lim")
+    return "fs_ks", "fs_hat_lim"
 
 
 def add_rhythm(P, x):
@@ -3051,7 +3060,7 @@ def build():
     add_switch(P, "roomnotes", ("music_on", "music_res"), 2500)       # rings run up to ~2 s
     P.group("music", r"^(mu_|ba_)")
     add_switch(P, "music", ("music_on",), 3000)                       # chimes fade over up to 2.6 s
-    P.group("fsound", r"^(fs_(src|wr|rd|rec|lo|hi|env_\w+)|fsv_\w+_(rd|ixl|env|s|f))$")    # the found-sound kit's audio
+    P.group("fsound", r"^(fs_(src|wr|rd|rec|lo|hi|env_\w+|ks0|ks|hat_lim)|fsv_\w+_(rd|ixl|env|s|f))$")    # the found-sound kit's audio
     add_switch(P, "fsound", ("rhythm_src", "beat_level"), 500)
     P.group("gcv", r"^gc0_")                                           # the glitch voices: on only while playing
     P.group("gcs", r"^gc2_")

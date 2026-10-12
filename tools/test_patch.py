@@ -1366,6 +1366,22 @@ check(f120 > 3 * s120 and s55 > 3 * f55 and fallback > 0.002,
       "found sounds: the kicks play the caught thump (120 Hz %.4f vs synth %.4f; synth 55 Hz %.4f vs %.4f), nothing caught -> synth (rms %.4f)"
       % (f120, s120, s55, f55, fallback))
 
+# a snap right at the mic overloads it: a clipped, dense slice must not come back as a deafening boom
+def found_playback(sound):
+    x = (np.random.default_rng(3).standard_normal(14 * SR) * 0.0005).astype(np.float32)
+    x[int(0.5 * SR):int(0.5 * SR) + len(sound)] += sound.astype(np.float32)
+    e = fresh(dry=0, wet=0, beat_level=1, beat_follow=1, beat_when=1, rhythm_src=1, beat_snare=0, beat_hats=0)
+    y = e.run(x)[:, 0]
+    return np.max(np.abs(y[4 * SR:])), rms(y[4 * SR:])
+thump = fs_sounds()[0]()
+k = np.arange(int(0.25 * SR)); boom = np.clip(3 * np.sin(2 * np.pi * 90 * k / SR) + np.random.default_rng(5).standard_normal(len(k)), -0.99, 0.99)
+p_t, r_t = found_playback(thump); p_b, r_b = found_playback(boom)
+e = fresh(dry=0, wet=0, beat_level=1, beat_follow=1, beat_when=1, rhythm_src=0, beat_snare=0, beat_hats=0)
+r_syn = rms(e.run(np.zeros(14 * SR, np.float32))[4 * SR:, 0])
+check(r_b < 1.6 * r_t and p_b < 0.75 and r_t > 0.25 * r_syn,
+      "found sounds: a clipped snap at the mic plays back no louder than a thump (rms %.3f vs %.3f, peak %.2f), and the found kick "
+      "is near the synth kick's level (%.3f)" % (r_b, r_t, p_b, r_syn))
+
 # the learned groove (C4): claps on one off-beat spot teach the snare that spot; a few quiet bars later it's gone
 def learned_spots(clap_bars, bars, spot=6):
     """Standing still at the default 100 BPM (a 16th = 150 ms). Syncs on the clock's own ticks, then claps 20 ms after
