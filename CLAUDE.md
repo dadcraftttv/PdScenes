@@ -299,7 +299,9 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   **Stop breath:** 1.2 s after the last step the pad+bass ease to 55% over 2.5 s, then return over 8 s (a step
   brings them back in 0.8 s); only steps start it.
   Music joins after the filter, so chorus/flanger/phaser/tremolo/reverse/glitch/echo/reverb/spatial shape it; pitch/ring/crush/dist/filter do not.
-  It follows the Dry level. Only the real room tells us if the tuning is right — expect further tweaks from Samuel's reports.
+  It no longer follows the Dry level (Samuel, Oct 13): Dry scales the mic just before the music joins (`filtered_dry`;
+  the chain from there to `voice` is linear, so the mic sounds as before) and the echo gets the part Dry took away
+  (`echo_mic_rest` = mic x (1 - dry)), so at Dry 0 it still repeats the mic. Only the real room tells us if the tuning is right — expect further tweaks from Samuel's reports.
 - **Tabs** (step D, Oct 12): Sound (presets/shortcuts, XY pad, input, effects), Music (Rhythm, Music), Realms, Scenes,
   Setup (audio devices, appearance, behaviour, reset, about); the strip is the bottom card's top row (selected = accent
   pill), each tab keeps its scroll, the last tab is remembered (`UiSettings.tab`). While a scene plays, Sound/Music/

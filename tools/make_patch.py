@@ -3463,8 +3463,13 @@ def build():
     P.sig2("filtered_pre", "+~", "dist_out", "filt_amt", 1600, 310)
     # The music joins here, after the tone-changing effects (so pitch shifter and crusher cannot push it
     # out of key) but before chorus, flanger, phaser, tremolo, echo, reverb and the spatial stage.
+    # The Dry level scales the mic here, before the music joins, so the music keeps its own level whatever Dry is
+    # (Samuel: lowering Dry used to silence the music too). Everything from here to "voice" (chorus, flanger, phaser,
+    # tremolo, reverse echo, freeze) is linear, so the mic sounds the same as when Dry scaled the end of the chain.
+    dry = smoothed(P, "dry", "dry", 1500, 300)
+    P.sig2("filtered_dry", "*~", "filtered_pre", dry, 1600, 325)
     music = add_music(P)
-    P.sig2("filtered_mix", "+~", "filtered_pre", music, 1600, 340)
+    P.sig2("filtered_mix", "+~", "filtered_dry", music, 1600, 340)
 
     # --- chorus: the signal mixed with two copies whose delay wobbles, which detunes them slightly ---
     P.obj("chorus_wr", "delwrite~ chorus_buf 60", 2300, 20)
@@ -3698,7 +3703,12 @@ def build():
     P.c("ln_echo_time", "delread")
     fb = smoothed(P, "feedback", "feedback", 560, 150)
     P.sig2("fb_sig", "*~", "delread", fb, 560, 240)
-    P.sig2("echo_in", "+~", "voice", "fb_sig", 560, 270)
+    # the echo hears the mic at full level whatever Dry is: the voice (at the Dry level) plus the part Dry took away
+    P.obj("dry_rest_n", "*~ -1", 460, 230); P.c("ln_dry", "dry_rest_n")
+    P.obj("dry_rest", "+~ 1", 460, 245); P.c("dry_rest_n", "dry_rest")
+    P.sig2("echo_mic_rest", "*~", "filtered_pre", "dry_rest", 460, 260)
+    P.sig2("echo_in0", "+~", "voice", "echo_mic_rest", 560, 262)
+    P.sig2("echo_in", "+~", "echo_in0", "fb_sig", 560, 270)
     P.obj("delwrite", "delwrite~ echo_buf 2000", 560, 300)
     P.c("echo_in", "delwrite")
     wet = smoothed(P, "wet", "wet", 700, 150)
@@ -3729,8 +3739,7 @@ def build():
     P.c("es_init", "es_one"); P.c("es_one", "es_g_l"); P.c("es_one", "es_g_r")
 
     # --- dry level and output ---
-    dry = smoothed(P, "dry", "dry", 250, 300)
-    P.sig2("dry_sig", "*~", "voice", dry, 250, 380)
+    P.obj("dry_sig", "*~ 1", 250, 380); P.c("voice", "dry_sig")     # (already at the Dry level, see the music join)
     P.obj("mix_pre", "+~", 250, 420); P.c("dry_sig", "mix_pre")      # the echo joins both ears later, scattered
     add_tempo_clock(P)
     beat = add_beat(P)

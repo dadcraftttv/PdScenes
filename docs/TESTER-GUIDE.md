@@ -21,6 +21,7 @@ There are two ways to use it:
 - **Found sounds everywhere:** the melody, the chimes, the room's ringing notes, the pad chords and (if you want) the bass can all be played with sounds the app caught from your surroundings.
 - **Your voice as the harmony:** hum or sing a note and a copy of your own voice answers on a chord note.
 - **Gate and compressor shape** settings for the microphone.
+- **Dry level no longer turns the music down:** it only changes your microphone's sound.
 - **Music stays in time** with the beat, standing or walking.
 - A small dot shows which sliders a mover is moving.
 - The Key and Scale menus no longer jump back to C major.
@@ -88,7 +89,7 @@ This section controls the sound going in, before any effect touches it.
 - **Compressor threshold, ratio, make-up gain:** evens out loud and quiet sounds so nothing jumps out. Threshold at 0 turns it off. It starts switched on, set to balance things gently, and Input gain starts fairly high so quiet details are picked up. Change either if you like. Ratio is how firmly it squeezes the loud parts, and make-up gain is how much volume you give back afterward.
 - **Pocket hush:** while the phone is in a pocket, the microphone is turned down so cloth rustle doesn't swamp the sound, and rustle doesn't set off chimes. Your drums and the music play as normal. Higher hushes more. At 0 nothing changes. If you can't hear the world from your pocket, lower it. If the rustle is too loud, raise it.
 - **Mic-down protection:** extra help only when the phone is in your pocket with the microphone end (the bottom edge) going in first, where it rubs against more fabric. It filters out the low thump of cloth and turns the mic down a little more. Mic end up is left alone. At 0 nothing changes.
-- **Dry level:** how much of your original, untouched sound you hear alongside the effects. Lower it to hear mostly effects. The Music section also follows this level, so turning Dry all the way down (with no echo) silences the music too.
+- **Dry level:** how much of your original, untouched sound you hear alongside the effects. Lower it to hear mostly effects. It only changes your microphone's sound: the music keeps its own levels, and the echo keeps repeating your sound even with Dry all the way down.
 
 **Gate and compressor shape** (its own folded section) fine-tunes how the noise gate and compressor react. The defaults open the gate within a few milliseconds of a sound and let it fade smoothly, so you don't need to touch these.
 

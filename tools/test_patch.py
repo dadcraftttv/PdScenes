@@ -115,6 +115,16 @@ y = e.run(sine(440, 0.1, 0.5))[:, 0]
 check(abs(rms(y[SR // 4:]) / (0.1 * 3 / 3 / np.sqrt(2)) - 0.5) < 0.02, "dry=0.5 halves the direct level")
 e = fresh(wet=0, dry=0)
 check(rms(e.run(sine(440, 0.3, 0.5))[SR // 4:]) < 1e-6, "dry=0, wet=0 is silent")
+# the music keeps its own level whatever Dry is (it used to follow it); the echo still repeats the mic at Dry 0
+def music_level(dry):
+    e = fresh(dry=dry, wet=0, music_on=1, music_pad=1, music_pad_reg=1, music_arp=0, music_res=0)
+    return rms(e.run(e.silence(5.0))[2 * SR:, 0])
+m1, m0 = music_level(1), music_level(0)
+e = fresh(dry=0, wet=1, feedback=0, echo_time=200, echo_sync=0); x = np.zeros(SR, np.float32); x[0] = 0.5
+ye = np.abs(e.run(x)[:, 0]); echo_at = 1000 * int(np.argmax(ye)) / SR
+check(m1 > 0.005 and abs(m0 - m1) < 0.1 * m1 and abs(echo_at - 200) < 8 and ye.max() > 0.2,
+      "Dry doesn't touch the music (pad %.4f at Dry 1, %.4f at Dry 0); at Dry 0 the echo still repeats the mic (%.0f ms, %.2f)"
+      % (m1, m0, echo_at, ye.max()))
 
 # ---- 5. ring modulator ----
 e = fresh(wet=0, ring_mix=1, ring_freq=100, ring_on=1)
