@@ -1,6 +1,6 @@
 # Beta Tester Guide
 
-Oct 12, 2026 · Dad
+Oct 13, 2026 · Dad
 
 ## What this app is
 
@@ -13,13 +13,16 @@ There are two ways to use it:
 - **Built-in effects (the default).** A set of sound-changing tools you can adjust with sliders. Most of this guide covers these.
 - **Scenes (optional).** Ready-made experiences from the original RjDj, which react to sound and to how you move the phone. The app comes with four official RjDj example scenes to try (see "The four built-in scenes" below). You can also import other scenes you already have, as a zip file or folder.
 
-## What's new (Oct 12)
+## What's new (Oct 12-13)
 
+- **Five tabs** instead of one long list: Sound, Music, Realms, Scenes and Setup, switched from the row at the top of the card at the bottom of the screen.
+- **Realms** (formerly called Auto worlds): the same automatic sound changes, renamed. Each Realm can now be told which parts of the sound it may change, and a soft "warp" sound tells you when a Realm starts or ends.
 - **Rhythm** (was "Walking beat"): a steady tempo clock that follows your steps or a tempo you set, beat patterns that keep changing, and drums made from the sounds around you.
 - **Found sounds everywhere:** the melody, the chimes, the room's ringing notes, the pad chords and (if you want) the bass can all be played with sounds the app caught from your surroundings.
 - **Your voice as the harmony:** hum or sing a note and a copy of your own voice answers on a chord note.
 - **Gate and compressor shape** settings for the microphone.
 - **Music stays in time** with the beat, standing or walking.
+- A small dot shows which sliders a mover is moving.
 - The Key and Scale menus no longer jump back to C major.
 - The app uses noticeably less battery and processor than the first builds with these features.
 
@@ -52,84 +55,29 @@ Start with the volume low. Some settings can get loud.
 
 ## The main screen
 
-- **The card at the bottom** stays in place while you scroll, in reach of your thumb when you walk. It holds **Start / Stop**, the status line (what is happening, including the audio rate your phone is using), and two buttons. **Save sound** keeps the sound you are hearing as a preset in one tap (see Presets). **Hold world** appears when Auto worlds is on (see Auto worlds). When the Rhythm is playing, the Now line also shows the tempo ("walking 112 BPM") and the found-sound kit ("kit K2 S1 H3 · 24 caught": how many kicks, snares and hats it holds, and how many sounds it has caught in all).
-- **Scene.** Shows what is playing: "Built-in effects" or an imported scene. Use **Choose scene** to switch, or **Import zip** / **Import folder** to add scenes.
-- **The touch pad** is a rounded rectangle on the screen. With a scene it shows the scene's picture, and fingers on it are sent to the scene. With built-in effects it works as an XY pad (see Movers below).
-- **Volume and Mic volume** appear when a scene is selected. Volume is how loud you hear it. Mic volume is how loud the microphone is fed in. If a scene screeches, lower Mic volume.
-- **Sections.** Only Input & output and Music start open; tap any heading to open or fold it. The app remembers which ones you opened, and changing the theme keeps your place in the list.
-- **Randomize, Nudge, Undo, Lock** and **Presets** are explained in their own section below.
+The screen has five tabs. The **card at the bottom** stays in place on every tab, in reach of your thumb when you walk:
 
-## The built-in effects, one by one
+- **The tab row** across the top of the card: **Sound**, **Music**, **Realms**, **Scenes** and **Setup**. The tab you are on is highlighted. Each tab keeps its own place when you scroll, and the app opens on the tab you used last.
+- **The status line** says what is happening, including the audio rate your phone is using. Under it a **Now:** line shows the Realm playing and why (see The Realms tab), and while the Rhythm plays, the tempo ("walking 112 BPM") and the found-sound kit ("kit K2 S1 H3 · 24 caught": how many kicks, snares and hats it holds, and how many sounds it has caught in all).
+- **Start / Stop**, **Save sound** (keeps the sound you are hearing as a preset in one tap) and **Hold realm** (appears when Auto realms is on).
+
+Inside a tab, settings are grouped in sections. Tap a section's heading to open or fold it; the app remembers which ones you opened. While a scene is playing, the Sound, Music and Realms tabs say so instead of showing controls that would do nothing.
+
+| Tab | What is on it |
+| --- | --- |
+| Sound | Presets and shortcuts, the XY pad, Input & output, and all the effects |
+| Music | Rhythm and Music |
+| Realms | Auto realms: the sound changing by itself to fit where you are |
+| Scenes | Choosing and importing scenes, the scene's touch pad, its volume sliders |
+| Setup | Audio devices, appearance, behavior, Reset everything, About |
+
+## The Sound tab
+
+At the top: **Presets**, **Save**, **Export** and **Import**, then **Randomize**, **Nudge** and **Undo** (see Presets and shortcuts), and the **XY pad**, a rounded rectangle you can drag a finger around to steer sliders (see Movers). Below them are Input & output and the effects.
 
 An "effect" is a way of changing a sound. The sound flows through them in a chain, so you can use several together. Each effect lives in its own section, which you open and close by tapping its title. Each has an on/off switch, and an amount slider. The amount is usually at 0 to start, so an effect does nothing until you turn its amount up. Move one slider at a time and listen.
 
 The numbers (ms, Hz) don't matter much. Drag, listen, and decide whether you like it.
-
-### Rhythm
-
-A beat that plays along with you. It used to be called "Walking beat", but it now does much more than follow your feet: it keeps a steady tempo, plays changing drum patterns, and can build its drum kit out of the sounds around you.
-
-**The tempo.** A steady clock keeps the beat. While you walk, it follows your steps the way a band follows its drummer: an odd step barely moves it, a change of pace is followed within a few steps, and a slow amble plays at double time. When you stop, the beat carries on at the last tempo.
-
-- **Rhythm enabled:** the switch for the whole section.
-- **Beat follows:** **Tempo clock** (the default, steady) or **Your steps** (the older behavior: one drum hit per footstep, wobbles and all).
-- **Tempo:** **Auto** (the default) follows your steps as described. **Set** lets you choose the tempo yourself with **Set tempo**, from 60 to 160 BPM: standing still the beat settles on your tempo; walking pulls it halfway toward your step rate, so you still feel your walk; when you stop it settles back. Try around 125 for a dance feel, or down in the 80s and 90s for hip hop.
-- **Beat plays:** **Always** (the default: softly while you stand still, fuller when you walk) or **Only while walking**.
-
-**The patterns.** The drums play real patterns on 16th notes, not just one hit per step. Every couple of bars it picks new kick, snare and hat patterns to suit how lively things are (a stroll or a quiet room gets calm ones, a brisk walk or a lively room busier ones), and every eight bars or so it may end on a snare fill. To keep it from sounding mechanical:
-
-- the swing drifts every few bars, from straight to a little lazy;
-- now and then (at least eight bars apart) one bar thins out, to hats only, no kick, or just the first kick, before the full beat comes back;
-- the patterns follow your pace and the room; while your steps are uneven (shuffling, turning) the drums play softer until your rhythm settles.
-
-**Drums made from the room ("Beat sounds").**
-
-- **Beat sounds:** **Found sounds** (the default), **Synth drums** or **Both**.
-- With Found sounds, each sudden sound the phone hears (a clap, a knock, a snap, a footstep, a door) is caught as a short snippet and filed as a kick (mostly low), a hat (mostly bright) or a snare (everything else). The kit keeps the latest five of each. Your very first catch already turns the whole kit into found sounds; until then a quiet synth beat keeps time.
-- Every hit is a little different: slightly higher or lower, softer or harder, sometimes with a softer start. About one hit in forty plays backwards or at half speed, as a small surprise.
-- A snap right at the microphone can overload it into a loud low pop; those are recognized and not kept. Nothing is caught while the phone is in a pocket, so cloth rustle stays out of the kit.
-- **The beat learns from you:** if you clap or knock on the same spot in the bar a few times, the beat starts playing a drum there too, and lets it fade a few bars after you stop.
-- **Glitch loops woven into the beat:** with the Glitch cloud on (see Glitch), each glitch is recorded for one bar and comes back in the beat at the same spot, fading bar by bar. 0 turns this off.
-
-**Levels.**
-
-- **Beat level (0 = off):** how loud the drums are. It starts at 0, so you hear nothing until you turn it up.
-- **Hi-hat level:** the small, ticking cymbal sound (synth and found).
-- **Snare level:** the sharp, snappy hit of the synth snare.
-- **Kick drum pitch:** how low or high the synth kick sounds.
-
-### Music
-
-This adds a soft, drifting musical layer that reacts to the world around you, in the spirit of RjDj. It is **off until you switch it on**. The notes are always in the key and scale you choose, so they always sound pleasant together, but when they play and how loud they are comes from what the app hears and how you move. Many parts can be played with sounds the app catches from your surroundings ("found sounds"); each such part has its own choice of Synth, Found sounds or Both.
-
-- **Music on/off:** the switch for the whole section.
-- **Let the home chord drift:** every few minutes the music's home chord moves to a related one on the same notes (in C major, for example, to a D, G or A-minor feel), then often comes back home. Switching it off brings the home chord back at once. On by default.
-- **Light, pocket and stairs move the notes higher or lower:** in a bright place the chimes and walking notes sit a little higher, in a dark room a little lower and warmer, in a pocket an octave lower, and climbing stairs lifts them. The pad and bass stay put. On by default.
-- **Key and Scale:** the home note and the mood. It starts in C Major. Major sounds bright, Minor sounds sad or serious, Pentatonic is simple and open, Dorian and Mixolydian are folky, Lydian is dreamy, and Whole tone is floaty and unresolved. Try them all.
-- **Pad level:** a very soft, slow background of gentle chords. It blends smoothly from one chord into the next. It is meant to be the glue, never the star. Keep it low.
-- **Pad register:** where the pad plays. **Low** is a soft bass note under everything that stays on the key's root and only sometimes moves. **Mid** is the chords. **Both** (the default) is the two together. When the beat is playing, the bass dips briefly on each step so it doesn't clash with the kick drum.
-- **Pad sounds:** **Found sounds** (the default), **Synth** or **Both**. With Found sounds, when you hum, sing or whistle a steady note (or a steady hum from a machine or a bird), the app keeps a short snippet of it, and from the next chord change the pad's chord is sung by that sound, stretched out and pitched to each chord note. It sounds like a choir of you holding the harmony. Until the first held note it plays the synth pad.
-- **Bass sound:** **Synth** (the default) or **Found sounds**, which plays the bass with that same held-note snippet, pitched down. It is subtle.
-- **Notes and chimes level:** how loud the melody notes are (the chimes and the walking notes). Turn it to 0 to hear only the pad.
-- **Melody sounds:** **Found sounds** (the default), **Synth chimes** or **Both**. With Found sounds, the chimes and walking notes play the sounds caught for the beat, tuned to each note. Until the first catch they play synth chimes.
-- **Chime character (ring to your sound):** how the found melody sounds. Toward "ring", each note is a tuned, bell-like ring set off by your sound. Toward "your sound", each note is mostly your clap, knock or snap itself played at that pitch, short and punchy. It starts in the middle.
-- **Room notes:** how loud the room's own notes are.
-- **Room notes sound:** **Found sounds** (the default): each sudden sound around you plays one of your caught sounds on a note of the current chord. **Ring**: the sounds around you ring the chord like a bell, in your key (a light tap gives a quick chime, talking or a passing car builds up to a long bell). **Both** plays the two.
-- **Harmony:** hum, sing or whistle a long, steady note and an answering note from the current chord joins in, never doubling yours. It holds as long as your note does and fades when you stop. Talking, noise and short sounds are ignored. 0 turns it off.
-- **Harmony sound:** **Your voice** (the default): a copy of your own voice, shifted to the chord note, sings with you. Low voices get their harmony a third or more above; from middle C up (most women's and children's voices) it sings a third or more below, so it never turns chipmunk. **Organ** is a soft organ note an octave away instead. **Both** plays the two.
-- **Tone:** darker and rounder on the left, brighter and glassier on the right.
-- **How much the music follows what it hears:** at the right end the music responds strongly to the room. At the left it plays a calmer, steadier pattern.
-
-What to expect:
-
-- In a quiet room the notes stay quiet or silent. They wake up as the room gets louder.
-- A sudden sound, like a clap or a door, rings a chime. A brighter sound gives higher chords.
-- Standing still, you get a slow, sparse pattern. When you walk, it turns into a flowing run of notes with each step, which swells louder as you walk faster and fades as you slow down. A stroll picks calmer patterns, a brisk walk livelier ones.
-- **The music stays in time with the beat.** While the Rhythm plays, chimes wait for the next beat or half-beat (at most about a third of a second) so they fall in with the drums, standing or walking. When you stop walking, the pad and bass ease down a little for a few seconds, then fill back in.
-- When a lot has been played lately, the music holds back and leaves more room, so a busy room doesn't turn into a wall of notes.
-- The music remembers the last little run of chimes. When the room goes quiet for a while and you are standing still, it may play that phrase back with a twist, like a theme returning.
-- The music passes through your other effects, so Echo, Reverb, Chorus, Spatial and the rest all shape it. The Pitch, Ring, Bit-crush, Distortion and Filter effects do not touch it.
-- In Auto worlds, Tranquil keeps the music very soft, Flux keeps the notes light but lets the loud room ring in key, Kinetic lets the notes grow with your pace, and Pocket switches Room notes off. Worlds never switch the music on or off for you.
 
 ### Input & output
 
@@ -262,12 +210,75 @@ Places the sound in your headphones.
 - **Pan:** all the way left, all the way right, or in the middle.
 - **Ear delay:** delays one ear slightly, which tricks your brain into hearing the sound as coming from the side.
 
-### Behavior
+## The Music tab
 
-Settings for the app itself rather than the sound.
+Everything that turns the room into music: the Rhythm (the beat) and the Music (notes, chords and harmony).
 
-- **Smoothing:** how smoothly the sound glides when you change a slider. Low gives instant, snappy changes. High gives slow slides.
-- **Nudge strength:** how far the Nudge button moves things (explained below).
+### Rhythm
+
+A beat that plays along with you. It used to be called "Walking beat", but it now does much more than follow your feet: it keeps a steady tempo, plays changing drum patterns, and can build its drum kit out of the sounds around you.
+
+**The tempo.** A steady clock keeps the beat. While you walk, it follows your steps the way a band follows its drummer: an odd step barely moves it, a change of pace is followed within a few steps, and a slow amble plays at double time. When you stop, the beat carries on at the last tempo.
+
+- **Rhythm enabled:** the switch for the whole section.
+- **Beat follows:** **Tempo clock** (the default, steady) or **Your steps** (the older behavior: one drum hit per footstep, wobbles and all).
+- **Tempo:** **Auto** (the default) follows your steps as described. **Set** lets you choose the tempo yourself with **Set tempo**, from 60 to 160 BPM: standing still the beat settles on your tempo; walking pulls it halfway toward your step rate, so you still feel your walk; when you stop it settles back. Try around 125 for a dance feel, or down in the 80s and 90s for hip hop.
+- **Beat plays:** **Always** (the default: softly while you stand still, fuller when you walk) or **Only while walking**.
+
+**The patterns.** The drums play real patterns on 16th notes, not just one hit per step. Every couple of bars it picks new kick, snare and hat patterns to suit how lively things are (a stroll or a quiet room gets calm ones, a brisk walk or a lively room busier ones), and every eight bars or so it may end on a snare fill. To keep it from sounding mechanical:
+
+- the swing drifts every few bars, from straight to a little lazy;
+- now and then (at least eight bars apart) one bar thins out, to hats only, no kick, or just the first kick, before the full beat comes back;
+- the patterns follow your pace and the room; while your steps are uneven (shuffling, turning) the drums play softer until your rhythm settles.
+
+**Drums made from the room ("Beat sounds").**
+
+- **Beat sounds:** **Found sounds** (the default), **Synth drums** or **Both**.
+- With Found sounds, each sudden sound the phone hears (a clap, a knock, a snap, a footstep, a door) is caught as a short snippet and filed as a kick (mostly low), a hat (mostly bright) or a snare (everything else). The kit keeps the latest five of each. Your very first catch already turns the whole kit into found sounds; until then a quiet synth beat keeps time.
+- Every hit is a little different: slightly higher or lower, softer or harder, sometimes with a softer start. About one hit in forty plays backwards or at half speed, as a small surprise.
+- A snap right at the microphone can overload it into a loud low pop; those are recognized and not kept. Nothing is caught while the phone is in a pocket, so cloth rustle stays out of the kit.
+- **The beat learns from you:** if you clap or knock on the same spot in the bar a few times, the beat starts playing a drum there too, and lets it fade a few bars after you stop.
+- **Glitch loops woven into the beat:** with the Glitch cloud on (see Glitch), each glitch is recorded for one bar and comes back in the beat at the same spot, fading bar by bar. 0 turns this off.
+
+**Levels.**
+
+- **Beat level (0 = off):** how loud the drums are. It starts at 0, so you hear nothing until you turn it up.
+- **Hi-hat level:** the small, ticking cymbal sound (synth and found).
+- **Snare level:** the sharp, snappy hit of the synth snare.
+- **Kick drum pitch:** how low or high the synth kick sounds.
+
+### Music
+
+This adds a soft, drifting musical layer that reacts to the world around you, in the spirit of RjDj. It is **off until you switch it on**. The notes are always in the key and scale you choose, so they always sound pleasant together, but when they play and how loud they are comes from what the app hears and how you move. Many parts can be played with sounds the app catches from your surroundings ("found sounds"); each such part has its own choice of Synth, Found sounds or Both.
+
+- **Music on/off:** the switch for the whole section.
+- **Let the home chord drift:** every few minutes the music's home chord moves to a related one on the same notes (in C major, for example, to a D, G or A-minor feel), then often comes back home. Switching it off brings the home chord back at once. On by default.
+- **Light, pocket and stairs move the notes higher or lower:** in a bright place the chimes and walking notes sit a little higher, in a dark room a little lower and warmer, in a pocket an octave lower, and climbing stairs lifts them. The pad and bass stay put. On by default.
+- **Key and Scale:** the home note and the mood. It starts in C Major. Major sounds bright, Minor sounds sad or serious, Pentatonic is simple and open, Dorian and Mixolydian are folky, Lydian is dreamy, and Whole tone is floaty and unresolved. Try them all.
+- **Pad level:** a very soft, slow background of gentle chords. It blends smoothly from one chord into the next. It is meant to be the glue, never the star. Keep it low.
+- **Pad register:** where the pad plays. **Low** is a soft bass note under everything that stays on the key's root and only sometimes moves. **Mid** is the chords. **Both** (the default) is the two together. When the beat is playing, the bass dips briefly on each step so it doesn't clash with the kick drum.
+- **Pad sounds:** **Found sounds** (the default), **Synth** or **Both**. With Found sounds, when you hum, sing or whistle a steady note (or a steady hum from a machine or a bird), the app keeps a short snippet of it, and from the next chord change the pad's chord is sung by that sound, stretched out and pitched to each chord note. It sounds like a choir of you holding the harmony. Until the first held note it plays the synth pad.
+- **Bass sound:** **Synth** (the default) or **Found sounds**, which plays the bass with that same held-note snippet, pitched down. It is subtle.
+- **Notes and chimes level:** how loud the melody notes are (the chimes and the walking notes). Turn it to 0 to hear only the pad.
+- **Melody sounds:** **Found sounds** (the default), **Synth chimes** or **Both**. With Found sounds, the chimes and walking notes play the sounds caught for the beat, tuned to each note. Until the first catch they play synth chimes.
+- **Chime character (ring to your sound):** how the found melody sounds. Toward "ring", each note is a tuned, bell-like ring set off by your sound. Toward "your sound", each note is mostly your clap, knock or snap itself played at that pitch, short and punchy. It starts in the middle.
+- **Room notes:** how loud the room's own notes are.
+- **Room notes sound:** **Found sounds** (the default): each sudden sound around you plays one of your caught sounds on a note of the current chord. **Ring**: the sounds around you ring the chord like a bell, in your key (a light tap gives a quick chime, talking or a passing car builds up to a long bell). **Both** plays the two.
+- **Harmony:** hum, sing or whistle a long, steady note and an answering note from the current chord joins in, never doubling yours. It holds as long as your note does and fades when you stop. Talking, noise and short sounds are ignored. 0 turns it off.
+- **Harmony sound:** **Your voice** (the default): a copy of your own voice, shifted to the chord note, sings with you. Low voices get their harmony a third or more above; from middle C up (most women's and children's voices) it sings a third or more below, so it never turns chipmunk. **Organ** is a soft organ note an octave away instead. **Both** plays the two.
+- **Tone:** darker and rounder on the left, brighter and glassier on the right.
+- **How much the music follows what it hears:** at the right end the music responds strongly to the room. At the left it plays a calmer, steadier pattern.
+
+What to expect:
+
+- In a quiet room the notes stay quiet or silent. They wake up as the room gets louder.
+- A sudden sound, like a clap or a door, rings a chime. A brighter sound gives higher chords.
+- Standing still, you get a slow, sparse pattern. When you walk, it turns into a flowing run of notes with each step, which swells louder as you walk faster and fades as you slow down. A stroll picks calmer patterns, a brisk walk livelier ones.
+- **The music stays in time with the beat.** While the Rhythm plays, chimes wait for the next beat or half-beat (at most about a third of a second) so they fall in with the drums, standing or walking. When you stop walking, the pad and bass ease down a little for a few seconds, then fill back in.
+- When a lot has been played lately, the music holds back and leaves more room, so a busy room doesn't turn into a wall of notes.
+- The music remembers the last little run of chimes. When the room goes quiet for a while and you are standing still, it may play that phrase back with a twist, like a theme returning.
+- The music passes through your other effects, so Echo, Reverb, Chorus, Spatial and the rest all shape it. The Pitch, Ring, Bit-crush, Distortion and Filter effects do not touch it.
+- In Realms, Tranquil keeps the music very soft, Flux keeps the notes light but lets the loud room ring in key, Kinetic lets the notes grow with your pace, and Pocket switches Room notes off. Realms never switch the music on or off for you.
 
 ## Movers: sliders that move on their own
 
@@ -279,7 +290,7 @@ A mover is a hands-free way to change a slider. Instead of dragging it yourself,
 2. Under the slider you want to move, pick a **Movement**.
 3. Two more settings appear: **Speed** (how fast it moves or reacts) and **Depth** (how far it moves). Depth 0 means no movement.
 
-Turning the section switch off sends every slider back to where you set it, and your movement choices are remembered for next time.
+Turning the section switch off sends every slider back to where you set it, and your movement choices are remembered for next time. While the sound plays, a small dot after a slider's name shows that a mover is moving it.
 
 **The movement choices:**
 
@@ -300,37 +311,41 @@ Turning the section switch off sends every slider back to where you set it, and 
 
 For the follow-the-phone and follow-the-room choices, Speed sets how quickly the slider reacts.
 
-**The XY pad.** With built-in effects selected, the pad under the scene button is a two-way control. Give one slider the movement Pad X (left to right) and another Pad Y (bottom to top), switch on movers for their sections, then drag your finger around the pad. It stays where you last touched.
+**The XY pad.** With built-in effects selected, the pad on the Sound tab is a two-way control. Give one slider the movement Pad X (left to right) and another Pad Y (bottom to top), switch on movers for their sections, then drag your finger around the pad. It stays where you last touched.
 
 Tip: a gentle Smooth wave or Random drift on a few sliders makes the sound feel alive. A mover on Echo level or Filter frequency is a good place to start.
 
-## Auto worlds
+## The Realms tab
 
-At the top of the effects is a section called **Worlds (automatic)**. Switch on **Auto worlds** and the app listens to the room and to how you are moving, then changes the sound for you. It only works with the built-in effects, not with scenes.
+Switch on **Auto realms** and the app listens to the room and to how you are moving, then changes the sound for you. (Realms were called Auto worlds before; they work the same.) They only work with the built-in effects, not with scenes.
 
-| World | When it plays | What it sounds like |
+| Realm | When it plays | What it sounds like |
 | --- | --- | --- |
 | Tranquil | The room is quiet | Soft, dreamy, swirling sound with lots of space |
 | Flux | The room is loud and lively, like voices, music or clatter (a steady roar like running water or a fan doesn't count) | Edgy and glitchy, with sounds that sometimes freeze and jump, but the room still comes through |
 | Kinetic | You are walking | A pulsing sound that speeds up when you move more |
 | Ghost | Midnight to 5 AM | Eerie backwards echoes and a deep, hollow room. Sudden sounds hang in the air, smeared out slowly or played backwards |
-| Pocket | The phone is in a pocket or face down (covered and dark for about a second) and no other world fits | Quiet and muffled, with a soft room. Your drums and the music (if it is on) carry the sound. |
+| Pocket | The phone is in a pocket or face down (covered and dark for about a second) and no other Realm fits | Quiet and muffled, with a soft room. Your drums and the music (if it is on) carry the sound. |
 
-A world only starts after the situation has lasted a few seconds, so a single clap won't flip it. The sliders then glide to the new sound over about three seconds. When nothing special is going on, your own settings glide back. Stopping the app also gives them back right away.
+A Realm only starts after the situation has lasted a few seconds, so a single clap won't flip it. The sliders then glide to the new sound over about three seconds. When nothing special is going on, your own settings glide back. Stopping the app also gives them back right away. A soft, dreamy "warp" plays when a Realm starts (gliding up) and when your own settings come back (gliding down); you can switch it off with **Realm change sound** on the Setup tab.
 
-There is also an **Unstable** world, switched off unless you pick a preset for it in the list: shake the phone hard while standing still and everything piles on at once (glitches, crushed and ring-modulated sound, a pitch shift), getting wilder the harder you shake. It comes in almost instantly and lets go about 5 seconds after you stop.
+There is also an **Unstable** Realm, switched off unless you pick a preset for it in the list: shake the phone hard while standing still and everything piles on at once (glitches, crushed and ring-modulated sound, a pitch shift), getting wilder the harder you shake. It comes in almost instantly and lets go about 5 seconds after you stop.
 
-Being in a pocket doesn't stop the other worlds. In your pocket, walking still gives Kinetic, a loud and lively place still gives Flux, a quiet one Tranquil, and late night Ghost. Pocket only plays when none of them fits. Whatever world is playing, the pocket's own protection rides on top: Pocket hush and Mic-down protection (under Input & output).
+Being in a pocket doesn't stop the other Realms. In your pocket, walking still gives Kinetic, a loud and lively place still gives Flux, a quiet one Tranquil, and late night Ghost. Pocket only plays when none of them fits. Whatever Realm is playing, the pocket's own protection rides on top: Pocket hush and Mic-down protection (under Input & output).
 
-While Auto worlds is on, the card at the bottom shows a **Now:** line with the world and why it was chosen, for example "Now: Kinetic · walking · ordinary room (-45 dB)". It names night, walking, a pocket, and how the room sounds (quiet, ordinary, loud but steady, or loud and lively). Tap **Hold world** to keep the current world, for example through doorways and shops where light and noise keep changing. Tap **Let go** to release it. Stopping the sound also lets go.
+The **Now:** line in the card names the Realm and why it was chosen, for example "Now: Kinetic · walking · ordinary room (-45 dB)": night, walking, a pocket, and how the room sounds (quiet, ordinary, loud but steady, or loud and lively). Tap **Hold realm** to keep the current Realm, for example through doorways and shops where light and noise keep changing. Tap **Let go** to release it. Stopping the sound also lets go.
 
-Under the switch, each world has a menu where you can pick which preset it plays, or turn that world off. Sliders you've **locked** are never changed by a world.
+**Choosing what each Realm plays.** Each Realm has a menu where you pick which preset it plays (the built-in ones are called "Tranquil realm", "Kinetic realm" and so on, and any preset you saved can be used), or turn that Realm off. Sliders you've **locked** are never changed by a Realm.
 
-This is a first version. Please tell me whether it changes too early, too late, or not at all, and what phone and situation you were in.
+**Choosing what each Realm changes.** Under each Realm's menu, tap **What it changes** to open its switches: Rhythm, Music, Echo, Reverb, Glitch, Color (ring, pitch, crush, distortion, filter), Motion (chorus, flanger, phaser, tremolo), and Space and dry level. Switch a group off and that Realm leaves it at your own settings. For example, untick Reverb under Kinetic and your reverb stays exactly where you set it while you walk. The line then reads "What it changes: all but Reverb". When a Realm ends, only what it actually changed goes back, so anything you adjusted in a group it left alone stays yours.
 
-## The four built-in scenes
+Please tell me whether Realms change too early, too late, or not at all, and what phone and situation you were in.
 
-A scene is a ready-made experience from the original RjDj. While a scene is playing it replaces the built-in effects, so the effect sliders are hidden. Press **Choose scene** to pick one, and **Choose scene > Built-in effects** to go back. The app includes four official example scenes made by the RjDj team (used under their open-source license):
+## The Scenes tab
+
+A scene is a ready-made experience from the original RjDj. While a scene is playing it replaces the built-in effects, so the Sound, Music and Realms tabs are paused. Press **Choose scene** to pick one, and **Choose scene > Built-in effects** to go back. **Import zip** and **Import folder** add scenes you already have. With a scene chosen, its touch pad shows the scene's picture, and fingers on it are sent to the scene.
+
+The app includes four official example scenes made by the RjDj team (used under their open-source license):
 
 - **Hello World World World:** a series of delays applied to the sound around you. Talk or clap and listen to it echo and pile up.
 - **Onset Detection:** every sharp sound, like a clap, a tap or a beatbox pop, triggers a musical note. Quiet sounds do nothing.
@@ -341,10 +356,10 @@ They are older and simpler than the built-in effects, but they are the real thin
 
 ## Presets and shortcuts
 
-A preset is a saved collection of slider settings, like a saved radio station.
+A preset is a saved collection of slider settings, like a saved radio station. The buttons are at the top of the Sound tab.
 
 - **Presets** opens a list of built-in presets (for example "Wobbly pitch") and the ones you saved. Tap one to load it. Long-press one you saved to delete it. Built-in ones can't be deleted.
-- **Save** stores your current settings under a name you choose. Save sound, in the card at the bottom, does the same in one tap and names it after the time (like "Thu 10-31"). You can find it in Presets afterwards, or pick it for a world.
+- **Save** stores your current settings under a name you choose. Save sound, in the card at the bottom, does the same in one tap and names it after the time (like "Thu 10-31"). You can find it in Presets afterwards, or pick it for a Realm.
 - **Randomize** moves every slider to a random value within a safe range. While the sound is playing it glides there over about 6 seconds, so you hear the change happen. A slider you touch during the glide stays where you put it. It's good for finding new sounds by accident. **Undo** takes you back.
 - **Nudge** moves every slider only a little, so you drift to a nearby sound instead of jumping. How far it moves is set by Nudge strength in Behavior.
 - **Lock** (on a slider) protects it from Randomize and Nudge, so you can keep the sounds you like and shuffle the rest.
@@ -354,17 +369,20 @@ The app also remembers your last settings when you close it.
 
 ## Starting fresh with Reset
 
-At the bottom of the screen is a **Reset everything to defaults** button. It asks you to confirm, then puts every slider, mover, lock, world setting and audio choice back to how the app was when you first installed it, so you can experiment without leftovers from earlier tries. It keeps your saved presets, any scenes you imported, and your appearance choice. If you deleted one of the four built-in scenes, Reset brings it back. Nothing is ever reset unless you press this button and confirm. Because updating the app keeps your old settings, Reset is also how you get the newest starting values after an update.
+On the Setup tab is a **Reset everything to defaults** button. It asks you to confirm, then puts every slider, mover, lock, Realm setting and audio choice back to how the app was when you first installed it, so you can experiment without leftovers from earlier tries. It keeps your saved presets, any scenes you imported, and your appearance choice. If you deleted one of the four built-in scenes, Reset brings it back. Nothing is ever reset unless you press this button and confirm. Because updating the app keeps your old settings, Reset is also how you get the newest starting values after an update.
 
 If you ever uninstall the app, everything in it is erased, including your saved presets. To keep your favorites, use Presets > Export on each one first and Import them again afterward.
 
-A preset file holds the effect sliders, their movers, the Music and Rhythm levels, Chime character, and the Dry level. It does not hold: Input gain, noise gate and compressor (and their shape); Smoothing and Nudge strength; whether Music is switched on, its key and scale, and the Synth / Found sounds choices; the Rhythm's tempo settings; locks; the Auto worlds choices; your audio device choices; imported scenes; or the appearance look. Set those again by hand after reinstalling.
+A preset file holds the effect sliders, their movers, the Music and Rhythm levels, Chime character, and the Dry level. It does not hold: Input gain, noise gate and compressor (and their shape); Smoothing and Nudge strength; whether Music is switched on, its key and scale, and the Synth / Found sounds choices; the Rhythm's tempo settings; locks; the Realm choices; your audio device choices; imported scenes; or the appearance look. Set those again by hand after reinstalling.
 
-## Audio devices and appearance
+## The Setup tab
 
 - **Audio devices** has Input (microphone) and Output menus. Output is always headphones or earbuds, wired or Bluetooth. The app picks wired first, then Bluetooth, and you can choose another pair from the menu. For Input you can pick the phone's own mic, a wired headset mic, or a Bluetooth headset mic. Careful with that last one: most Bluetooth earbuds can only use their mic in "phone call mode", which sounds thin and low quality. For the best sound, choose the phone's mic or a wired headset. Some newer headsets (Bluetooth LE Audio) do better, and the app shows a hint under the Input menu about the one you picked. Wired headphones also have the least delay.
 - **Appearance** switches between a light look, a dark look (the default) and a pure-black look that suits OLED screens.
 - **About and licenses** shows the open-source licenses. The app is free software and includes parts of the original RjDj project.
+
+- **Behavior:** **Smoothing** sets how smoothly the sound glides when you change a slider (low gives instant, snappy changes, high gives slow slides). **Nudge strength** sets how far the Nudge button moves things. **Realm change sound** switches the warp sound off or on.
+- **Reset everything to defaults** and **About and licenses** (see below).
 
 **Earbud and headset mics are much quieter than the phone's.** They are made for your voice right next to them, not for hearing a room, so a USB-C, wired or Bluetooth headset mic can sound silent at first. If you pick one as Input, open **Input & output**, raise **Input gain** (around 8 worked for USB-C earbuds, against 2.5 for the phone mic) and lower **Noise gate threshold**, all the way to -80 if needed (-80 switches the gate off). When you go back to the phone's mic, turn them back, or it will be loud and hissy. The app keeps one set of these settings for every mic, because Android gives many headsets the same generic name and the app can't tell them apart.
 
@@ -378,7 +396,7 @@ Thank you for trying this. Anything you notice is useful, even "it felt weird." 
 - **Sound problems:** crackling, dropouts, silence, a squeal, or delay between making a sound and hearing it. Say which effects were on. Crackling or stuttering with many things switched on can mean your phone is working too hard; tell me which ones.
 - **Does it keep running** when you lock the screen or switch to another app?
 - **Battery and heat:** does your phone get warm, or does the battery drain fast?
-- **Anything confusing** on screen, such as a label or button you didn't understand. Is the card at the bottom easy to reach while walking, and does its Now: line make sense?
+- **Anything confusing** on screen, such as a label or button you didn't understand. Is the card at the bottom easy to reach while walking, are the tabs easy to tap, and does the Now: line make sense? Is everything on the tab you expected?
 - **Crashes or freezes:** what you were doing just before.
 - **Movers:** do the tilt, shake, spin, compass, light, pocket and stairs movements feel right? Does a sensor seem to be missing on your phone?
 - **Pocket:** with the phone in a pocket, both mic end up and mic end down, how much cloth noise do you hear? Can you still hear the world around you? Which Pocket hush and Mic-down protection settings worked for you?
@@ -388,7 +406,8 @@ Thank you for trying this. Anything you notice is useful, even "it felt weird." 
 - **Found sounds:** do the drums, chimes and room notes sound like the sounds around you? Is the beat too predictable, or too random? Where on the Chime character slider do you like the chimes? Does anything loud or harsh come back from the kit (a boom, a squeal)?
 - **Harmony:** does your voice copy sound like you and stay in tune? Does it sound natural when you sing low and when you sing high? Does it leave ordinary talking alone?
 - **Found pad:** after you hum a steady note, does the pad sound like your voice holding the chord?
-- **Rhythm:** does the beat stay steady while you walk and follow a change of pace? With Tempo set to Set, does it settle on your tempo, and does walking pull it the right amount? Do the occasional sparse bars and the drifting swing feel musical?
+- **Rhythm:** does the beat stay steady while you walk and follow a change of pace? With Tempo set to Set, does it settle on your tempo, and does walking pull it the right amount? Do the occasional sparse bars and the drifting swing feel musical? Does the beat still land on your steps as you walk?
+- **Realms:** do they change at the right moments? Do the "What it changes" switches leave the groups you untick alone? Is the warp sound pleasant, and noticeable without being annoying?
 - **Glitch:** with Glitch cloud amount up, do sudden sounds come back in a fun way, and do they feel like they are all around you? Which glitch matrix mix did you like best? Do the echoes bouncing around (Echo scatter) feel good or dizzying?
 - **Headphones and mic:** did the app refuse to start, stop when you unplugged, or pick the wrong mic? Did it go quiet during a call and come back after, and did it dip when another app played music?
 - **Scenes:** does each of the four built-in scenes make sound, and does it react the way its description says? Tell me which ones felt dead, too loud or confusing.
