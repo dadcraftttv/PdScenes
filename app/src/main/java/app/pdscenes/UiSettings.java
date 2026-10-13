@@ -4,7 +4,7 @@ package app.pdscenes;
 import android.content.Context;
 import android.content.SharedPreferences;
 
-/** Screen preferences: chosen theme and which sections are expanded. Not part of presets. */
+/** Screen preferences: chosen theme, which sections are expanded, the tab shown. Not part of presets. */
 final class UiSettings {
 
     static final int THEME_LIGHT = 0;
@@ -42,6 +42,17 @@ final class UiSettings {
 
     static boolean isLight(int theme) {
         return theme == THEME_LIGHT;
+    }
+
+    private static final String KEY_TAB = "tab";
+
+    /** The tab last shown (0 Sound, 1 Music, 2 Realms, 3 Scenes, 4 Setup). */
+    static int tab(Context context) {
+        return prefs(context).getInt(KEY_TAB, 0);
+    }
+
+    static void setTab(Context context, int tab) {
+        prefs(context).edit().putInt(KEY_TAB, tab).apply();
     }
 
     static boolean isExpanded(Context context, String sectionId, boolean defaultOpen) {

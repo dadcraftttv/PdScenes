@@ -82,7 +82,18 @@ public class MainActivity extends Activity {
     private Button undoButton;
     private TextView sceneLabel;
     /** Presets, randomize and the effect sections: hidden while an imported scene is selected. */
-    private LinearLayout effectsBox;
+    // ---- tabs: Sound, Music, Realms, Scenes, Setup (the one long list had outgrown itself) ----
+    private static final int TAB_SOUND = 0, TAB_MUSIC = 1, TAB_REALMS = 2, TAB_SCENES = 3, TAB_SETUP = 4;
+    private static final int[] TAB_NAMES = {R.string.tab_sound, R.string.tab_music, R.string.tab_realms,
+            R.string.tab_scenes, R.string.tab_setup};
+    private final LinearLayout[] tabPages = new LinearLayout[TAB_NAMES.length];     // each tab's whole page
+    private final LinearLayout[] tabBodies = new LinearLayout[TAB_NAMES.length];    // its controls (hidden for a scene)
+    private final TextView[] tabNotices = new TextView[TAB_NAMES.length];           // "paused while a scene plays"
+    private final TextView[] tabButtons = new TextView[TAB_NAMES.length];
+    private final int[] tabScroll = new int[TAB_NAMES.length];
+    private int currentTab = -1;
+    private LinearLayout xyPadSlot;          // where the pad sits on the Sound tab (an XY pad for the movers)
+    private LinearLayout scenePadSlot;       // ...and on the Scenes tab (the scene's own pad)
     /** One dropdown per automatic world, and the line saying which one is playing. */
     private final List<WorldRow> worldRows = new ArrayList<>();
     private TextView worldStatus;
@@ -207,7 +218,11 @@ public class MainActivity extends Activity {
         screen.addView(scroll, new android.widget.FrameLayout.LayoutParams(
                 android.widget.FrameLayout.LayoutParams.MATCH_PARENT, android.widget.FrameLayout.LayoutParams.MATCH_PARENT));
         // The card floats over the settings, which scroll on behind it; the end of the list stops just above it.
-        View bar = buildBottomBar();
+        View card = buildBottomBar();
+        LinearLayout bar = new LinearLayout(this);      // the tab strip over the card: both stay at the bottom
+        bar.setOrientation(LinearLayout.VERTICAL);
+        bar.addView(buildTabStrip());
+        bar.addView(card);
         android.widget.FrameLayout.LayoutParams barParams = new android.widget.FrameLayout.LayoutParams(
                 android.widget.FrameLayout.LayoutParams.MATCH_PARENT, android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
                 android.view.Gravity.BOTTOM);
@@ -244,25 +259,46 @@ public class MainActivity extends Activity {
         warning.setText(R.string.no_headphones_warning);
         root.addView(warning);
 
+        // the five tab pages, one shown at a time (the strip that switches them sits on the bottom card)
+        for (int t = 0; t < TAB_NAMES.length; t++) {
+            LinearLayout page = new LinearLayout(this);
+            page.setOrientation(LinearLayout.VERTICAL);
+            TextView notice = new TextView(this);
+            notice.setText(R.string.tab_paused_scene);
+            notice.setTextSize(15);
+            notice.setPadding(0, dp(16), 0, dp(16));
+            notice.setVisibility(View.GONE);
+            page.addView(notice);
+            LinearLayout body = new LinearLayout(this);
+            body.setOrientation(LinearLayout.VERTICAL);
+            page.addView(body);
+            page.setVisibility(View.GONE);
+            root.addView(page);
+            tabPages[t] = page;
+            tabNotices[t] = notice;
+            tabBodies[t] = body;
+        }
+        LinearLayout sound = tabBodies[TAB_SOUND], music = tabBodies[TAB_MUSIC], realms = tabBodies[TAB_REALMS];
+        LinearLayout scenes = tabBodies[TAB_SCENES], setup = tabBodies[TAB_SETUP];
+
+        // ---- Scenes ----
         sceneLabel = new TextView(this);
         sceneLabel.setTextSize(16);
         sceneLabel.setPadding(0, dp(12), 0, dp(4));
-        root.addView(sceneLabel);
-        LinearLayout sceneRow = newButtonRow(root);
+        scenes.addView(sceneLabel);
+        LinearLayout sceneRow = newButtonRow(scenes);
         addButton(sceneRow, R.string.choose_scene, this::showScenes);
         addButton(sceneRow, R.string.import_scene, this::startImportScene);
         addButton(sceneRow, R.string.import_scene_folder, this::startImportSceneFolder);
+        scenePadSlot = new LinearLayout(this);
+        scenePadSlot.setOrientation(LinearLayout.VERTICAL);
+        scenes.addView(scenePadSlot);
 
         scenePad = new ScenePad(this);
         scenePad.setListener(this::sendTouch);
-        LinearLayout.LayoutParams padParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        padParams.topMargin = dp(8);
-        root.addView(scenePad, padParams);
         padHint = new TextView(this);
         padHint.setText(R.string.pad_hint);
         padHint.setTextSize(13);
-        root.addView(padHint);
 
         sceneLevels = new LinearLayout(this);
         sceneLevels.setOrientation(LinearLayout.VERTICAL);
@@ -288,19 +324,16 @@ public class MainActivity extends Activity {
         hint.setText(R.string.scene_headphones_hint);
         hint.setTextSize(13);
         sceneLevels.addView(hint);
-        root.addView(sceneLevels);
+        scenes.addView(sceneLevels);
 
-        effectsBox = new LinearLayout(this);
-        effectsBox.setOrientation(LinearLayout.VERTICAL);
-        root.addView(effectsBox);
-
-        LinearLayout presetRow = newButtonRow(effectsBox);
+        // ---- Sound: presets and shortcuts, the XY pad, then the input and the effects ----
+        LinearLayout presetRow = newButtonRow(sound);
         addButton(presetRow, R.string.presets, this::showPresets);
         addButton(presetRow, R.string.save, this::showSave);
         addButton(presetRow, R.string.export, this::startExport);
         addButton(presetRow, R.string.import_preset, this::startImport);
 
-        LinearLayout randomRow = newButtonRow(effectsBox);
+        LinearLayout randomRow = newButtonRow(sound);
         addButton(randomRow, R.string.randomize, () -> {
             ParamStore.randomize();
             refreshRows();
@@ -315,21 +348,76 @@ public class MainActivity extends Activity {
             ParamStore.undo();
             refreshRows();
         });
+        xyPadSlot = new LinearLayout(this);
+        xyPadSlot.setOrientation(LinearLayout.VERTICAL);
+        sound.addView(xyPadSlot);
 
-        LinearLayout resetRow = newButtonRow(effectsBox);
-        addButton(resetRow, R.string.reset_all, this::confirmResetAll);
-
+        // ---- Realms ----
         Worlds.load(this);
-        addSection(effectsBox, "worlds", getString(R.string.section_worlds), true, this::fillWorldsSection);
+        addSection(realms, "worlds", getString(R.string.section_worlds), true, this::fillWorldsSection);
+
+        // ---- the sections, each on its tab ----
         for (Params.Section section : Params.SECTIONS) {
-            addSection(effectsBox, section.id, section.title, section.openByDefault,
+            LinearLayout tab = "beat".equals(section.id) || "music".equals(section.id) ? music
+                    : "behavior".equals(section.id) ? setup : sound;
+            addSection(tab, section.id, section.title, section.openByDefault,
                     body -> fillEffectSection(body, section));
         }
-        addAudioSection(root);
-        addAppearanceSection(root);
-        addAboutSection(root);
+
+        // ---- Setup ----
+        addAudioSection(setup);
+        addAppearanceSection(setup);
+        LinearLayout resetRow = newButtonRow(setup);
+        addButton(resetRow, R.string.reset_all, this::confirmResetAll);
+        addAboutSection(setup);
+        showTab(UiSettings.tab(this));
         refreshRows();
         updateSceneUi();
+    }
+
+    /** The tab strip: five equal tabs over the bottom card, the shown one bold and in the accent colour. */
+    private View buildTabStrip() {
+        LinearLayout strip = new LinearLayout(this);
+        strip.setOrientation(LinearLayout.HORIZONTAL);
+        strip.setPadding(dp(4), 0, dp(4), dp(4));
+        for (int t = 0; t < TAB_NAMES.length; t++) {
+            TextView b = new TextView(this);
+            b.setText(TAB_NAMES[t]);
+            b.setTextSize(15);
+            b.setGravity(android.view.Gravity.CENTER);
+            b.setPadding(0, dp(10), 0, dp(10));
+            b.setBackgroundResource(android.R.drawable.list_selector_background);
+            final int tab = t;
+            b.setOnClickListener(v -> showTab(tab));
+            strip.addView(b, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+            tabButtons[t] = b;
+        }
+        styleBarCard(strip);
+        return strip;
+    }
+
+    /** Shows one tab (each keeps its own scroll position) and remembers it for next time. */
+    private void showTab(int tab) {
+        tab = Math.max(0, Math.min(TAB_NAMES.length - 1, tab));
+        if (currentTab >= 0 && mainScroll != null) {
+            tabScroll[currentTab] = mainScroll.getScrollY();
+        }
+        for (int t = 0; t < TAB_NAMES.length; t++) {
+            tabPages[t].setVisibility(t == tab ? View.VISIBLE : View.GONE);
+            TextView b = tabButtons[t];
+            if (b != null) {
+                b.setTypeface(t == tab ? Typeface.DEFAULT_BOLD : Typeface.DEFAULT);
+                b.setTextColor(t == tab ? accentColor() : status != null ? status.getCurrentTextColor() : 0xFF888888);
+                b.setAlpha(t == tab ? 1f : 0.75f);
+                b.setSelected(t == tab);
+            }
+        }
+        currentTab = tab;
+        UiSettings.setTab(this, tab);
+        if (mainScroll != null) {
+            final int y = tabScroll[tab];
+            mainScroll.post(() -> mainScroll.scrollTo(0, y));
+        }
     }
 
     private View buildBottomBar() {
@@ -531,15 +619,20 @@ public class MainActivity extends Activity {
     @Override
     protected void onSaveInstanceState(Bundle out) {
         super.onSaveInstanceState(out);
-        if (mainScroll != null) {
-            out.putInt(STATE_SCROLL, mainScroll.getScrollY());
+        if (mainScroll != null && currentTab >= 0) {
+            tabScroll[currentTab] = mainScroll.getScrollY();
+            out.putIntArray(STATE_SCROLL, tabScroll);
         }
     }
 
     @Override
     protected void onRestoreInstanceState(Bundle saved) {
         super.onRestoreInstanceState(saved);
-        int y = saved.getInt(STATE_SCROLL, 0);
+        int[] all = saved.getIntArray(STATE_SCROLL);
+        if (all != null && all.length == tabScroll.length) {
+            System.arraycopy(all, 0, tabScroll, 0, all.length);
+        }
+        int y = currentTab >= 0 ? tabScroll[currentTab] : 0;
         if (y <= 0 || mainScroll == null) {
             return;
         }
@@ -1332,9 +1425,26 @@ public class MainActivity extends Activity {
         SceneLibrary.Scene scene = SceneSettings.current(this);
         sceneLabel.setText(getString(R.string.scene_current,
                 scene != null ? scene.name : getString(R.string.scene_built_in)));
-        effectsBox.setVisibility(scene != null ? View.GONE : View.VISIBLE);
+        // a scene replaces the built-in sound: its tabs say so instead of showing controls that do nothing
+        for (int t : new int[]{TAB_SOUND, TAB_MUSIC, TAB_REALMS}) {
+            tabBodies[t].setVisibility(scene != null ? View.GONE : View.VISIBLE);
+            tabNotices[t].setVisibility(scene != null ? View.VISIBLE : View.GONE);
+        }
         scenePad.setScene(scene);
-        // With no scene the pad is an XY controller for the effects' movers (see the per-slider movers).
+        // With no scene the pad is an XY controller for the effects' movers (on the Sound tab); with one, the
+        // scene's own pad (on the Scenes tab).
+        LinearLayout slot = scene != null ? scenePadSlot : xyPadSlot;
+        if (scenePad.getParent() != slot) {
+            if (scenePad.getParent() != null) {
+                ((android.view.ViewGroup) scenePad.getParent()).removeView(scenePad);
+                ((android.view.ViewGroup) padHint.getParent()).removeView(padHint);
+            }
+            LinearLayout.LayoutParams padParams = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+            padParams.topMargin = dp(8);
+            slot.addView(scenePad, padParams);
+            slot.addView(padHint);
+        }
         padHint.setVisibility(scene != null ? View.GONE : View.VISIBLE);
         sceneLevels.setVisibility(scene != null ? View.VISIBLE : View.GONE);
     }

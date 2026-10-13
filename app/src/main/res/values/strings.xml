@@ -93,6 +93,12 @@
     <string name="toast_imported">Imported \"%s\"</string>
     <string name="toast_deleted">Deleted</string>
     <string name="section_worlds">Worlds (automatic)</string>
+    <string name="tab_sound">Sound</string>
+    <string name="tab_music">Music</string>
+    <string name="tab_realms">Worlds</string>
+    <string name="tab_scenes">Scenes</string>
+    <string name="tab_setup">Setup</string>
+    <string name="tab_paused_scene">Paused while a scene is playing. To use these again, choose Built-in effects in the Scenes tab.</string>
     <string name="worlds_auto">Auto worlds: change the sound to fit what is happening around you</string>
     <string name="worlds_now">Right now: %s</string>
     <string name="worlds_yours">your own settings</string>
