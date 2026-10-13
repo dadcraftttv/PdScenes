@@ -410,7 +410,7 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
 ## Open / next
 - **Ideas queue with details: `docs/ROADMAP.md`** (in-key resonators, pitch-following harmony, Ghost capture, Kinetic tiers, Unstable and Collective worlds, stems player).
 - Release prep: final name + applicationId, `source_url` in strings.xml, privacy policy, Play foreground-service + microphone declarations, icon, store listing.
-- Ideas, not requested: beat-offset slider if drift returns, music independent of Dry level,
+- Ideas, not requested: beat-offset slider if drift returns,
   location (`#loc`) scene input, unported scene objects.
 - The Beta Tester Guide lives in this repo: `docs/TESTER-GUIDE.md` (tester-facing: "Dad"/"DadCraft", plain words; moved
   from Samuel's Claude Docs on Oct 12, where an older Oct 10 copy remains). When behavior changes, update it in the
