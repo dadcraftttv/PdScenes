@@ -75,6 +75,7 @@ public class MainActivity extends Activity {
         public void run() {
             updateNowLine();
             updateMoverDots();
+            updateIntensityRow();
             updateStatus();
             updateDiagnostics();
             uiHandler.postDelayed(this, NOW_LINE_MS);
@@ -449,6 +450,7 @@ public class MainActivity extends Activity {
         nowLine.setTypeface(Typeface.DEFAULT_BOLD);
         nowLine.setPadding(0, dp(2), 0, 0);
         bar.addView(nowLine);
+        bar.addView(buildIntensityRow());
 
         LinearLayout row = newButtonRow(bar);
         startStop = new Button(this);
@@ -461,6 +463,58 @@ public class MainActivity extends Activity {
         });
         snapButton = addButton(row, R.string.snapshot, this::saveSnapshot);
         return bar;
+    }
+
+    private LinearLayout intensityRow;
+    private TextView intensityLabel;
+    private SeekBar intensityBar;
+
+    /** Intensity in thumb reach: the same setting as the slider at the top of Input & output. */
+    private View buildIntensityRow() {
+        intensityRow = new LinearLayout(this);
+        intensityRow.setOrientation(LinearLayout.HORIZONTAL);
+        intensityRow.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        intensityRow.setPadding(0, dp(4), 0, 0);
+        intensityLabel = new TextView(this);
+        intensityLabel.setTextSize(14);
+        intensityRow.addView(intensityLabel);
+        intensityBar = new SeekBar(this);
+        intensityBar.setMax(100);
+        intensityBar.setContentDescription(getString(R.string.intensity_card));
+        intensityBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar b, int progress, boolean fromUser) {
+                if (fromUser) {
+                    ParamStore.set(Intensity.ID, progress / 100f);
+                    updateIntensityRow();
+                }
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar b) { }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar b) {
+                refreshRows();   // the slider in Input & output follows
+            }
+        });
+        intensityRow.addView(intensityBar, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        updateIntensityRow();
+        return intensityRow;
+    }
+
+    /** Shows Intensity's value (and the mover dot while a mover pushes it); hidden while a scene plays. */
+    private void updateIntensityRow() {
+        if (intensityRow == null) {
+            return;
+        }
+        intensityRow.setVisibility(SceneSettings.current(this) == null ? View.VISIBLE : View.GONE);
+        float v = ParamStore.get(Intensity.ID);
+        if (!intensityBar.isPressed()) {
+            intensityBar.setProgress(Math.round(v * 100));
+        }
+        intensityLabel.setText(getString(R.string.intensity_card_value, Math.round(v * 100))
+                + (Modulation.isMoving(Intensity.ID) ? MOVER_DOT : ""));
     }
 
     /**
@@ -1317,6 +1371,7 @@ public class MainActivity extends Activity {
         }
         updateMoverUi();
         updateBudgetLines();
+        updateIntensityRow();
         undoButton.setEnabled(ParamStore.canUndo());
     }
 

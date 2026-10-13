@@ -24,6 +24,7 @@ There are two ways to use it:
 - **Dry level no longer turns the music down:** it only changes your microphone's sound.
 - **Music stays in time** with the beat, standing or walking.
 - A small dot shows which sliders a mover is moving.
+- **Intensity** in the bottom card: calmer to the left, busier to the right, your own settings in the middle.
 - **Handling noise:** tapping, gripping or rubbing the phone no longer becomes part of the music: those sounds are turned down and never caught as found sounds (see Handling hush).
 - **Diagnostics** on the Setup tab shows which mic and headphones are really in use, how loud the mic hears the room, and whether anything overloads. If the mic itself keeps overloading, the status line at the bottom says so.
 - The Key and Scale menus no longer jump back to C major.
@@ -62,6 +63,7 @@ The screen has five tabs. The **card at the bottom** stays in place on every tab
 
 - **The tab row** across the top of the card: **Sound**, **Music**, **Realms**, **Scenes** and **Setup**. The tab you are on is highlighted. Each tab keeps its own place when you scroll, and the app opens on the tab you used last.
 - **The status line** says what is happening, including the audio rate your phone is using. Under it a **Now:** line shows the Realm playing and why (see The Realms tab), and while the Rhythm plays, the tempo ("walking 112 BPM") and the found-sound kit ("kit K2 S1 H3 · 24 caught": how many kicks, snares and hats it holds, and how many sounds it has caught in all).
+- **Intensity**: one slider for how much is going on. In the middle (50) everything plays exactly as you set it. Slide left for calmer: fewer glitches and chimes, less echo and reverb, quieter and simpler drums, lighter effects. Slide right for busier: more of all of those and busier drum patterns. It only turns up what is already on (an effect you set to 0 stays off), it never changes your sliders, and presets and Realms leave it alone. The same slider sits at the top of Input & output, where you can also give it a mover (for example Shake = higher). It is hidden while a scene plays.
 - **Start / Stop**, **Save sound** (keeps the sound you are hearing as a preset in one tap) and **Hold realm** (appears when Auto realms is on).
 
 Inside a tab, settings are grouped in sections. Tap a section's heading to open or fold it; the app remembers which ones you opened. While a scene is playing, the Sound, Music and Realms tabs say so instead of showing controls that would do nothing.
@@ -85,6 +87,8 @@ The numbers (ms, Hz) don't matter much. Drag, listen, and decide whether you lik
 ### Input & output
 
 This section controls the sound going in, before any effect touches it.
+
+- **Intensity:** the same control as in the bottom card (see The main screen).
 
 - **Input gain:** the microphone's volume. Turn it up if everything is too quiet, down if it's harsh or distorts.
 - **Noise gate threshold:** silences very quiet sounds, like background hiss, so only louder sounds come through. At the far left it is off.
@@ -404,6 +408,7 @@ Thank you for trying this. Anything you notice is useful, even "it felt weird." 
 - **Anything confusing** on screen, such as a label or button you didn't understand. Is the card at the bottom easy to reach while walking, are the tabs easy to tap, and does the Now: line make sense? Is everything on the tab you expected?
 - **Crashes or freezes:** what you were doing just before.
 - **Movers:** do the tilt, shake, spin, compass, light, pocket and stairs movements feel right? Does a sensor seem to be missing on your phone?
+- **Intensity:** try both ends while you walk. Is the left end calm without going dead, and the right end busy without turning into a mess? Is the middle the sound you set up?
 - **Handling:** tap, grip and rub the phone while it plays. Are those sounds quieter, and do they stay out of the beat and the chimes (Diagnostics counts the skipped ones)? Walk holding the phone: does the found-sound beat still pick up the sounds around you? Clap and knock nearby with the phone still: are those still caught?
 - **Pocket:** with the phone in a pocket, both mic end up and mic end down, how much cloth noise do you hear? Can you still hear the world around you? Which Pocket hush and Mic-down protection settings worked for you?
 - **Presets:** does Export then Import bring back the same sound?

@@ -79,6 +79,11 @@ final class Params {
     /** The sound parameters. The Pd patch has a receiver for each one that is not noPd(). */
     private static final List<Param> CORE = Arrays.asList(
             // ---- Input & output ----
+            // Intensity (Samuel, Oct 13): how much is going on, 0.5 = as set. Scales effect levels, glitches, chimes
+            // and the beat's busyness on their way to Pd (Intensity.java), never the stored values. Also in the bottom card.
+            // The user's own hand control: not in presets, not randomized, Realms leave it alone.
+            new Param("intensity", "Intensity (calmer to busier, middle = as set)", 0f, 1f, 0.5f, "",
+                    Param.Curve.LINEAR).inSection("main").noRandom().noPreset().resetWhenAbsent(),
             new Param("gain", "Input gain", 0f, 10f, 2.5f, "x", Param.Curve.LINEAR)
                     .inSection("main").noRandom().noPreset(),
             // Input conditioning: depends on the room and the mic, so not part of presets/randomize.

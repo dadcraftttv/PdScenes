@@ -34,6 +34,8 @@
     <string name="section_closed">▸ %s</string>
     <string name="section_appearance">Appearance</string>
     <string name="section_audio">Audio devices</string>
+    <string name="intensity_card">Intensity: calmer to busier, the middle plays your settings as they are</string>
+    <string name="intensity_card_value">Intensity %1$d</string>
     <string name="section_diag">Diagnostics</string>
     <string name="diag_not_running">Start the sound to see which mic and headphones are in use and whether anything overloads.</string>
     <string name="diag_mic">Mic in use: %1$s</string>

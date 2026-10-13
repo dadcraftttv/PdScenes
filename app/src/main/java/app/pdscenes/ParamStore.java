@@ -58,6 +58,14 @@ final class ParamStore {
         values.put(id, v);
         if (p.sendToPd && AudioService.isRunning()) {
             PdBase.sendFloat(id, Modulation.output(p, v));
+            if (Intensity.ID.equals(id)) {   // everything Intensity scales goes out again
+                for (String s : Intensity.scaled()) {
+                    Param q = Params.byId(s);
+                    if (q != null) {
+                        PdBase.sendFloat(s, Modulation.output(q, get(s)));
+                    }
+                }
+            }
         }
     }
 

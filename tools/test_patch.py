@@ -1380,6 +1380,12 @@ _, standQ, _, _ = rhythm_run(8, 36)
 hitsQ = len(standQ["drum_hat"]) + len(standQ["drum_snare"]) + len(standQ["drum_kick"])
 hitsL = len(standL["drum_hat"]) + len(standL["drum_snare"]) + len(standL["drum_kick"])
 check(hitsL / 36 > 1.3 * hitsQ / 36, "rhythm: a lively room gets a busier beat standing still (%.1f vs %.1f hits a second)" % (hitsL / 36, hitsQ / 36))
+# Intensity (the app's macro) moves the drive: calmer patterns at 0, busier at 1, the same at 0.5
+def int_hits(t):
+    _, st, _, _ = rhythm_run(8, 36, intensity=t)
+    return (len(st["drum_hat"]) + len(st["drum_snare"]) + len(st["drum_kick"])) / 36
+i0, i1 = int_hits(0), int_hits(1)
+check(i1 > 1.3 * i0 and i0 <= hitsQ / 36 < i1, "rhythm: Intensity 0 calms the beat, 1 makes it busier (%.1f / %.1f / %.1f hits a second)" % (i0, hitsQ / 36, i1))
 
 # found sounds: sudden sounds are caught and filed as kick / snare / hat, and the patterns play them
 def fs_sounds(seed=2):

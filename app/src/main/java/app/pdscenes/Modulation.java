@@ -146,6 +146,7 @@ final class Modulation {
     /** Start from rest: no offsets, fresh random drift. Call when the engine starts or stops. */
     static void reset() {
         java.util.Arrays.fill(moving, false);
+        lastIntensity = ParamStore.get(Intensity.ID);   // what was sent (no mover is pushing it now)
         micLevelDb = -100f;
         upright = leanRight = spin = south = padX = padY = 0f;
         shakeLevel = 0f;
@@ -168,7 +169,7 @@ final class Modulation {
             if (shape == SHAPE_OFF || ParamStore.get(SWITCH_ID[i]) < 0.5f) {
                 if (moving[i]) {   // mover switched off: go back to the slider
                     moving[i] = false;
-                    sink.send(p.id, ParamStore.get(p.id));
+                    sink.send(p.id, output(p, ParamStore.get(p.id)));
                 }
                 continue;
             }
@@ -228,7 +229,20 @@ final class Modulation {
             moving[i] = true;
             sink.send(p.id, output(p, ParamStore.get(p.id)));
         }
+        // Intensity moved by its mover: everything it scales goes out again (only on a real change)
+        float t = intensityNow();
+        if (Math.abs(t - lastIntensity) > 0.003f) {
+            lastIntensity = t;
+            for (String id : Intensity.scaled()) {
+                Param p = Params.byId(id);
+                if (p != null && !isMoving(id)) {   // (moving ones were just sent with it)
+                    sink.send(id, output(p, ParamStore.get(id)));
+                }
+            }
+        }
     }
+
+    private static float lastIntensity = 0.5f;
 
     /** True while a mover is pushing this slider around (the screen marks it with a dot). */
     static boolean isMoving(String paramId) {
@@ -238,6 +252,18 @@ final class Modulation {
 
     /** The value to give Pd for a parameter whose slider is at {@code base}. */
     static float output(Param p, float base) {
+        float v = moved(p, base);
+        return Intensity.scales(p.id) ? Intensity.apply(p, v, intensityNow()) : v;
+    }
+
+    /** Intensity as it plays now: its slider, moved by its own mover if it has one. */
+    static float intensityNow() {
+        Param p = Params.byId(Intensity.ID);
+        return p == null ? 0.5f : moved(p, ParamStore.get(Intensity.ID));
+    }
+
+    /** The slider value with its mover's push (no Intensity). */
+    private static float moved(Param p, float base) {
         Integer i = INDEX.get(p.id);
         if (i == null || !moving[i]) {
             return base;

@@ -37,7 +37,7 @@ DEFAULTS = [
     ("music_on", 0), ("music_key", 0), ("music_scale", 0), ("music_pad", 0.33), ("music_arp", 0.4),
     ("music_tone", 0.5), ("music_react", 0.8), ("music_res", 0.8), ("music_harm", 0.6), ("beat_follow", 1), ("beat_when", 1), ("rhythm_src", 1), ("melody_src", 1), ("harm_src", 1), ("pad_src", 1), ("bass_src", 0), ("tempo_mode", 0), ("tempo_bpm", 100), ("chime_char", 0.5), ("res_src", 1), ("cue_sound", 1), ("beat_glitch", 0.4), ("gate_attack", 5), ("gate_hold", 0), ("gate_release", 80), ("comp_attack", 40),
     ("comp_release", 40), ("music_drift", 1), ("echo_scatter", 0.5), ("gc_amount", 0), ("gc_level", 0.7), ("gc_pct_stutter", 35), ("gc_pct_reverse", 25),
-    ("gc_pct_shuffle", 20), ("gc_pct_stretch", 20), ("music_pad_reg", 2), ("pocket_hush", 0.5), ("pocket_guard", 0.6), ("handling_hush", 0.5),
+    ("gc_pct_shuffle", 20), ("gc_pct_stretch", 20), ("music_pad_reg", 2), ("pocket_hush", 0.5), ("pocket_guard", 0.6), ("handling_hush", 0.5), ("intensity", 0.5),
 ]
 
 # Scales as semitone steps above the key note. The patch snaps every note it plays to these.
@@ -272,6 +272,7 @@ def pc_to_degree(iv):
     marks = list(iv) + [12]
     return [min(range(len(marks)), key=lambda i: (abs(marks[i] - pc), marks[i])) for pc in range(12)]
 DUCK_MS = 600           # how quickly the output dips (and comes back) when other audio plays
+INT_DRIVE = 0.6             # Intensity 0..1 moves the beat's drive by -0.3..+0.3 (calmer / busier patterns)
 HND_HUSH_DB = 24            # handling hush at 1 turns the mic down this much at full handling (the app's 0-1 level)
 HND_ATTACK_MS = 15          # ...going down this fast (a tap rings on for a while; its very start can't be caught)
 HND_RELEASE_MS = 300        # ...and back up over this
@@ -1345,7 +1346,11 @@ def add_rhythm(P, x):
     P.c("rh_room_t", "rh_when", 1, 0); P.c("rh_when", "rh_dg", 0, 3)
     P.c("rh_room_t", "rh_mode", 1, 0); P.c("rh_mode", "rh_dg", 0, 4)
     P.c("rh_room_t", "rh_loud", 0, 0); P.c("rh_loud", "rh_dg", 0, 0)
-    P.obj("rh_drive_v", "value rh_drive", x + 1700, y + 240); P.c("rh_dg", "rh_drive_v", 0, 0)
+    # Intensity (the app's macro, 0.5 = as set) makes the patterns calmer or busier: +-INT_DRIVE/2 on the drive
+    P.obj("rh_r_int", "r intensity", x + 1600, y + 200); ex("rh_int_o", f"($f1-0.5)*{INT_DRIVE}", x + 1600, y + 215)
+    P.obj("rh_int_v", "value rh_intoff", x + 1600, y + 230); P.c("rh_r_int", "rh_int_o"); P.c("rh_int_o", "rh_int_v")
+    ex("rh_dg_i", "min(max($f1+rh_intoff,0),1)", x + 1700, y + 228); P.c("rh_dg", "rh_dg_i", 0, 0)
+    P.obj("rh_drive_v", "value rh_drive", x + 1700, y + 240); P.c("rh_dg_i", "rh_drive_v", 0, 0)
     # only real changes move the level (a ramp restarted every 100 ms never quite arrives), and to 0 always quickly
     P.obj("rh_gain_chg", "change", x + 1800, y + 225)
     ex("rh_gain_ms", "$f1 ; if($f1<=0,150,400)".replace(" ; ", " " + BS + "; "), x + 1800, y + 235)
