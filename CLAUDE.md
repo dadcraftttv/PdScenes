@@ -382,4 +382,6 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
 - Release prep: final name + applicationId, `source_url` in strings.xml, privacy policy, Play foreground-service + microphone declarations, icon, store listing.
 - Ideas, not requested: on-screen route/clipping diagnostics, beat-offset slider if drift returns, music independent of Dry level,
   location (`#loc`) scene input, unported scene objects.
-- The Beta Tester Guide lives in Samuel's Claude Docs (not in this repo). If behavior changes, tell him the guide needs an update.
+- The Beta Tester Guide lives in this repo: `docs/TESTER-GUIDE.md` (tester-facing: "Dad"/"DadCraft", plain words; moved
+  from Samuel's Claude Docs on Oct 12, where an older Oct 10 copy remains). When behavior changes, update it in the
+  same commit or tell Samuel it needs an update.
