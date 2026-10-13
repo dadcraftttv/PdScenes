@@ -202,6 +202,7 @@ FM_CHAR_SHORT = 0.7               # ...and this much shorter, the hit's band wid
 FM_STRIKE_Q = 1.2                 # the strike is band-passed around the note (rounder than high-passed: Samuel)
 FM_ATTACK_MS = 5
 CUE_LOW_HZ, CUE_HIGH_HZ = 440, 880     # the Realm cue: a warp gliding between A4 and A5 (up into a Realm)...
+CUE_SIDE_HZ = 659.3               # ...or, Realm to Realm, a sideways swerve around E5...
 CUE_GLIDE_MS = 900                # ...over this long...
 CUE_DETUNE = 1.007                # ...a detuned twin beating against it (a slow shimmer)...
 CUE_LEVEL = 0.022                 # ...this loud per tone (after the limiter: the three together about -26 dBFS)...
@@ -3860,18 +3861,30 @@ def build():
         P.sig2(f"limit_{side}", "*~", f"lim_{side}_sum", "duck_gain", x, 400)
     # Realm cue: a dreamy warp (Samuel) when a Realm starts (gliding up an octave) or your own settings come back
     # (gliding down): a soft tone with a detuned twin beating against it and a quiet fifth for a halo, swelling in and
-    # melting away, after the limiter so it is heard whatever plays; [realm_cue 1|0( from the app, cue_sound
-    # (Setup) switches it off.
+    # melting away, after the limiter so it is heard whatever plays. From one Realm straight to another (Samuel: "a
+    # lateral, sideways warp") it swerves around one note (a dip, a lift past it, back) while sweeping from one ear to
+    # the other. [realm_cue 1|0|2( from the app (into a Realm, home, Realm to Realm); cue_sound (Setup) switches it off.
     cx, cy = 1700, 300
     P.obj("cue_r", "r realm_cue", cx, cy); P.obj("cue_snd_r", "r cue_sound", cx + 120, cy)
     P.obj("cue_snd_v", "value cue_onv", cx + 120, cy + 15); P.c("cue_snd_r", "cue_snd_v")
     P.obj("cue_ex", ("expr ($f1+1)*(cue_onv>0)").replace("$", BS + "$"), cx, cy + 15); P.c("cue_r", "cue_ex")
-    P.obj("cue_sel", "sel 2 1", cx, cy + 30); P.c("cue_ex", "cue_sel")
-    for k, (f0, f1) in enumerate(((CUE_LOW_HZ, CUE_HIGH_HZ), (CUE_HIGH_HZ, CUE_LOW_HZ))):   # 2 = a Realm: rising
-        P.obj(f"cue_t{k}", "t b b b", cx + 160 * k, cy + 45); P.c("cue_sel", f"cue_t{k}", k, 0)
-        P.msg(f"cue_sw{k}", f"{BS}; sw_cue 1", cx + 160 * k, cy + 60); P.c(f"cue_t{k}", f"cue_sw{k}", 2, 0)
-        P.msg(f"cue_gl{k}", f"{f0} {BS}, {f1} {CUE_GLIDE_MS}", cx + 160 * k + 60, cy + 60); P.c(f"cue_t{k}", f"cue_gl{k}", 1, 0)
+    P.obj("cue_sel", "sel 2 1 3", cx, cy + 30); P.c("cue_ex", "cue_sel")
+    m = CUE_SIDE_HZ
+    glides = (f"{CUE_LOW_HZ} {BS}, {CUE_HIGH_HZ} {CUE_GLIDE_MS}",            # into a Realm: up an octave
+              f"{CUE_HIGH_HZ} {BS}, {CUE_LOW_HZ} {CUE_GLIDE_MS}",            # home: down an octave
+              f"{m} {BS}, {m * 0.94:.1f} 250 {BS}, {m * 1.06:.1f} 350 250 {BS}, {m} 300 600")   # Realm to Realm: a swerve
+    for k, gl in enumerate(glides):
+        P.obj(f"cue_t{k}", "t b b b b", cx + 160 * k, cy + 45); P.c("cue_sel", f"cue_t{k}", k, 0)
+        P.msg(f"cue_sw{k}", f"{BS}; sw_cue 1", cx + 160 * k, cy + 60); P.c(f"cue_t{k}", f"cue_sw{k}", 3, 0)
+        P.msg(f"cue_gl{k}", gl, cx + 160 * k + 60, cy + 60); P.c(f"cue_t{k}", f"cue_gl{k}", 2, 0)
         P.c(f"cue_gl{k}", "cue_fq")
+        if k < 2:
+            P.msg(f"cue_pc{k}", "0.5", cx + 160 * k + 100, cy + 70); P.c(f"cue_t{k}", f"cue_pc{k}", 1, 0); P.c(f"cue_pc{k}", "cue_pan")
+        else:                                                                  # the sweep, one way or the other
+            P.obj("cue_side", "random 2", cx + 420, cy + 70); P.c(f"cue_t{k}", "cue_side", 1, 0)
+            P.obj("cue_side_sel", "sel 0 1", cx + 420, cy + 80); P.c("cue_side", "cue_side_sel")
+            P.msg("cue_lr", f"0.1 {BS}, 0.9 {CUE_GLIDE_MS}", cx + 420, cy + 90); P.msg("cue_rl", f"0.9 {BS}, 0.1 {CUE_GLIDE_MS}", cx + 480, cy + 90)
+            P.c("cue_side_sel", "cue_lr", 0, 0); P.c("cue_side_sel", "cue_rl", 1, 0); P.c("cue_lr", "cue_pan"); P.c("cue_rl", "cue_pan")
         P.c(f"cue_t{k}", "cue_go", 0, 0)
     P.obj("cue_go", "t b b", cx, cy + 80)
     P.msg("cue_env", f"0 {BS}, {CUE_LEVEL} {CUE_SWELL_MS} {BS}, 0 {CUE_FADE_MS} {CUE_SWELL_MS}", cx, cy + 95)
@@ -3896,13 +3909,22 @@ def build():
     P.obj("cue_ewet", f"*~ {CUE_ECHO_WET}", cx + 200, cy + 265); P.c("cue_er", "cue_ewet")
     P.sig2("cue_mix", "+~", "cue_dry", "cue_ewet", cx, cy + 280)
     P.obj("grp_cue_r", "r sw_cue", 10, 10); P.obj("grp_cue_sw", "switch~", 10, 40); P.c("grp_cue_r", "grp_cue_sw")
-    P.sig2("out_cl", "+~", "limit_l", "cue_mix", 1400, 415); P.sig2("out_cr", "+~", "limit_r", "cue_mix", 1500, 415)
+    # where it sits: 0 left .. 0.5 centre (both ears full, as before) .. 1 right
+    P.obj("cue_pan", "vline~", cx + 300, cy + 280)
+    P.obj("cue_pq", "*~ 0.25", cx + 300, cy + 295); P.c("cue_pan", "cue_pq")
+    P.obj("cue_pcl", "cos~", cx + 300, cy + 310); P.c("cue_pq", "cue_pcl")
+    P.obj("cue_pqr", "-~ 0.25", cx + 360, cy + 310); P.c("cue_pq", "cue_pqr")
+    P.obj("cue_pcr", "cos~", cx + 360, cy + 325); P.c("cue_pqr", "cue_pcr")
+    P.obj("cue_gl_l", "*~ 1.41421", cx + 300, cy + 340); P.c("cue_pcl", "cue_gl_l")
+    P.obj("cue_gl_r", "*~ 1.41421", cx + 360, cy + 340); P.c("cue_pcr", "cue_gl_r")
+    P.sig2("cue_l", "*~", "cue_mix", "cue_gl_l", cx, cy + 360); P.sig2("cue_rr", "*~", "cue_mix", "cue_gl_r", cx + 60, cy + 360)
+    P.sig2("out_cl", "+~", "limit_l", "cue_l", 1400, 415); P.sig2("out_cr", "+~", "limit_r", "cue_rr", 1500, 415)
     P.obj("dac", "dac~ 1 2", 1400, 430)
     P.c("out_cl", "dac", 0, 0)
     P.c("out_cr", "dac", 0, 1)
 
     # --- switchable blocks: each one's DSP stops while it can't be heard ---
-    P.group("cue", r"^cue_(fq|fd|f5|oa|ob|oc|gc|ab|abc|ea|dry|ein|ew|er|efb|ewet|mix)$")                    # the Realm cue: on only while it sounds
+    P.group("cue", r"^cue_(fq|fd|f5|oa|ob|oc|gc|ab|abc|ea|dry|ein|ew|er|efb|ewet|mix|pan|pq|pcl|pqr|pcr|gl_l|gl_r|l|rr)$")                    # the Realm cue: on only while it sounds
     P.group("reverb", r"^(c[lr]\d+_|c[lr]_acc\d|a[lr]\d_|rev_in$|rev_[lr]$|pk_rfb$|ln_rfb$|pk_rin$|ln_rin$)")
     add_switch(P, "reverb", ("reverb_on", "reverb_mix"), 300)
     P.group("pitch", r"^(rate_hz|ph1|ph2|ph2_off|delwrite_p|tap[12]_\w+|rd[12]|cos[12]|cos[12]_neg|win[12]|grain[12]|shifted)$")

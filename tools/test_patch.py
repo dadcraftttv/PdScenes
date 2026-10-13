@@ -1406,7 +1406,7 @@ check(not pocketed_catch(), "found sounds: nothing is caught while the phone is 
 # the patterns play the caught sound: a 150 Hz thump comes back as kicks at 150 x 0.8 = 120 Hz; the synth kick is lower
 def kick_tones(src, catch):
     ev = [(0.5, "k")] if catch else []
-    e, y, _ = fs_catch(ev, 14.0, rhythm_src=src, beat_snare=0, beat_hats=0, beat_pitch=55)
+    e, y, _ = fs_catch(ev, 14.0, rhythm_src=src, beat_snare=0, beat_hats=0, beat_pitch=55, fs_flourish_set=0)   # (a half-speed flourish sits near 60 Hz)
     tail = y[4 * SR:]
     # (energy in a band, not a projection on one frequency: kicks at random times have random phases and can cancel)
     S_ = np.abs(np.fft.rfft(tail)) / len(tail); fr = np.fft.rfftfreq(len(tail), 1 / SR)
@@ -1561,6 +1561,17 @@ check(up0 < 520 and abs(up1 - 880) < 15 and dn0 > 780 and abs(dn1 - 440) < 10 an
       and up_echo > 0.001 and off_pk < 1e-4,
       "realm cue: a warp gliding up into a Realm (%.0f -> %.0f Hz) and down back home (%.0f -> %.0f Hz), soft (peak %.3f), "
       "its echo still heard after the tone (%.4f), all gone by ~4 s, silent when switched off" % (up0, up1, dn0, dn1, up_pk, up_echo))
+
+# from one Realm to another the warp swerves sideways: around one note, sweeping from one ear to the other
+e = fresh(dry=0, wet=0, cue_sound=1); e.run(e.silence(0.2)); e.send("realm_cue", 2); ys = e.run(e.silence(2.0))
+def side_bal(seg):
+    l, r = rms(seg[:, 0]), rms(seg[:, 1]); return (r - l) / max(r + l, 1e-9)
+b_early, b_late = side_bal(ys[int(0.1 * SR):int(0.3 * SR)]), side_bal(ys[int(0.8 * SR):int(1.0 * SR)])
+seg = ys[int(0.1 * SR):int(1.2 * SR), 0] + ys[int(0.1 * SR):int(1.2 * SR), 1]
+S_ = np.abs(np.fft.rfft(seg * np.hanning(len(seg)))); f_ = np.fft.rfftfreq(len(seg), 1 / SR); S_[(f_ < 300) | (f_ > 1000)] = 0
+fside = float(f_[np.argmax(S_)])
+check(abs(b_late - b_early) > 0.4 and 590 < fside < 730,
+      "realm cue, Realm to Realm: a sideways warp around E5 (%.0f Hz), sweeping across (balance %.2f -> %.2f)" % (fside, b_early, b_late))
 
 # found pad: a held hum is kept with its pitch; from the next chord change the pad's chord is sung by it (each note
 # folded within a tritone of the hum, its overtones carried), as loud as the synth pad; until then the synth plays.
