@@ -9,7 +9,7 @@ import java.util.Map;
  * as set; lower calms it, higher makes it busier. It never changes a stored value: it scales what is sent to Pd, so
  * presets, Realms and the sliders keep their own values. It only scales what is already there (a 0 stays 0: an effect
  * the user switched down never comes on), downward by up to {@code calm} of the value at Intensity 0, upward by up
- * to {@code lift} times more at Intensity 1, never past the slider's safe range (or its own value, if set higher).
+ * to {@code lift} times more at Intensity 1, up to the slider's top (echo feedback only to its safe top).
  * The patch also hears {@code intensity} and makes the drum patterns calmer or busier. Pure logic (test I).
  */
 final class Intensity {
@@ -20,14 +20,16 @@ final class Intensity {
     private static final Map<String, float[]> RULES = new HashMap<>();
 
     static {
-        rule(0.6f, 0.6f, "wet", "reverb_mix", "echo_scatter", "music_res");
-        rule(0.5f, 0.3f, "feedback");
-        rule(1f, 0.8f, "gc_amount", "beat_glitch", "rvs_mix");
-        rule(1f, 0.6f, "ring_mix", "crush_mix", "dist_mix", "flange_mix", "phaser_mix", "chorus_mix", "pitch_mix",
+        // (Samuel, Oct 13, at a lively dojo: "I don't really feel much difference at 100" -> lifts doubled, and the
+        // top is each slider's full range, not its randomize range; only feedback keeps the safe top)
+        rule(0.6f, 1.2f, "wet", "reverb_mix", "echo_scatter", "music_res");
+        rule(0.5f, 0.4f, "feedback");
+        rule(1f, 1.5f, "gc_amount", "beat_glitch", "rvs_mix");
+        rule(1f, 1.2f, "ring_mix", "crush_mix", "dist_mix", "flange_mix", "phaser_mix", "chorus_mix", "pitch_mix",
                 "filter_mix", "trem_depth");
-        rule(0.6f, 0.5f, "music_react");
-        rule(0.5f, 0.3f, "music_harm");
-        rule(0.4f, 0.3f, "music_arp", "beat_level");
+        rule(0.6f, 0.8f, "music_react");
+        rule(0.5f, 0.6f, "music_harm");
+        rule(0.4f, 0.6f, "music_arp", "beat_level");
     }
 
     private Intensity() { }
@@ -59,7 +61,7 @@ final class Intensity {
         if (u < 0) {
             return p.toValue(lo + from * (1f + u * r[0]));
         }
-        float cap = Math.max(n, p.toNorm(p.randMax));
+        float cap = Math.max(n, "feedback".equals(p.id) ? p.toNorm(p.randMax) : 1f);   // (runaway echo stays out)
         return p.toValue(Math.min(cap, lo + from * (1f + u * r[1])));
     }
 }

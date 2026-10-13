@@ -272,7 +272,8 @@ def pc_to_degree(iv):
     marks = list(iv) + [12]
     return [min(range(len(marks)), key=lambda i: (abs(marks[i] - pc), marks[i])) for pc in range(12)]
 DUCK_MS = 600           # how quickly the output dips (and comes back) when other audio plays
-INT_DRIVE = 0.6             # Intensity 0..1 moves the beat's drive by -0.3..+0.3 (calmer / busier patterns)
+INT_DRIVE = 0.6             # Intensity 0..1 moves the beat's drive by -0.3..+0.3 (calmer / busier patterns); above
+                            # the middle it also shortens the glitch cloud's rest and free clock (value rh_intoff)
 HND_HUSH_DB = 24            # handling hush at 1 turns the mic down this much at full handling (the app's 0-1 level)
 HND_ATTACK_MS = 15          # ...going down this fast (a tap rings on for a while; its very start can't be caught)
 HND_RELEASE_MS = 300        # ...and back up over this
@@ -2740,7 +2741,8 @@ def add_glitch_cloud(P):
     P.msg("gc_rest0", "0", x + 300, y + 200)
     P.msg("gc_rest1", "1", x + 300, y + 260)
     P.obj("gc_rest_del", "del 1000", x + 300, y + 230)
-    ex("gc_cool", f"{GC_COOL_MS[1]}-({GC_COOL_MS[1]}-{GC_COOL_MS[0]})*$f1", x + 400, y + 200)
+    # (Intensity above the middle shortens the rest and the free clock, down to half / 0.4: more glitches even at Amount 1)
+    ex("gc_cool", f"({GC_COOL_MS[1]}-({GC_COOL_MS[1]}-{GC_COOL_MS[0]})*$f1)*(1-max(rh_intoff,0)*1.67)", x + 400, y + 200)
     P.c("gc_r_amt", "gc_cool"); P.c("gc_cool", "gc_rest_del", 0, 1)
     P.obj("gc_rest_t", "t b b", x + 300, y + 170)
     P.c("gc_trig", "gc_rest_t", 1, 0)
@@ -2752,7 +2754,7 @@ def add_glitch_cloud(P):
     P.obj("gc_clk_rnd", "random 6000", x + 560, y + 350)
     P.obj("gc_clk_amt", "f", x + 660, y + 350)
     P.c("gc_r_amt", "gc_clk_amt", 0, 1)
-    ex("gc_clk_ms", "(2000+$f1)*0.6/(0.2+$f2)", x + 560, y + 380)
+    ex("gc_clk_ms", "(2000+$f1)*0.6/(0.2+$f2)*(1-max(rh_intoff,0)*2)", x + 560, y + 380)
     P.obj("gc_clk_del", "del 4000", x + 500, y + 410)
     P.c("gc_clk_lb", "gc_clk_t"); P.c("gc_r_amt", "gc_clk_t")                 # Amount changed: pick a new time
     P.c("gc_clk_t", "gc_clk_amt", 1, 0); P.c("gc_clk_amt", "gc_clk_ms", 0, 1)

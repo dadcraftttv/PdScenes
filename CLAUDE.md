@@ -104,9 +104,12 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   compact slider in the bottom card; noPreset, noRandom, movable; Samuel: the user's own control, Realms and presets
   never touch it). 0.5 = as set. `Modulation.output` (the one path every value takes to Pd) applies the mover, then
   `Intensity.apply` to the params in its RULES: only what is already there is scaled (0 stays 0), down by `calm` x the
-  value at 0, up by `lift` x at 1, capped at max(value, randMax). Wet/reverb/scatter/room notes 0.6/0.6, feedback
-  0.5/0.3, glitch amount/glitch loops/reverse echo 1/0.8, colour effects and tremolo 1/0.6, music react 0.6/0.5,
-  harmony 0.5/0.3, chimes level and beat level 0.4/0.3. Not scaled: dry, pad, input chain, hushes, key/tempo.
+  value at 0, up by `lift` x at 1, capped at the slider's max (feedback: max(value, randMax)). Wet/reverb/scatter/
+  room notes 0.6/1.2, feedback 0.5/0.4, glitch amount/glitch loops/reverse echo 1/1.5, colour effects and tremolo
+  1/1.2, music react 0.6/0.8, harmony 0.5/0.6, chimes level and beat level 0.4/0.6 (lifts doubled and the randMax cap
+  dropped after Samuel's first try at a lively dojo: "I don't really feel much difference at 100"; his glitch amount
+  was already 1). Above the middle the glitch cloud's rest and free clock also shorten (x0.5 / x0.4 at 1, via value
+  `rh_intoff`), so it glitches more even at Amount 1. Not scaled: dry, pad, input chain, hushes, key/tempo.
   Moving it (by hand: `ParamStore.set`; by its mover: `Modulation.tick`, on a change > 0.003) resends every scaled
   param. The patch hears `intensity` too: the beat's drive +-0.3 (`INT_DRIVE`), measured standing in a quiet room
   4.6 / 4.7 / 7.6 hits a second at 0 / 0.5 / 1 (a quiet room's drive is already near the bottom).
