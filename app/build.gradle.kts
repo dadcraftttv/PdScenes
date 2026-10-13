@@ -11,13 +11,17 @@ android {
         // libpd's pd-core (Oboe backend) requires API 28+, i.e. Android 9 and newer.
         minSdk = 28
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 9
+        versionName = "0.9.0-rc1"
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
+            // Tester release candidates are signed with the same (debug) key as the builds testers already have, so
+            // they install over them and keep their settings. A real release key comes with release prep (the final
+            // name and applicationId will be a new app anyway).
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 
