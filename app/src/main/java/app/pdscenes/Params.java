@@ -179,6 +179,9 @@ final class Params {
                     Param.Curve.LINEAR).inSection("music").rand(0.3f, 1f).resetWhenAbsent(),
             new Param("music_res", "Room notes (sounds around you ring the chord)", 0f, 1f, 0.8f, "",
                     Param.Curve.LINEAR).inSection("music").rand(0.2f, 1f).resetWhenAbsent(),
+            new Param("res_src", "Room notes sound", 0f, 2f, 1f, "", Param.Curve.LINEAR)
+                    .choices("Ring (the room rings the chord)", "Found sounds (a sound plays one of yours on the chord)", "Both")
+                    .inSection("music").noPreset().resetWhenAbsent(),
             new Param("music_harm", "Harmony (a held hum or whistle gets an answering note)", 0f, 1f, 0.6f, "",
                     Param.Curve.LINEAR).inSection("music").rand(0.2f, 1f).resetWhenAbsent(),
             new Param("harm_src", "Harmony sound", 0f, 2f, 1f, "", Param.Curve.LINEAR)

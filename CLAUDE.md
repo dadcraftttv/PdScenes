@@ -230,6 +230,12 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   **Uneven walking** (Samuel: drums "get tripped up"): a bump sooner than 65% of the usual interval is skipped as extra
   (scuff, heel-toe, pocket knock), unless skipped bumps sat halfway (+-7%) between steps, which means the pace doubled.
   `beat_sure` (0.4..1, -0.3 per step >30% off, +0.15 per even step) softens the drums while the rhythm is uneven.
+  **Room notes sound** (`res_src` Ring / Found (default) / Both, Music, noPreset; Samuel Oct 12: the found sounds
+  should be the bells): Found = each sudden sound (`fs_det_sel`, not in a pocket, at most one per `RNF_GAP_MS` 180)
+  plays a caught sound on a chord tone from `RES_NOTES` (`mchord` + octaves x `scale_n` + step) through
+  `add_found_note(prefix="rf")` (2 voices, groups `rfv<k>`, the Chime character applies), with its own level control
+  and soft limit (`RNF_GAIN` 0.08: level with the ring) times the Room notes slider. The ring resonators run only
+  unless Found only (`rn_ring` in the roomnotes switch). Catching (`fs_need`) also runs for it.
   **Harmony** (`music_harm`, Music section, default 0.6, in presets; Pocket world 0; 0 = nothing answered): `sigmund~` tracks
   the (hushed) mic; a pitch in C2-G#7 (sigmund~ reads hiss as ~MIDI 123), steady within 0.6 semitone for 12 frames (~130 ms;
   up to 2 misread frames in a row are forgiven, only good frames set the pitch) and 6 dB above the room's quiet (`mthr`) gets

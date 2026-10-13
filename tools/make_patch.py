@@ -35,7 +35,7 @@ DEFAULTS = [
     ("phaser_on", 1), ("phaser_mix", 0), ("phaser_rate", 0.4), ("phaser_depth", 0.7), ("phaser_fb", 0.4),
     ("beat_on", 1), ("beat_level", 0), ("beat_hats", 0.5), ("beat_snare", 0.6), ("beat_pitch", 55),
     ("music_on", 0), ("music_key", 0), ("music_scale", 0), ("music_pad", 0.33), ("music_arp", 0.4),
-    ("music_tone", 0.5), ("music_react", 0.8), ("music_res", 0.8), ("music_harm", 0.6), ("beat_follow", 1), ("beat_when", 1), ("rhythm_src", 1), ("melody_src", 1), ("harm_src", 1), ("pad_src", 1), ("bass_src", 0), ("tempo_mode", 0), ("tempo_bpm", 100), ("chime_char", 0.5), ("beat_glitch", 0.4), ("gate_attack", 5), ("gate_hold", 0), ("gate_release", 80), ("comp_attack", 40),
+    ("music_tone", 0.5), ("music_react", 0.8), ("music_res", 0.8), ("music_harm", 0.6), ("beat_follow", 1), ("beat_when", 1), ("rhythm_src", 1), ("melody_src", 1), ("harm_src", 1), ("pad_src", 1), ("bass_src", 0), ("tempo_mode", 0), ("tempo_bpm", 100), ("chime_char", 0.5), ("res_src", 1), ("beat_glitch", 0.4), ("gate_attack", 5), ("gate_hold", 0), ("gate_release", 80), ("comp_attack", 40),
     ("comp_release", 40), ("music_drift", 1), ("echo_scatter", 0.5), ("gc_amount", 0), ("gc_level", 0.7), ("gc_pct_stutter", 35), ("gc_pct_reverse", 25),
     ("gc_pct_shuffle", 20), ("gc_pct_stretch", 20), ("music_pad_reg", 2), ("pocket_hush", 0.5), ("pocket_guard", 0.6),
 ]
@@ -201,6 +201,8 @@ FM_CHAR_RING = 0.85               # ...the ring this much quieter...
 FM_CHAR_SHORT = 0.7               # ...and this much shorter, the hit's band widened to Q 0.3
 FM_STRIKE_Q = 1.2                 # the strike is band-passed around the note (rounder than high-passed: Samuel)
 FM_ATTACK_MS = 5
+RNF_GAP_MS = 180                  # Room notes, found: at most one note per this long...
+RNF_GAIN = 0.08                   # ...at this level into its soft limit (the Room notes slider scales it after)
 FM_LIMIT = 0.7                    # the found melody's soft limit (tanh)
 FM_LEVEL_DB = 85                  # its level is brought toward this (dB, 100 = full scale; a little under a synth chime)...
 FM_LEVEL_RATIO = 0.9              # ...by this share of the difference (a clap and a knock ring very differently)
@@ -657,14 +659,14 @@ def add_found_kit(P, x):
     P.obj("fs_on", "spigot 1", x + 400, y + 80)                          # (closed while recording)
     P.obj("fs_use", "spigot 0", x + 400, y + 60)                         # (only when found sounds are used)
     # (needed by the found beat, or by the found melody: fs_need, which also switches the recording's audio)
-    P.obj("fs_go_need", "t b b b b", x + 500, y - 20)
-    for k, nm in enumerate(("rhythm_src", "beat_level", "music_on", "melody_src")):
+    P.obj("fs_go_need", "t b b b b b", x + 500, y - 20)
+    for k, nm in enumerate(("rhythm_src", "beat_level", "music_on", "melody_src", "res_src")):
         P.obj(f"fs_nd_r{k}", f"r {nm}", x + 500 + 70 * k, y - 80); P.obj(f"fs_nd_t{k}", "t b f", x + 500 + 70 * k, y - 65)
         P.obj(f"fs_nd_w{k}", f"value fsnd{k}", x + 500 + 70 * k, y - 50); P.obj(f"fs_nd_v{k}", f"value fsnd{k}", x + 500 + 70 * k, y - 5)
         P.c(f"fs_nd_r{k}", f"fs_nd_t{k}"); P.c(f"fs_nd_t{k}", f"fs_nd_w{k}", 1, 0); P.c(f"fs_nd_t{k}", "fs_go_need", 0, 0)
         P.c("fs_go_need", f"fs_nd_v{k}", k, 0)
-    ex("fs_need_e", "($f1>0&&$f2>0)||($f3>0&&$f4>0)", x + 500, y + 15)
-    for k in range(4):
+    ex("fs_need_e", "($f1>0&&$f2>0)||($f3>0&&($f4>0||$f5>0))", x + 500, y + 15)   # (beat, melody or room notes found)
+    for k in range(5):
         P.c(f"fs_nd_v{k}", "fs_need_e", 0, k)                            # (outlet 0 fires last: the hot inlet)
     P.obj("fs_need_chg", "change -1", x + 500, y + 30); P.obj("fs_need_s", "s fs_need", x + 560, y + 45)
     P.c("fs_need_e", "fs_need_chg"); P.c("fs_need_chg", "fs_need_s"); P.c("fs_need_chg", "fs_use", 0, 1)
@@ -860,22 +862,23 @@ def add_found_kit(P, x):
     return "fs_ks", "fs_hat_lim"
 
 
-def add_found_note(P, k, vx, vy, ex, caught):
+def add_found_note(P, k, vx, vy, ex, caught, prefix="fm", gate="mel_src[0]>=1"):
     """Found melody, one voice (the twin of chime voice k): a velocity in (frequency, fade and brightness already
     stored by the chime) plays a random caught slice at note / FM_REF_HZ and strikes a resonator tuned to the note,
     ringing for the chime's fade. Silent when Melody sounds is Synth or nothing is caught yet. Its audio runs only
     while a note sounds (its own switch~ group fmv<k>, like the glitch voices)."""
-    n = f"fm{k}"
+    n = f"{prefix}{k}"
     S = FS_SLOTS
-    ex(f"{n}_ok", f"$f1*(mel_src[0]>=1)*{caught}", vx, vy)
+    ex(f"{n}_ok", f"$f1*({gate})*{caught}", vx, vy)
     P.obj(f"{n}_in", "t f", vx, vy - 20); P.c(f"{n}_in", f"{n}_ok")
     P.obj(f"{n}_gate", "moses 0.0001", vx, vy + 20); P.c(f"{n}_ok", f"{n}_gate")
     P.obj(f"{n}_go", "t f b b b b", vx, vy + 40); P.c(f"{n}_gate", f"{n}_go", 1, 0)
-    P.msg(f"{n}_swon", f"{BS}; sw_fmv{k} 1", vx + 100, vy + 20); P.c(f"{n}_go", f"{n}_swon", 4, 0)
+    P.msg(f"{n}_swon", f"{BS}; sw_{prefix}v{k} 1", vx + 100, vy + 20); P.c(f"{n}_go", f"{n}_swon", 4, 0)
     P.obj(f"{n}_swdc", "value cdec", vx + 160, vy + 20); P.obj(f"{n}_swt", "+ 600", vx + 160, vy + 35)
-    P.obj(f"{n}_swdl", "del", vx + 160, vy + 50); P.msg(f"{n}_swoff", f"{BS}; sw_fmv{k} 0", vx + 160, vy + 65)
+    P.obj(f"{n}_swdl", "del", vx + 160, vy + 50); P.msg(f"{n}_swoff", f"{BS}; sw_{prefix}v{k} 0", vx + 160, vy + 65)
     P.c(f"{n}_go", f"{n}_swdc", 4, 0); P.c(f"{n}_swdc", f"{n}_swt"); P.c(f"{n}_swt", f"{n}_swdl"); P.c(f"{n}_swdl", f"{n}_swoff")
-    P.obj(f"grp_fmv{k}_r", f"r sw_fmv{k}", 10, 10); P.obj(f"grp_fmv{k}_sw", "switch~", 10, 40); P.c(f"grp_fmv{k}_r", f"grp_fmv{k}_sw")
+    P.obj(f"grp_{prefix}v{k}_r", f"r sw_{prefix}v{k}", 10, 10); P.obj(f"grp_{prefix}v{k}_sw", "switch~", 10, 40)
+    P.c(f"grp_{prefix}v{k}_r", f"grp_{prefix}v{k}_sw")
     # 1. which slice: a bright one (snare or hat: energy at every note) if any, else a kick
     P.obj(f"{n}_rnd", "random 1000", vx + 200, vy + 60); P.c(f"{n}_go", f"{n}_rnd", 3, 0)
     j = "int($f1*max(fs_filled[1]+fs_filled[2],1)/1000)"
@@ -3041,7 +3044,62 @@ def add_room_notes(P, rx, ex, degree_to_hz):
     P.c("grp_roomnotes_r", "rn_fade_sel"); P.c("rn_fade_sel", "rn_fade_msg"); P.c("rn_fade_msg", "rn_fade")
     P.sig2("rn_faded", "*~", "rn_soft", "rn_fade", rx, 590)
     P.sig2("rn_out", "*~", "rn_faded", lvl, rx, 600)
-    return "rn_out"
+    # ---- "Room notes sound" res_src: 0 ring (the resonators above), 1 found, 2 both. Found: a sudden sound in the room
+    # plays a caught sound on a chord tone (the resonators' own notes), through the found chime voice (in key, with the
+    # Chime character) - two voices taking turns, at most one note per RNF_GAP_MS, never in a pocket ----
+    fx, fy = rx, 700
+    P.obj("rnf_r_src", "r res_src", fx, fy); P.obj("rnf_v_src", "value rnf_src", fx, fy + 15); P.c("rnf_r_src", "rnf_v_src")
+    P.obj("rnf_ring", "!= 1", fx + 80, fy + 15); P.obj("rnf_ring_s", "s rn_ring", fx + 80, fy + 30)
+    P.obj("rnf_fnd", ">= 1", fx + 140, fy + 15); P.obj("rnf_fnd_s", "s rnf_found", fx + 140, fy + 30)
+    P.c("rnf_r_src", "rnf_fnd"); P.c("rnf_fnd", "rnf_fnd_s")
+    P.c("rnf_r_src", "rnf_ring"); P.c("rnf_ring", "rnf_ring_s")              # (the resonators run unless found only)
+    P.obj("rnf_r_pk", "r pocket", fx + 160, fy); P.obj("rnf_v_pk", "value rnf_pk", fx + 160, fy + 15); P.c("rnf_r_pk", "rnf_v_pk")
+    P.obj("rnf_r_on", "r music_on", fx + 240, fy); P.obj("rnf_v_on", "value rnf_on", fx + 240, fy + 15); P.c("rnf_r_on", "rnf_v_on")
+    P.obj("rnf_lb", "loadbang", fx + 320, fy); P.msg("rnf_open1", "1", fx + 320, fy + 15)
+    P.obj("rnf_v_open", "value rnf_open", fx + 320, fy + 30); P.c("rnf_lb", "rnf_open1"); P.c("rnf_open1", "rnf_v_open")
+    P.obj("rnf_det", "t b", fx, fy + 50); P.c("fs_det_sel", "rnf_det")
+    ex("rnf_chk", "(rnf_src>=1)*(rnf_pk==0)*(rnf_on>0)*(rnf_open==1)+$f1*0", fx, fy + 65); P.c("rnf_det", "rnf_chk")
+    P.obj("rnf_sel", "sel 1", fx, fy + 80); P.c("rnf_chk", "rnf_sel")
+    P.obj("rnf_go", "t b b b b", fx, fy + 95); P.c("rnf_sel", "rnf_go")
+    # 1. a short rest
+    P.msg("rnf_close", "0", fx + 300, fy + 110); P.c("rnf_go", "rnf_close", 3, 0); P.c("rnf_close", "rnf_v_open")
+    P.obj("rnf_rest", f"del {RNF_GAP_MS}", fx + 360, fy + 110); P.c("rnf_go", "rnf_rest", 3, 0); P.c("rnf_rest", "rnf_open1")
+    # 2. its ring length, like a chime's
+    P.obj("rnf_dr", "random 1000", fx + 200, fy + 110); P.c("rnf_go", "rnf_dr", 2, 0)
+    ex("rnf_dec", f"{CHIME_DECAY_MS[0]}+{CHIME_DECAY_MS[1] - CHIME_DECAY_MS[0]}*$f1/1000", fx + 200, fy + 125)
+    P.obj("rnf_dec_w", "value cdec", fx + 200, fy + 140); P.c("rnf_dr", "rnf_dec"); P.c("rnf_dec", "rnf_dec_w")
+    # 3. a chord tone, from the resonators' own list (octaves above the chord root, root/third/fifth)
+    P.obj("rnf_tones", f"table rnf_tone {2 * len(RES_NOTES)}", fx + 500, fy)
+    P.msg("rnf_tones_i", f"{BS}; rnf_tone 0 " + " ".join(f"{o} {st}" for o, st in RES_NOTES), fx + 500, fy + 15)
+    P.c("rnf_lb", "rnf_tones_i")
+    P.obj("rnf_tr", f"random {len(RES_NOTES)}", fx + 100, fy + 110); P.c("rnf_go", "rnf_tr", 1, 0)
+    ex("rnf_deg", "mchord+rnf_tone[2*$f1]*scale_n+rnf_tone[2*$f1+1]", fx + 100, fy + 125); P.c("rnf_tr", "rnf_deg")
+    dg_in, dg_hz = degree_to_hz("rnf_c", fx + 100, fy + 140)
+    P.c("rnf_deg", dg_in)
+    P.obj("rnf_fq_w", "value cfreq", fx + 100, fy + 330); P.c(dg_hz, "rnf_fq_w")
+    # 4. its loudness from the room, then the next voice plays it
+    P.obj("rnf_ld", "value mloud", fx, fy + 350); P.c("rnf_go", "rnf_ld", 0, 0)
+    ex("rnf_vel", "0.35+0.5*$f1", fx, fy + 365); P.c("rnf_ld", "rnf_vel")
+    P.obj("rnf_rr", "f", fx, fy + 380); P.obj("rnf_rr1", "+ 1", fx + 40, fy + 380); P.obj("rnf_rrm", "mod 2", fx + 80, fy + 380)
+    P.obj("rnf_vt", "t b f", fx, fy + 372); P.c("rnf_vel", "rnf_vt")
+    P.c("rnf_vt", "rnf_rr", 0, 0); P.c("rnf_rr", "rnf_rr1"); P.c("rnf_rr1", "rnf_rrm"); P.c("rnf_rrm", "rnf_rr", 0, 1)
+    P.obj("rnf_vsel", "sel 0 1", fx, fy + 395); P.c("rnf_rr", "rnf_vsel")
+    caught = "(fs_filled[0]+fs_filled[1]+fs_filled[2]>0)"
+    for k in range(2):
+        P.c("rnf_vsel", f"rnf_vb{k}", k, 0); P.obj(f"rnf_vb{k}", "t b", fx + 60 * k, fy + 410)
+        P.obj(f"rnf_vf{k}", "f", fx + 60 * k, fy + 425); P.c(f"rnf_vb{k}", f"rnf_vf{k}"); P.c("rnf_vt", f"rnf_vf{k}", 1, 1)
+        add_found_note(P, k, fx + 700 + 500 * k, fy + 100, ex, caught, prefix="rf", gate="1")
+        P.c(f"rnf_vf{k}", f"rf{k}_in")
+    # 5. their level: like the found chimes' (down only toward FM_LEVEL_DB, then a soft limit), then the Room notes level
+    P.sig2("rnf_sum", "+~", "rf0_out", "rf1_out", fx, fy + 500)
+    P.obj("rnf_env", "env~ 1024 256", fx + 100, fy + 500); P.c("rnf_sum", "rnf_env")
+    ex("rnf_agc", f"dbtorms(100+min(0,({FM_LEVEL_DB}-max($f1,1))*{FM_LEVEL_RATIO}))", fx + 100, fy + 515); P.c("rnf_env", "rnf_agc")
+    P.obj("rnf_agc_pk", "pack f 20", fx + 100, fy + 530); P.obj("rnf_agc_ln", "line~", fx + 100, fy + 545)
+    P.c("rnf_agc", "rnf_agc_pk"); P.c("rnf_agc_pk", "rnf_agc_ln")
+    P.sig2("rnf_lvl", "*~", "rnf_sum", "rnf_agc_ln", fx, fy + 560)
+    soft_limit(P, "rnf_lim", "rnf_lvl", FM_LIMIT, RNF_GAIN, fx, fy + 575)
+    P.sig2("rnf_out", "*~", "rnf_lim", lvl, fx, fy + 680)
+    return P.sig2("rnx_out", "+~", "rn_out", "rnf_out", fx, fy + 700)
 
 
 def build():
@@ -3811,7 +3869,11 @@ def build():
     P.group("reverse", r"^(rvs_ph1|rvs_ph2_off|rvs_ph2|rvs_wr|rvs_tap\d_\w+|rvs_rd\d|rvs_cos\d\w*|rvs_win\d|rvs_grain\d|rvs_sound)$")
     add_switch(P, "reverse", ("rvs_on", "rvs_mix"), 300)
     P.group("roomnotes", r"^rn\d*_")
-    add_switch(P, "roomnotes", ("music_on", "music_res"), 2500)       # rings run up to ~2 s
+    add_switch(P, "roomnotes", ("music_on", "music_res", "rn_ring"), 2500)
+    for k in range(2):                                                  # Room notes, found: each voice on while it rings
+        P.group(f"rfv{k}", rf"^rf{k}_(rd|ix|env|raw|bp|fs1|r1|res|mix|out)$")
+    P.group("rnfound", r"^(rnf_(sum|env|agc_ln|lvl|lim(_\w+)?))$")
+    add_switch(P, "rnfound", ("music_on", "music_res", "rnf_found"), 3000)       # rings run up to ~2 s
     for k in range(4):                                                  # each synth chime voice: on only while it rings
         P.group(f"chv{k}", rf"^mu_v{k}_(o1|o2|o3|g2|g3|s12|s|env|out)$")
     for k in range(2):                                                  # the found pad's sets: on while heard and found
