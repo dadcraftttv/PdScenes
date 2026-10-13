@@ -94,6 +94,11 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   became pure fuzz; a steady roar now leaves the user's own settings. Flux preset was softened (dist 0.2 soft, crush 0.15,
   ring 0.15, freeze mover depth 0.4) so the room still comes through.
 - **Walking beat:** StepDetector sends `step <interval>` messages; foot drift was fixed and confirmed on the phone.
+- **Rhythm section** (renamed from "Walking beat", Samuel Oct 12: it now holds the found rhythm, not just footsteps).
+  **Tempo** (`tempo_mode` Auto / Set, `tempo_bpm` "Set tempo" 60-160, default Auto / 100, noPreset): Set = your BPM
+  (`tc_Pu`); standing, the beat glides there by `TEMPO_RETURN` (0.25) per beat; walking, each step moves it
+  `TEMPO_NUDGE` (0.3) toward a target `TEMPO_WALK_PULL` (0.5) of the way from your BPM to the step rate in the octave
+  nearest your BPM, with no phase pull (two tempos would wobble). Measured: set 90, walking 100 steps/min -> 94.7.
 - **Tempo clock** (roadmap 16 part 1, step B; `add_tempo_clock`): a steady beat in Pd that follows the steps like a
   band follows its drummer: each step moves the next beat 35% of the way to it, the beat length 10% of the error plus
   15% toward the step interval; one step = one beat, folded into 80-160 BPM (an amble at 60 steps/min plays at 120).

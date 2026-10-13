@@ -1653,6 +1653,21 @@ check(len(modes) >= 1 and len(plays) >= 3 and fades and tone > 5 * tone0 + 1e-4,
       "glitch loops: a glitch (glitch level 0) comes back in the beat every bar, fading (%s), its 700 Hz in the beat %.4f vs off %.4f"
       % (plays[:6], tone, tone0))
 
+# tempo "Set": standing still the beat goes to your BPM; walking pulls it halfway toward the steps; stopping, back
+def set_tempo(bpm, steps=0, interval=0.6, secs=8):
+    e = fresh(dry=0, wet=0, beat_level=1, beat_follow=1, beat_when=1, rhythm_src=0, tempo_mode=1, tempo_bpm=bpm)
+    e.listen("tempo"); e.run(e.silence(secs))
+    stand = e.heard["tempo"][-1]
+    for _ in range(steps):
+        e.send("step", interval); e.run(e.silence(interval))
+    walk = e.heard["tempo"][-1]; e.run(e.silence(secs)); back = e.heard["tempo"][-1]
+    return stand, walk, back
+s125, _, _ = set_tempo(125); s90, w90, b90 = set_tempo(90, steps=24, interval=0.6)
+want_walk = 60000 / (0.5 * 60000 / 90 + 0.5 * 600)
+check(abs(s125 - 125) < 1.5 and abs(s90 - 90) < 1.5 and abs(w90 - want_walk) < 2.5 and abs(b90 - 90) < 1.5,
+      "tempo set: standing at 125 -> %.1f BPM, at 90 -> %.1f; walking 100 steps/min pulls it halfway (%.1f, want %.1f); "
+      "stopping, back to %.1f" % (s125, s90, w90, want_walk, b90))
+
 # swing: off-beat 16ths reach the drums a share of a 16th late (on-beats stay on the tick); the amount drifts
 def swing_lags(sw, steps=40, interval=0.4):
     e = fresh(dry=0, wet=0, beat_level=1, beat_follow=1, beat_when=1, rhythm_src=0)

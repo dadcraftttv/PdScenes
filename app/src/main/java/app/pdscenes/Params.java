@@ -32,7 +32,7 @@ final class Params {
     static final List<Section> SECTIONS = Collections.unmodifiableList(Arrays.asList(
             new Section("main", "Input & output", true),
             new Section("shape", "Gate and compressor shape", false),
-            new Section("beat", "Walking beat", false),
+            new Section("beat", "Rhythm", false),
             new Section("music", "Music", true),
             new Section("echo", "Echo", false),
             new Section("ring", "Ring modulator", false),
@@ -112,12 +112,17 @@ final class Params {
             new Param("dry", "Dry level (direct sound)", 0f, 1.5f, 1f, "", Param.Curve.LINEAR)
                     .inSection("main").rand(0.3f, 1.2f),
 
-            // ---- Walking beat ---- (drums played by your footsteps, added after the first presets)
-            new Param("beat_on", "Walking beat enabled", 0f, 1f, 1f, "", Param.Curve.LINEAR)
+            // ---- Rhythm ---- (was "Walking beat": the tempo clock, patterns and found drums)
+            new Param("beat_on", "Rhythm enabled", 0f, 1f, 1f, "", Param.Curve.LINEAR)
                     .inSection("beat").toggle().resetWhenAbsent(),
-            new Param("beat_follow", "Walking beat follows", 0f, 1f, 1f, "", Param.Curve.LINEAR)
+            new Param("beat_follow", "Beat follows", 0f, 1f, 1f, "", Param.Curve.LINEAR)
                     .choices("Your steps (as before)", "Tempo clock (steadier, follows your pace)")
                     .inSection("beat").noPreset().resetWhenAbsent(),
+            new Param("tempo_mode", "Tempo", 0f, 1f, 0f, "", Param.Curve.LINEAR)
+                    .choices("Auto (follows your steps)", "Set (your BPM, walking nudges it)")
+                    .inSection("beat").noPreset().resetWhenAbsent(),
+            new Param("tempo_bpm", "Set tempo", 60f, 160f, 100f, " BPM", Param.Curve.LINEAR)
+                    .inSection("beat").noPreset().noRandom().noMover().resetWhenAbsent(),
             new Param("beat_when", "Beat plays", 0f, 1f, 1f, "", Param.Curve.LINEAR)
                     .choices("Only while walking", "Always (softly when you stand still)")
                     .inSection("beat").noPreset().resetWhenAbsent(),

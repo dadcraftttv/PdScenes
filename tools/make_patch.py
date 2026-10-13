@@ -35,7 +35,7 @@ DEFAULTS = [
     ("phaser_on", 1), ("phaser_mix", 0), ("phaser_rate", 0.4), ("phaser_depth", 0.7), ("phaser_fb", 0.4),
     ("beat_on", 1), ("beat_level", 0), ("beat_hats", 0.5), ("beat_snare", 0.6), ("beat_pitch", 55),
     ("music_on", 0), ("music_key", 0), ("music_scale", 0), ("music_pad", 0.33), ("music_arp", 0.4),
-    ("music_tone", 0.5), ("music_react", 0.8), ("music_res", 0.8), ("music_harm", 0.6), ("beat_follow", 1), ("beat_when", 1), ("rhythm_src", 1), ("melody_src", 1), ("harm_src", 1), ("pad_src", 1), ("bass_src", 0), ("beat_glitch", 0.4), ("gate_attack", 5), ("gate_hold", 0), ("gate_release", 80), ("comp_attack", 40),
+    ("music_tone", 0.5), ("music_react", 0.8), ("music_res", 0.8), ("music_harm", 0.6), ("beat_follow", 1), ("beat_when", 1), ("rhythm_src", 1), ("melody_src", 1), ("harm_src", 1), ("pad_src", 1), ("bass_src", 0), ("tempo_mode", 0), ("tempo_bpm", 100), ("beat_glitch", 0.4), ("gate_attack", 5), ("gate_hold", 0), ("gate_release", 80), ("comp_attack", 40),
     ("comp_release", 40), ("music_drift", 1), ("echo_scatter", 0.5), ("gc_amount", 0), ("gc_level", 0.7), ("gc_pct_stutter", 35), ("gc_pct_reverse", 25),
     ("gc_pct_shuffle", 20), ("gc_pct_stretch", 20), ("music_pad_reg", 2), ("pocket_hush", 0.5), ("pocket_guard", 0.6),
 ]
@@ -238,6 +238,9 @@ CLOCK_DEFAULT_MS = 600       # 100 BPM before any walking
 CLOCK_PHASE_GAIN = 0.35      # each step moves the next beat this much of the way to it...
 CLOCK_FREQ_GAIN = 0.1        # ...and the beat length this much of the error...
 CLOCK_PACE_GAIN = 0.15       # ...and this much toward the step interval itself
+TEMPO_NUDGE = 0.3           # Tempo "Set": each step moves the beat this much of the way to its walking target...
+TEMPO_WALK_PULL = 0.5       # ...which is this far from your BPM toward the step rate (in the octave nearest your BPM)...
+TEMPO_RETURN = 0.25         # ...and standing still it glides back to the set BPM by this much each beat
 CLOCK_FRESH_MS = 2000        # no step for this long (plus a beat): the next step starts a fresh walk on its beat
 GATE_HYST_DB = 4             # the gate opens at its threshold and only closes this far below it (no flutter)
 GC_BUF_MS = 4000
@@ -524,6 +527,11 @@ def add_tempo_clock(P):
     newP = (f"if({fresh},{fold},min(max((1-{CLOCK_PACE_GAIN})*($f3+{CLOCK_FREQ_GAIN}*{e})+{CLOCK_PACE_GAIN}*{fold},"
             f"{CLOCK_MIN_MS}),{CLOCK_MAX_MS}))")
     newN = f"if({fresh},$f1,max($f4+{CLOCK_PHASE_GAIN}*{e},$f1+1))"
+    # Tempo "Set" (tempo_mode 1): your BPM (tc_Pu ms), each step only nudging it toward the step rate in the octave nearest
+    # it; the beat is not pulled into phase with the steps (two tempos would make it wobble)
+    near = f"({iv})*pow(2,rint(ln(tc_Pu/({iv}))/ln(2)))"
+    newP = f"if(tc_mode==1,$f3+{TEMPO_NUDGE}*((1-{TEMPO_WALK_PULL})*tc_Pu+{TEMPO_WALK_PULL}*{near}-$f3),{newP})"
+    newN = f"if(tc_mode==1,max($f4,$f1+1),{newN})"
     ex("tc_calc", f"{newP} ; {newN} ; {iv} ; $f1".replace(" ; ", " " + BS + "; "), x + 200, y + 150)
     # inlets: $f1 now (hot, last), $f2 interval s, $f3 P, $f4 N, $f5 B, $f6 L
     P.c("tc_step_t", "tc_calc", 1, 1)
@@ -553,7 +561,13 @@ def add_tempo_clock(P):
     P.c("tc_lb", "tc_timer2")
     P.c("tc_beat", "tc_timer2", 3, 1)
     P.c("tc_beat", "tc_bI", 2, 0); P.c("tc_beat", "tc_bL", 2, 0); P.c("tc_beat", "tc_bP", 1, 0); P.c("tc_beat", "tc_bN", 0, 0)
-    ex("tc_next", f"$f1 ; $f1+$f2 ; max($f2,{CLOCK_MIN_MS}) ; ($f3-$f4<1.25*$f5)*($f5>0) ; 60000/max($f2,1)".replace(" ; ", " " + BS + "; "), x, y + 380)
+    walk = "(($f3-$f4<1.25*$f5)*($f5>0))"
+    pe = f"if(tc_mode==1&&{walk}==0,$f2+(tc_Pu-$f2)*{TEMPO_RETURN},$f2)"       # (Set, standing: back toward your BPM)
+    ex("tc_next", f"$f1 ; $f1+{pe} ; max({pe},{CLOCK_MIN_MS}) ; {walk} ; 60000/max({pe},1) ; {pe}".replace(" ; ", " " + BS + "; "), x, y + 380)
+    P.obj("tc_wP2", "value tc_P", x + 400, y + 400); P.c("tc_next", "tc_wP2", 5, 0)
+    P.obj("tc_r_tm", "r tempo_mode", x + 900, y); P.obj("tc_v_tm", "value tc_mode", x + 900, y + 20); P.c("tc_r_tm", "tc_v_tm")
+    P.obj("tc_r_bpm", "r tempo_bpm", x + 980, y); ex("tc_bpm_ms", "60000/max($f1,30)", x + 980, y + 20)
+    P.obj("tc_v_pu", "value tc_Pu", x + 980, y + 40); P.c("tc_r_bpm", "tc_bpm_ms"); P.c("tc_bpm_ms", "tc_v_pu")
     # inlets: $f1 N (hot, last), $f2 P, $f3 now, $f4 L, $f5 I
     P.c("tc_timer2", "tc_next", 0, 2)                                      # (the time of the beat)
     P.c("tc_bL", "tc_next", 0, 3); P.c("tc_bI", "tc_next", 0, 4); P.c("tc_bP", "tc_next", 0, 1); P.c("tc_bN", "tc_next")
