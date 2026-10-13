@@ -37,7 +37,7 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
    error); move the pin only together with pd-core. numpy lives in `tools/.venv` (run the tests with `tools/.venv/bin/python`).
 2. `python3 tools/make_patch.py && tools/.venv/bin/python tools/test_patch.py tools/.libpd/libpd.so` — must end `ALL PASSED`.
    Also `tools/test_scene_loader.py`, `test_scene_sensors.py`, `test_rj_analysis.py`, `test_bundled_scenes.py`, `test_scene_helpers.py` (same libpd argument).
-3. Java logic tests (no Android): `tools/javatests/run.sh` (or one at a time: `tools/javatests/run.sh W`; D = diagnostics, H = handling, I = intensity). All must pass
+3. Java logic tests (no Android): `tools/javatests/run.sh` (or one at a time: `tools/javatests/run.sh W`; D = diagnostics, H = handling, I = intensity, F = first run). All must pass
    (C and P print no summary line, just no `FAIL:`). Android classes are stand-ins in `tools/javatests/stubs*`: when app code
    starts using a new Android method, add it there. Java is not on PATH: `export JAVA_HOME=~/.jdks/jbr-21.0.11` and put its
    `bin` on PATH (Android Studio's bundled JDK 25 is too new for Gradle 8.14). adb: `~/Android/Sdk/platform-tools/adb -s ZD222T44PP`.
@@ -112,6 +112,15 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   Moving it (by hand: `ParamStore.set`; by its mover: `Modulation.tick`, on a change > 0.003) resends every scaled
   param. The patch hears `intensity` too: the beat's drive +-0.3 (`INT_DRIVE`), measured standing in a quiet room
   4.6 / 4.7 / 7.6 hits a second at 0 / 0.5 / 1 (a quiet room's drive is already near the bottom).
+- **First run** (roadmap item 5, Oct 13; `Walkthrough.java`, `FirstRun.java` test F): Samuel: "everything should be
+  off ... the only thing they should hear on pressing start is the dry audio". Echo level (`wet`) now defaults to 0,
+  the last audible default (Realms, music, beat, glitch were already off); a Pd test sends every Params default and
+  checks a click comes back once. Existing installs keep their stored values. Six full-screen pages (welcome,
+  headphones with a live check, privacy + "Allow microphone" (REQ_MIC, doesn't start the sound), it starts quiet:
+  explore one thing at a time, the card and tabs, ready: Start + feedback email dadcraftstudios@gmail.com). Opens
+  by itself only on a fresh install (firstInstallTime == lastUpdateTime) and once (`UiSettings` walkthrough_seen;
+  Reset everything leaves it); Setup, About has "Show the walkthrough again" and the feedback email (Samuel: email
+  only, no Discord).
 - **Mic-down protection** (`pocket_guard`, main, noPreset, default 0.6; 0 = no change): Samuel found mic-end-down pockets
   rustly but mic-up pockets fine. `PhoneContext.micDown()` (gravity along +y averaged ~1 s, hysteresis 0.5/0.3) and
   AudioService sends `pocket_down` = pocket && micDown. The patch adds guard*12 dB more cut and crossfades in a 2x `hip~ 300`.

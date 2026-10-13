@@ -207,7 +207,8 @@ final class Params {
                     .inSection("echo").resetWhenAbsent(),
             new Param("feedback", "Echo feedback", 0f, 0.85f, 0.4f, "", Param.Curve.LINEAR)
                     .inSection("echo").rand(0f, 0.7f),
-            new Param("wet", "Echo level (wet)", 0f, 1f, 0.5f, "", Param.Curve.LINEAR)
+            // 0 (Samuel, Oct 13): a new install plays only the room until the user turns things on.
+            new Param("wet", "Echo level (wet)", 0f, 1f, 0f, "", Param.Curve.LINEAR)
                     .inSection("echo").rand(0f, 0.8f),
             new Param("echo_scatter", "Echo scatter (each repeat lands somewhere else)", 0f, 1f, 0.5f, "",
                     Param.Curve.LINEAR).inSection("echo").rand(0f, 1f).resetWhenAbsent(),

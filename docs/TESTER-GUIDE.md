@@ -24,6 +24,7 @@ There are two ways to use it:
 - **Dry level no longer turns the music down:** it only changes your microphone's sound.
 - **Music stays in time** with the beat, standing or walking.
 - A small dot shows which sliders a mover is moving.
+- **Welcome pages** on a new install, and **a quiet start**: a new install has everything off (the echo too), so you hear only the room until you turn things on.
 - **Intensity** in the bottom card: calmer to the left, busier to the right, your own settings in the middle.
 - **Handling noise:** tapping, gripping or rubbing the phone no longer becomes part of the music: those sounds are turned down and never caught as found sounds (see Handling hush).
 - **Diagnostics** on the Setup tab shows which mic and headphones are really in use, how loud the mic hears the room, and whether anything overloads. If the mic itself keeps overloading, the status line at the bottom says so.
@@ -51,8 +52,8 @@ Presets and scenes you save or import stay in the app's private storage on your 
 
 1. **Put on headphones first.** If the sound comes out of the phone speaker, the microphone hears it and it screeches back (feedback). The app only plays into headphones or earbuds, never the phone speaker, so it will not start until some are connected. If you unplug them while it runs, it stops by itself. Wired or Bluetooth both work; wired is better (see Audio devices below).
 2. Install the APK. If you already have an earlier copy, just install over it; your saved presets and settings stay. Only if Android refuses with "App not installed" do you need to uninstall the old copy first (see "Starting fresh with Reset" for what that erases). Android may ask you to allow installs from the app you opened it from, and Play Protect may show an "unknown developer" warning. Choose **More details > Install anyway**.
-3. Open the app and press **Start**. It is in the card at the bottom of the screen. Allow the microphone when asked.
-4. Make some noise. Talk, clap, tap the phone. You should hear it processed. If you hear nothing at first, try raising **Input gain** under Input & output.
+3. Open the app. On a new install a few short welcome pages explain the basics and ask for the microphone (you can see them again under Setup, About). Then press **Start**, in the card at the bottom of the screen.
+4. **It starts quiet, on purpose.** A new install has everything switched off, so at first you hear only the world around you through your headphones. Turn one thing on, listen to what it does, then try the next: Echo level on the Sound tab, Beat level and Music on the Music tab, Auto realms on the Realms tab, and Intensity in the card. If you hear nothing at all, try raising **Input gain** under Input & output. (If you already had an earlier copy installed, your settings stay as they were.)
 5. Press **Stop** when finished.
 
 Start with the volume low. Some settings can get loud.
@@ -115,7 +116,7 @@ Repeats what you said, like shouting in a canyon.
 - **Echo follows your steps:** while you walk, the repeats lock to your step rhythm: 1 step, Half a step (the default) or a Quarter step. About 2.5 seconds after you stop, Echo time takes over again. Choose Off to always use Echo time.
 - **Echo scatter:** each repeat lands somewhere else between your ears, so a clap's echoes bounce around you. 0 keeps the echo in the middle. It starts at 0.5.
 - **Echo feedback:** how many times it repeats. Too high and it never dies away.
-- **Echo level:** how loud the repeats are.
+- **Echo level:** how loud the repeats are. It starts at 0 on a new install (no echo); raise it to hear the echo.
 
 ### Ring modulator
 
@@ -387,7 +388,7 @@ A preset file holds the effect sliders, their movers, the Music and Rhythm level
 
 - **Audio devices** has Input (microphone) and Output menus. Output is always headphones or earbuds, wired or Bluetooth. The app picks wired first, then Bluetooth, and you can choose another pair from the menu. For Input you can pick the phone's own mic, a wired headset mic, or a Bluetooth headset mic. Careful with that last one: most Bluetooth earbuds can only use their mic in "phone call mode", which sounds thin and low quality. For the best sound, choose the phone's mic or a wired headset. Some newer headsets (Bluetooth LE Audio) do better, and the app shows a hint under the Input menu about the one you picked. Wired headphones also have the least delay.
 - **Appearance** switches between a light look, a dark look (the default) and a pure-black look that suits OLED screens.
-- **About and licenses** shows the open-source licenses. The app is free software and includes parts of the original RjDj project.
+- **About and licenses** shows the open-source licenses and where to send feedback, and can show the welcome pages again. The app is free software and includes parts of the original RjDj project.
 
 - **Diagnostics** (tap to open) shows, while the sound runs: the mic Android is really using (handy with Input on Automatic), whether a Bluetooth mic is in thin call mode, the headphones being played to, the mic level after Input gain (with the noise gate's setting next to it, so you can see whether the room is above or below it), and overloads in the last minute. **Mic overloads** mean the sound was too loud or too close for the mic itself, which sounds harsh; Input gain can't fix that, because the overload happens before it. **Output limiter squashing hard** means the mix is too hot: if it sounds harsh, lower Input gain or some effect levels. It also counts **handling noises skipped**: taps and grips on the phone that weren't caught as found sounds. One loud clap may count once; that's fine. When the mic keeps overloading, the status line at the bottom says "Mic overloading" on every tab until it stops. Please mention these numbers when you report a harsh or distorted sound.
 - **Behavior:** **Smoothing** sets how smoothly the sound glides when you change a slider (low gives instant, snappy changes, high gives slow slides). **Nudge strength** sets how far the Nudge button moves things. **Realm change sound** switches the warp sound off or on.

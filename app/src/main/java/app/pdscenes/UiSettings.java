@@ -44,6 +44,17 @@ final class UiSettings {
         return theme == THEME_LIGHT;
     }
 
+    private static final String KEY_WALKTHROUGH = "walkthrough_seen";
+
+    /** True once the first-run walkthrough has been shown. */
+    static boolean walkthroughSeen(Context context) {
+        return prefs(context).getBoolean(KEY_WALKTHROUGH, false);
+    }
+
+    static void setWalkthroughSeen(Context context) {
+        prefs(context).edit().putBoolean(KEY_WALKTHROUGH, true).apply();
+    }
+
     private static final String KEY_TAB = "tab";
 
     /** The tab last shown (0 Sound, 1 Music, 2 Realms, 3 Scenes, 4 Setup). */

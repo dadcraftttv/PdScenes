@@ -51,6 +51,8 @@ public class MainActivity extends Activity {
 
     private static final int REQ_PERMISSIONS = 1;
     private static final int REQ_EXPORT = 2;
+    private static final int REQ_MIC = 3;   // the walkthrough's "Allow microphone" (doesn't start the sound)
+    private Walkthrough walkthrough;
     /** Name chosen in the export dialog, used once the file picker returns. */
     private String exportName = "preset";
     private static final int REQ_IMPORT = 3;
@@ -77,6 +79,9 @@ public class MainActivity extends Activity {
             updateMoverDots();
             updateIntensityRow();
             updateStatus();
+            if (walkthrough != null) {
+                walkthrough.refresh();   // headphones plugged in meanwhile
+            }
             updateDiagnostics();
             uiHandler.postDelayed(this, NOW_LINE_MS);
         }
@@ -374,6 +379,9 @@ public class MainActivity extends Activity {
         addAboutSection(setup);
         showTab(UiSettings.tab(this));
         refreshRows();
+        if (FirstRun.showWalkthrough(UiSettings.walkthroughSeen(this), installTimes()[0], installTimes()[1])) {
+            showWalkthrough();
+        }
         updateSceneUi();
     }
 
@@ -1110,8 +1118,63 @@ public class MainActivity extends Activity {
         sensorLine.setText(getString(R.string.sensors_line, SensorInput.describe(this)));
         sensorLine.setPadding(0, 0, 0, dp(8));
         body.addView(sensorLine);
+        TextView feedback = new TextView(this);
+        feedback.setTextSize(14);
+        feedback.setAutoLinkMask(android.text.util.Linkify.EMAIL_ADDRESSES);
+        feedback.setText(R.string.about_feedback);
+        feedback.setPadding(0, 0, 0, dp(8));
+        body.addView(feedback);
         LinearLayout row = newButtonRow(body);
         addButton(row, R.string.show_licenses, this::showLicenses);
+        addButton(row, R.string.walk_show_again, this::showWalkthrough);
+    }
+
+    /** When the app was first installed and last updated (ms); equal on a fresh install. */
+    private long[] installTimes() {
+        try {
+            android.content.pm.PackageInfo info = getPackageManager().getPackageInfo(getPackageName(), 0);
+            return new long[]{info.firstInstallTime, info.lastUpdateTime};
+        } catch (PackageManager.NameNotFoundException e) {
+            return new long[]{0, 1};
+        }
+    }
+
+    private void showWalkthrough() {
+        UiSettings.setWalkthroughSeen(this);
+        walkthrough = new Walkthrough(this, UiSettings.themeResource(UiSettings.theme(this)), new Walkthrough.Host() {
+            @Override
+            public boolean headphonesConnected() {
+                return MainActivity.this.headphonesConnected();
+            }
+
+            @Override
+            public boolean micAllowed() {
+                return checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
+            }
+
+            @Override
+            public void askForMic() {
+                List<String> wanted = new ArrayList<>();
+                wanted.add(Manifest.permission.RECORD_AUDIO);
+                if (Build.VERSION.SDK_INT >= 33) {
+                    wanted.add(Manifest.permission.POST_NOTIFICATIONS);
+                }
+                requestPermissions(wanted.toArray(new String[0]), REQ_MIC);
+            }
+
+            @Override
+            public void start() {
+                if (!AudioService.isRunning()) {
+                    onStartStop();
+                }
+            }
+
+            @Override
+            public int dp(int v) {
+                return MainActivity.this.dp(v);
+            }
+        });
+        walkthrough.open();
     }
 
     /** Licence texts shipped inside the app (assets/licenses), as the GPL requires. */
@@ -1788,6 +1851,12 @@ public class MainActivity extends Activity {
     @SuppressWarnings("NullableProblems")
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] results) {
         super.onRequestPermissionsResult(requestCode, permissions, results);
+        if (requestCode == REQ_MIC) {
+            if (walkthrough != null) {
+                walkthrough.refresh();
+            }
+            return;
+        }
         if (requestCode != REQ_PERMISSIONS) {
             return;
         }

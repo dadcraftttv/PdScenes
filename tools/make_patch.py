@@ -19,7 +19,7 @@ OUT = os.path.join(os.path.dirname(__file__), "..", "app", "src", "main", "asset
 # tools/test_patch.py checks these against Params.java so they cannot drift.
 DEFAULTS = [
     ("gain", 2.5), ("dry", 1), ("echo_on", 1), ("echo_time", 350), ("echo_sync", 2), ("feedback", 0.4),
-    ("wet", 0.5), ("ring_on", 1), ("ring_freq", 80), ("ring_mix", 0), ("smooth", 30),
+    ("wet", 0), ("ring_on", 1), ("ring_freq", 80), ("ring_mix", 0), ("smooth", 30),
     ("pitch_on", 1), ("pitch_semi", 0), ("pitch_mix", 0), ("pitch_window", 60),
     ("crush_on", 1), ("crush_mix", 0), ("crush_bits", 8), ("crush_rate", 8000),
     ("space_on", 1), ("space_pan", 0), ("space_shift", 0),

@@ -87,6 +87,18 @@ loadbang = {k: float(v) for k, v in re.findall(r"\; (\w+) ([-\d.]+)", msg)}
 mism = [(i, d, loadbang.get(i)) for i, d, nopd in jp if not nopd and abs(loadbang.get(i, 1e9) - d) > 1e-6]
 check(not mism, "loadbang defaults match Params.java defaults %s" % (mism or ""))
 
+# a new install (every slider at its default, as the app sends them) plays only the room: a click comes back once
+e = Engine(LIB, PATCH)
+for i, d, nopd in jp:
+    if not nopd:
+        e.send(i, d)
+e.run(e.silence(1.0))
+x = np.zeros(2 * SR, np.float32); x[SR // 10] = 0.2
+yd = np.abs(e.run(x))
+after = float(yd[SR // 10 + int(0.03 * SR):].max())
+check(yd.max() > 0.1 and after < 1e-3, "defaults: a click is heard once and nothing follows (peak %.2f, after it %.5f)" % (yd.max(), after))
+e.close()
+
 # ---- 2. echo timing and level ----
 e = fresh()
 x = np.zeros(SR * 2, np.float32); x[0] = 0.2
@@ -1434,11 +1446,11 @@ jc = {k: jolted_catch(k) for k in (None, 1.0, 1.9, 2.05)}
 check(jc[None] == [1] and jc[1.0] == [1] and jc[1.9] == [4] and jc[2.05] == [4],
       "handling: a sound with a jolt 100 ms before or 50 ms into it is skipped (4), a jolt a second earlier doesn't matter %s" % jc)
 # ...and it starts no chime or glitch, while the same claps without jolts do
-def jolted_triggers(jolts):
+def jolted_triggers(jolts, claps=True):
     thump, clap, tick = fs_sounds()
     x = (np.random.default_rng(3).standard_normal(12 * SR) * 0.0005).astype(np.float32)
     at = [1.0 + 1.3 * k for k in range(8)]
-    for t in at:
+    for t in (at if claps else []):
         s = clap(); i = int(t * SR); x[i:i + len(s)] += s.astype(np.float32)
     e = fresh(music_on=1, music_pad=0, music_arp=0, music_react=1, wet=0, gc_amount=1, music_res=0); e.listen("chime_note", "gc_mode")
     pos = 0
@@ -1448,9 +1460,9 @@ def jolted_triggers(jolts):
             e.send("jolt", 1)
     e.run(x[pos:])
     return len(e.heard["chime_note"]), len(e.heard["gc_mode"])
-free, held = jolted_triggers(False), jolted_triggers(True)
-check(free[0] >= 3 and held[0] == 0 and held[1] <= free[1] - 4,
-      "handling: claps with a jolt 20 ms before start no chimes and fewer glitches (only the free clock's) (chimes, glitches: %s without jolts, %s with)" % (free, held))
+free, held, none = jolted_triggers(False), jolted_triggers(True), jolted_triggers(False, claps=False)
+check(free[0] >= 3 and held[0] == 0 and free[1] > none[1] + 2 and held[1] <= none[1] + 2,
+      "handling: claps with a jolt 20 ms before start no chimes and no glitches beyond the free clock's (chimes, glitches: %s without jolts, %s with, %s with no claps)" % (free, held, none))
 # ...and the mic is turned down while the phone is handled: 0.5 -> -12 dB, back within a second
 def handled_level(h):
     e = fresh(wet=0, dry=1, handling_hush=0.5)
