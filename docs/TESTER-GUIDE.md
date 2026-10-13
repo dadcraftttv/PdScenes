@@ -393,6 +393,6 @@ Thank you for trying this. Anything you notice is useful, even "it felt weird." 
 - **Headphones and mic:** did the app refuse to start, stop when you unplugged, or pick the wrong mic? Did it go quiet during a call and come back after, and did it dip when another app played music?
 - **Scenes:** does each of the four built-in scenes make sound, and does it react the way its description says? Tell me which ones felt dead, too loud or confusing.
 
-Send feedback to DadCraft directly. Screenshots help, and so does a short description of the steps that led to a problem.
+Send feedback to DadCraft on Discord, or email it to dadcraftstudios@gmail.com. Screenshots help, and so does a short description of the steps that led to a problem.
 
 Please use headphones, keep the volume low at first, and take a break if the sound is intense. The app can get loud.
