@@ -44,8 +44,11 @@ final class SensorInput implements SensorEventListener {
 
     private final SensorManager sensorManager;
     /** False for the built-in effects, which use the sensors only for their movers. */
-    /** 200 readings a second; asking for more needs a permission most phones show a warning for. */
-    private static final int ACCEL_PERIOD_FOR_STEPS_US = 5000;
+    /**
+     * 100 readings a second for the steps (was 200, the most Android allows without a special permission; on trial,
+     * Oct 13: Android's own delivery of 200 a second cost ~7.5% of a core, and the tempo clock now evens out the beat).
+     */
+    private static final int ACCEL_PERIOD_FOR_STEPS_US = 10000;
 
     private final boolean sendToPd;
     private HandlerThread thread;
@@ -76,8 +79,7 @@ final class SensorInput implements SensorEventListener {
         Handler handler = new Handler(thread.getLooper());
         // Scenes get the fast rate for everything. For the built-in effects the gyroscope and compass only
         // steer movers (30 updates a second), so the slower, battery-friendlier rate is plenty; the
-        // accelerometer is read 200 times a second (the most Android allows without a special permission)
-        // so the beat lands on the step; scenes get the usual 50.
+        // accelerometer is read 100 times a second so the beat lands on the step; scenes get the usual 50.
         int accelRate = sendToPd ? SensorManager.SENSOR_DELAY_GAME : ACCEL_PERIOD_FOR_STEPS_US;
         int rate = sendToPd ? SensorManager.SENSOR_DELAY_GAME : SensorManager.SENSOR_DELAY_UI;
         sensorManager.registerListener(this, accel, accelRate, handler);

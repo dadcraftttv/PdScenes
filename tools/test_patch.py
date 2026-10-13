@@ -77,7 +77,7 @@ check(not bad, "patch loads with no Pd errors" + (": %s" % bad if bad else ""))
 
 jp = java_params()
 patch_text = open(PATCH).read()
-receivers = set(re.findall(r"#X obj \d+ \d+ r (\w+);", patch_text)) - {"step", "scale_n", "pad_glide", "mic_level", "pad_slot", "pool_n", "pool_x", "pocket", "pocket_down", "duck", "step_strength", "step_hit", "beat_sure", "groove", "gc_mode", "gc_try", "density_on", "motif", "drift_now", "drift_set", "drift_n", "music_register", "music_warm", "pulse", "tick16", "clock_walking", "gc_mode", "fs_need", "harm_organ", "fpad_need", "harm_run", "fpad_kick", "fpad_caught", "rh_swing_set", "fs_flourish_set", "rn_ring", "rnf_found"} - {r for r in re.findall(r"#X obj \d+ \d+ r (sw_\w+);", open(PATCH).read())}   # events and internal links, not settings
+receivers = set(re.findall(r"#X obj \d+ \d+ r (\w+);", patch_text)) - {"step", "scale_n", "pad_glide", "mic_level", "pad_slot", "pool_n", "pool_x", "pocket", "pocket_down", "duck", "step_strength", "step_hit", "beat_sure", "groove", "gc_mode", "gc_try", "density_on", "motif", "drift_now", "drift_set", "drift_n", "music_register", "music_warm", "pulse", "tick16", "clock_walking", "gc_mode", "fs_need", "harm_organ", "fpad_need", "harm_run", "fpad_kick", "fpad_caught", "rh_swing_set", "fs_flourish_set", "rn_ring", "rnf_found", "realm_cue"} - {r for r in re.findall(r"#X obj \d+ \d+ r (sw_\w+);", open(PATCH).read())}   # events and internal links, not settings
 pd_ids = {i for i, _, nopd in jp if not nopd}
 check(len(jp) >= 10, "parsed %d params from Params.java" % len(jp))
 check(pd_ids == receivers, "Params.java ids == patch receivers (java-only %s, patch-only %s)"
@@ -1545,6 +1545,16 @@ yb, _, _, _ = voice_harmony(2); yo, _, _, sw_o = voice_harmony(0); held_b, held_
 check(not sw_o and tone_level(held_o, f_v) < 0.2 * tone_level(held_v, f_v) and tone_level(held_b, f_v) > 0.5 * tone_level(held_v, f_v)
       and tone_level(held_b, 3 * f_org) > 0.5 * tone_level(held_o, 3 * f_org),
       "harmony sound: Organ plays no voice copy, Both plays the copy and the organ")
+
+# the Realm cue: a soft two-note chime, rising when a Realm starts (A5 then E6), falling when your settings come back
+def realm_cue(state, on=1):
+    e = fresh(dry=0, wet=0, cue_sound=on); e.run(e.silence(0.2)); e.send("realm_cue", state)
+    y = e.run(e.silence(1.0))[:, 0]
+    return y, tone_level(y[int(0.01 * SR):int(0.08 * SR)], 880), tone_level(y[int(0.01 * SR):int(0.08 * SR)], 1318.5), np.max(np.abs(y))
+_, up_a, up_e, up_pk = realm_cue(1); _, dn_a, dn_e, _ = realm_cue(0); _, _, _, off_pk = realm_cue(1, on=0)
+check(up_a > 3 * up_e and dn_e > 3 * dn_a and 0.02 < up_pk < 0.12 and off_pk < 1e-4,
+      "realm cue: rising when a Realm starts (A5 first: %.4f vs %.4f), falling when your settings return, soft (peak %.3f), "
+      "silent when switched off (%.5f)" % (up_a, up_e, up_pk, off_pk))
 
 # found pad: a held hum is kept with its pitch; from the next chord change the pad's chord is sung by it (each note
 # folded within a tritone of the hum, its overtones carried), as loud as the synth pad; until then the synth plays.

@@ -230,6 +230,12 @@ final class Modulation {
         }
     }
 
+    /** True while a mover is pushing this slider around (the screen marks it with a dot). */
+    static boolean isMoving(String paramId) {
+        Integer i = INDEX.get(paramId);
+        return i != null && moving[i];
+    }
+
     /** The value to give Pd for a parameter whose slider is at {@code base}. */
     static float output(Param p, float base) {
         Integer i = INDEX.get(p.id);

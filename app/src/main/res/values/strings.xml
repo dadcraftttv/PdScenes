@@ -96,6 +96,8 @@
     <string name="realm_changes_all">What it changes: everything</string>
     <string name="realm_changes_none">What it changes: nothing (all left at your settings)</string>
     <string name="realm_changes_but">What it changes: all but %s</string>
+    <string name="tab_description">%s tab</string>
+    <string name="pad_description">Touch pad: drag a finger to steer the sound</string>
     <string name="tab_sound">Sound</string>
     <string name="tab_music">Music</string>
     <string name="tab_realms">Realms</string>

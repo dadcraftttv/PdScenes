@@ -144,6 +144,7 @@ public class AudioService extends Service {
                 if (world != null ? !world.equals(worldLogged) : worldLogged != null) {
                     worldLogged = world;
                     logEvent("World: " + (world == null ? "own settings" : world) + " (" + Worlds.hearing() + ")");
+                    PdBase.sendFloat("realm_cue", world == null ? 0f : 1f);   // the soft chime (if on in Setup)
                 }
                 if (Worlds.isEnabled() && now - lastHearingLog >= HEARING_LOG_MS) {   // a trace of the room, to tune the thresholds by
                     lastHearingLog = now;

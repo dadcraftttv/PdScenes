@@ -74,6 +74,7 @@ public class MainActivity extends Activity {
         @Override
         public void run() {
             updateNowLine();
+            updateMoverDots();
             uiHandler.postDelayed(this, NOW_LINE_MS);
         }
     };
@@ -291,6 +292,7 @@ public class MainActivity extends Activity {
         scenes.addView(scenePadSlot);
 
         scenePad = new ScenePad(this);
+        scenePad.setContentDescription(getString(R.string.pad_description));
         scenePad.setListener(this::sendTouch);
         padHint = new TextView(this);
         padHint.setText(R.string.pad_hint);
@@ -383,6 +385,7 @@ public class MainActivity extends Activity {
             b.setPadding(0, dp(8), 0, dp(8));
             final int tab = t;
             b.setOnClickListener(v -> showTab(tab));
+            b.setContentDescription(getString(R.string.tab_description, getString(TAB_NAMES[t])));
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
             lp.setMargins(dp(2), 0, dp(2), 0);
             strip.addView(b, lp);
@@ -1161,6 +1164,7 @@ public class MainActivity extends Activity {
         if (p.randomizable) {
             CheckBox lock = new CheckBox(this);
             lock.setText(R.string.lock);
+            lock.setContentDescription(getString(R.string.lock) + ": " + p.label);
             lock.setChecked(ParamStore.isLocked(p.id));
             lock.setOnCheckedChangeListener((b, checked) -> ParamStore.setLocked(p.id, checked));
             head.addView(lock);
@@ -1169,6 +1173,7 @@ public class MainActivity extends Activity {
 
         SeekBar slider = new SeekBar(this);
         slider.setMax(1000);
+        slider.setContentDescription(p.label);
         float v0 = ParamStore.get(p.id);                  // right from the start (folded rows aren't refreshed)
         slider.setProgress(Math.round(p.toNorm(v0) * 1000f));
         label.setText(valueText(p, v0));
@@ -1271,6 +1276,23 @@ public class MainActivity extends Activity {
     }
 
     /** Pull current values from the store into every control. */
+    /** A small dot after a slider's label while a mover is pushing it around (checked once a second). */
+    private static final String MOVER_DOT = "  \u25CF";
+
+    private void updateMoverDots() {
+        for (Row r : rows) {
+            if (r.label == null || !r.label.isShown()) {
+                continue;
+            }
+            boolean on = AudioService.isRunning() && Modulation.isMoving(r.param.id);
+            CharSequence text = r.label.getText();
+            boolean has = text.toString().endsWith(MOVER_DOT);
+            if (on != has) {
+                r.label.setText(valueText(r.param, ParamStore.get(r.param.id)) + (on ? MOVER_DOT : ""));
+            }
+        }
+    }
+
     private void refreshRows() {
         for (Row r : rows) {
             View shown = r.slider != null ? r.slider : r.switchView != null ? r.switchView : r.spinner;

@@ -309,8 +309,12 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   reverse, Color, Motion, Space and dry level; `uses`/`setUses`, prefs `skip_<world>_<group>`, cleared by Reset): a
   Realm leaves a group it doesn't use at the user's values; `touched` tracks what a Realm actually set, so going home,
   a stop, or the next Realm leaving a group alone gives back only that (test W). Under each Realm "What it changes:
-  everything / all but ..." folds open to the switches. Next: polish (mover dot, cue sound on a
-  Realm change with a Setup switch, content descriptions, 100 Hz accelerometer trial).
+  everything / all but ..." folds open to the switches. **Polish:** a dot after a slider's label while a mover
+  pushes it (`Modulation.isMoving`, checked with the Now line once a second); a Realm cue (`realm_cue 1|0` from
+  AudioService on each Realm change: A5 then E6 rising into a Realm, falling back home, 0.05 each after the limiter,
+  group `cue`; `cue_sound` "Realm change sound" in Behavior/Setup, noPreset, default on); content descriptions on
+  tabs, sliders, lock boxes and the pad; the step accelerometer at 100 Hz (`ACCEL_PERIOD_FOR_STEPS_US` 10000, on
+  trial: Samuel judges whether steps still land).
 - **Screen:** a bar pinned to the bottom (thumb reach while walking) holds the status, a "Now: <world> · why" line
   (night/walking/pocket/room words from `Worlds.room*()`, refreshed 1/s while visible), Start/Stop, Hold world
   (`Worlds.setHeld`: the selector keeps listening but nothing changes; a stop lets go) and Save sound (a preset named
@@ -383,7 +387,7 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   Result: -34% everything on, -49% with Harmony 0; with Samuel's own settings (reverb 0.6, phaser 0.4, chorus 0.5,
   pitch 0.25, glitch cloud full, music, beat) -22%. What's left there: music 37% (Harmony 18 of it), reverb 13%,
   phaser 10% (its coefficients every 4 ms with [expr]; 8 ms would zipper at 5 Hz), glitch cloud 7%, pitch 7%. Room notes stay always on (with react < 1 their input never
-  closes). The 200 Hz accelerometer (~7.5% of a core, own thread) is kept for step timing.
+  closes). The step accelerometer ran at 200 Hz (~7.5% of a core, own thread); on trial at 100 Hz since Oct 13.
 - Presets store: sliders, movers, music pad/notes/tone/follow, beat, dry. A slider kept out of presets keeps its mover out too
   (`Params.withMovers`), or loading a preset or world switched it off. Not stored: gain/gate/compressor, smoothing/nudge,
   music on/key/scale, locks, worlds choices, audio device, scenes, appearance.
