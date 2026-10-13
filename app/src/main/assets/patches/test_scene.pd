@@ -5577,13 +5577,13 @@
 #X msg 6900 220 0;
 #X msg 6900 280 1;
 #X obj 6900 250 del 1000;
-#X obj 7000 220 expr (2400-(2400-600)*\$f1)*(1-max(rh_intoff\,0)*1.67);
+#X obj 7000 220 expr 2400-(2400-600)*\$f1;
 #X obj 6900 190 t b b;
 #X obj 7100 280 loadbang;
 #X obj 7100 340 t b b;
 #X obj 7160 370 random 6000;
 #X obj 7260 370 f;
-#X obj 7160 400 expr (2000+\$f1)*0.6/(0.2+\$f2)*(1-max(rh_intoff\,0)*2);
+#X obj 7160 400 expr (2000+\$f1)*0.6/(0.2+\$f2);
 #X obj 7100 430 del 4000;
 #X obj 7100 460 t b b;
 #X obj 7100 490 spigot;

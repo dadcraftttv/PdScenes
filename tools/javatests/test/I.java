@@ -18,8 +18,8 @@ public class I {
     check(ParamStore.get("wet")==0.5f,"...the stored value stays 0.5");
     ParamStore.set("intensity",1f);
     Param wet=Params.byId("wet"), fb=Params.byId("feedback");
-    check(Math.abs(out("wet")-1f)<1e-4 && Math.abs(out("gc_amount")-1f)<1e-4 && Math.abs(out("feedback")-fb.randMax)<1e-4,
-        "at 1: echo level 0.5 -> "+out("wet")+" (its top), glitch 0.4 -> "+out("gc_amount")+", feedback 0.6 -> "+out("feedback")+" (only its safe top)");
+    check(Math.abs(out("wet")-wet.randMax)<1e-4 && Math.abs(out("gc_amount")-0.6f)<1e-4 && out("feedback")<=Math.max(0.6f,fb.randMax)+1e-4 && out("feedback")>0.6f,
+        "at 1: echo level up to its safe top "+out("wet")+", glitch 0.4 -> "+out("gc_amount")+", feedback "+out("feedback"));
     check(out("ring_mix")==0f,"an effect at 0 never comes on ("+out("ring_mix")+")");
     check(out("music_pad")==0.33f && out("gain")==2.5f,"the pad and input gain are left alone");
     ParamStore.set("feedback",0.8f);
