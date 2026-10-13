@@ -464,7 +464,7 @@ public class MainActivity extends Activity {
         startStop = new Button(this);
         startStop.setAllCaps(false);
         startStop.setOnClickListener(v -> onStartStop());
-        row.addView(startStop, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.4f));
+        row.addView(startStop, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1.4f));
         holdButton = addButton(row, R.string.hold_world, () -> {
             Worlds.setHeld(!Worlds.isHeld());
             updateNowLine();
@@ -766,6 +766,7 @@ public class MainActivity extends Activity {
     private LinearLayout newButtonRow(LinearLayout parent) {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setBaselineAligned(false);   // a two-line button would otherwise push its one-line neighbours down
         parent.addView(row, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         return row;
@@ -777,7 +778,7 @@ public class MainActivity extends Activity {
         b.setAllCaps(false);
         b.setOnClickListener(v -> action.run());
         row.addView(b, new LinearLayout.LayoutParams(
-                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+                0, LinearLayout.LayoutParams.MATCH_PARENT, 1f));   // (all as tall as the tallest)
         return b;
     }
 
