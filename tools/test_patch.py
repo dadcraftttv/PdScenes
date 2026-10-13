@@ -51,7 +51,7 @@ def fresh(**over):
                 phaser_on=1, phaser_mix=0, phaser_rate=0.4, phaser_depth=0.7, phaser_fb=0.4,
                 beat_on=1, beat_level=0, beat_hats=0.5, beat_snare=0.6, beat_pitch=55,
                 music_on=0, music_key=0, music_scale=0, music_pad=0.33, music_arp=0.4,
-                music_tone=0.5, music_react=0.8, music_res=0.8, music_harm=0, echo_scatter=0, beat_follow=0, music_pad_reg=2, pocket_hush=0.5, pocket_guard=0.6, melody_src=0, harm_src=0, pad_src=0, bass_src=0)
+                music_tone=0.5, music_react=0.8, music_res=0.8, music_harm=0, echo_scatter=0, beat_follow=0, music_pad_reg=2, pocket_hush=0.5, pocket_guard=0.6, melody_src=0, harm_src=0, pad_src=0, bass_src=0, chime_char=0)
     base.update(over)
     for k, v in base.items():
         e.send(k, v)
@@ -1631,6 +1631,23 @@ _, _, rb = melody_notes(2, clap())
 check(on_s == 0 and on_f >= 3 and on_b >= 3 and off_f >= 1 and sum(rb) > 0.8 * sum(syn_r),
       "found melody: its voices switch on only for notes (synth %d, found %d, both %d, off again %d), Both keeps the synth "
       "chimes (rms %s vs %s)" % (on_s, on_f, on_b, off_f, [round(v, 3) for v in rb], [round(v, 3) for v in syn_r]))
+# Chime character: toward "your sound" the hit carries more of the note (less of it in the tuned ring), the ring is
+# shorter, and the level holds
+def chime_char(cc):
+    x = (np.random.default_rng(3).standard_normal(6 * SR) * 0.0005).astype(np.float32); c = clap(); x[SR:SR + len(c)] += c.astype(np.float32)
+    e = fresh(music_on=1, music_pad=0, music_arp=1, wet=0, music_res=0, music_react=0, melody_src=1, chime_char=cc)
+    e.run(x[:3 * SR]); tonal, early, late, lvl = [], [], [], []
+    for deg in (7, 9, 11):
+        e.send_list("motif", deg, 0.5); y = e.run(x[3 * SR:4 * SR])[:, 0]
+        S_ = np.abs(np.fft.rfft(y[:int(0.5 * SR)])) ** 2; f = np.fft.rfftfreq(int(0.5 * SR), 1 / SR)
+        pk = f[np.argmax(S_ * (f > 150))]; band = sum(S_[(np.abs(f - pk * m) < 6)].sum() for m in (1, 2))
+        tonal.append(band / S_[f > 150].sum()); early.append(rms(y[:int(0.15 * SR)])); late.append(rms(y[int(0.5 * SR):]))
+        lvl.append(rms(y))
+    return np.mean(tonal), np.mean(late) / max(np.mean(early), 1e-9), np.mean(lvl)
+t0, d0, l0 = chime_char(0); t1, d1, l1 = chime_char(1)
+check(t1 < 0.7 * t0 and d1 < 0.6 * d0 and 0.4 < l1 / l0 < 2.5,
+      "found melody: Chime character from ring to your sound: the note's share in the tuned ring %.2f -> %.2f, the ring after "
+      "0.5 s %.2f -> %.2f of the start, level %.3f -> %.3f" % (t0, t1, d0, d1, l0, l1))
 c_beat_off, _, _ = melody_notes(1, clap(), beat_level=0)
 c_none, _, _ = melody_notes(0, clap(), beat_level=0)
 check(c_beat_off == [1] and c_none == [], "found melody: sounds are caught for it with the beat off (%s), not when nothing needs them (%s)"

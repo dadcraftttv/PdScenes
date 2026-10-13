@@ -171,6 +171,8 @@ final class Params {
             new Param("melody_src", "Melody sounds", 0f, 2f, 1f, "", Param.Curve.LINEAR)
                     .choices("Synth chimes", "Found sounds (tuned from what the mic hears)", "Both")
                     .inSection("music").noPreset().resetWhenAbsent(),
+            new Param("chime_char", "Chime character (ring to your sound)", 0f, 1f, 0.5f, "", Param.Curve.LINEAR)
+                    .inSection("music").rand(0f, 1f).resetWhenAbsent(),
             new Param("music_tone", "Tone (dark to bright)", 0f, 1f, 0.5f, "", Param.Curve.LINEAR)
                     .inSection("music").rand(0.2f, 0.9f).resetWhenAbsent(),
             new Param("music_react", "How much the music follows what it hears", 0f, 1f, 0.8f, "",

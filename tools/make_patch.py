@@ -35,7 +35,7 @@ DEFAULTS = [
     ("phaser_on", 1), ("phaser_mix", 0), ("phaser_rate", 0.4), ("phaser_depth", 0.7), ("phaser_fb", 0.4),
     ("beat_on", 1), ("beat_level", 0), ("beat_hats", 0.5), ("beat_snare", 0.6), ("beat_pitch", 55),
     ("music_on", 0), ("music_key", 0), ("music_scale", 0), ("music_pad", 0.33), ("music_arp", 0.4),
-    ("music_tone", 0.5), ("music_react", 0.8), ("music_res", 0.8), ("music_harm", 0.6), ("beat_follow", 1), ("beat_when", 1), ("rhythm_src", 1), ("melody_src", 1), ("harm_src", 1), ("pad_src", 1), ("bass_src", 0), ("tempo_mode", 0), ("tempo_bpm", 100), ("beat_glitch", 0.4), ("gate_attack", 5), ("gate_hold", 0), ("gate_release", 80), ("comp_attack", 40),
+    ("music_tone", 0.5), ("music_react", 0.8), ("music_res", 0.8), ("music_harm", 0.6), ("beat_follow", 1), ("beat_when", 1), ("rhythm_src", 1), ("melody_src", 1), ("harm_src", 1), ("pad_src", 1), ("bass_src", 0), ("tempo_mode", 0), ("tempo_bpm", 100), ("chime_char", 0.5), ("beat_glitch", 0.4), ("gate_attack", 5), ("gate_hold", 0), ("gate_release", 80), ("comp_attack", 40),
     ("comp_release", 40), ("music_drift", 1), ("echo_scatter", 0.5), ("gc_amount", 0), ("gc_level", 0.7), ("gc_pct_stutter", 35), ("gc_pct_reverse", 25),
     ("gc_pct_shuffle", 20), ("gc_pct_stretch", 20), ("music_pad_reg", 2), ("pocket_hush", 0.5), ("pocket_guard", 0.6),
 ]
@@ -196,6 +196,9 @@ FM_KICK_GAIN = 0.45               #  where it rings its resonators much harder: 
 FM_RATE = (0.5, 4.0)
 FM_RAW = 2.5
 FM_RES = 18
+FM_CHAR_RAW = 6.0                 # "Chime character" at 1 (your sound): the hit this much louder (x1 + this)...
+FM_CHAR_RING = 0.85               # ...the ring this much quieter...
+FM_CHAR_SHORT = 0.7               # ...and this much shorter, the hit's band widened to Q 0.3
 FM_STRIKE_Q = 1.2                 # the strike is band-passed around the note (rounder than high-passed: Samuel)
 FM_ATTACK_MS = 5
 FM_LIMIT = 0.7                    # the found melody's soft limit (tanh)
@@ -894,7 +897,7 @@ def add_found_note(P, k, vx, vy, ex, caught):
     P.obj(f"{n}_nt", "t b b b", vx + 400, vy + 60); P.c(f"{n}_go", f"{n}_nt", 2, 0)
     P.obj(f"{n}_fq", "value cfreq", vx + 400, vy + 80); P.obj(f"{n}_dc", "value cdec", vx + 480, vy + 80)
     P.c(f"{n}_nt", f"{n}_dc", 1, 0); P.c(f"{n}_nt", f"{n}_fq", 0, 0)
-    ex(f"{n}_q", "max(3.1416*$f1*$f2/6900,5)", vx + 480, vy + 140)
+    ex(f"{n}_q", f"max(3.1416*$f1*$f2/6900*(1-{FM_CHAR_SHORT}*fm_cc),5)", vx + 480, vy + 140)
     P.c(f"{n}_dc", f"{n}_q", 0, 1)
     P.obj(f"{n}_ft", "t f f f f", vx + 400, vy + 100); P.c(f"{n}_fq", f"{n}_ft")
     P.c(f"{n}_ft", f"{n}_q", 3, 0)
@@ -902,7 +905,7 @@ def add_found_note(P, k, vx, vy, ex, caught):
     P.c(f"{n}_ft", f"{n}_fs1", 2, 0)
     ex(f"{n}_rate", f"min(max($f1/$f2,{FM_RATE[0]}),{FM_RATE[1]})", vx + 400, vy + 140)
     P.obj(f"{n}_rv", "t f f", vx + 400, vy + 160); P.c(f"{n}_ft", f"{n}_rate", 0, 0); P.c(f"{n}_rate", f"{n}_rv")
-    ex(f"{n}_qg", f"{FM_RES}*$f1", vx + 560, vy + 160)                  # (a narrower ring catches less: feed it harder)
+    ex(f"{n}_qg", f"{FM_RES}*$f1*(1-{FM_CHAR_RING}*fm_cc)", vx + 560, vy + 160)                  # (a narrower ring catches less: feed it harder)
     P.c(f"{n}_q", f"{n}_qg")
     # 3. play: the read ramp over the slice's length / rate, and the strike's loudness = velocity x the slice's gain
     # (the rate arrived with the note, into the cold inlets; then: the slice's gain, the read ramp, the loudness)
@@ -931,8 +934,11 @@ def add_found_note(P, k, vx, vy, ex, caught):
     # the strike itself keeps its character but not its own low pitch (that would fight the note) nor its harsh top:
     # a soft band around the note
     P.obj(f"{n}_bp", "vcf~ 1", vx, vy + 360); P.c(f"{n}_raw", f"{n}_bp"); P.c(f"{n}_fs1", f"{n}_bp", 0, 1)
-    P.msg(f"{n}_bpq", str(FM_STRIKE_Q), vx + 60, vy + 340); P.c(f"{n}_nt", f"{n}_bpq", 2, 0); P.c(f"{n}_bpq", f"{n}_bp", 0, 2)
+    ex(f"{n}_bpq", f"{FM_STRIKE_Q}*(1-fm_cc)+0.3*fm_cc+$f1*0", vx + 60, vy + 340); P.c(f"{n}_nt", f"{n}_bpq", 2, 0)
+    P.c(f"{n}_bpq", f"{n}_bp", 0, 2)
     P.obj(f"{n}_mix", f"*~ {FM_RAW}", vx, vy + 390); P.c(f"{n}_bp", f"{n}_mix")
+    ex(f"{n}_mixg", f"{FM_RAW}*(1+{FM_CHAR_RAW}*fm_cc)+$f1*0", vx + 60, vy + 375); P.c(f"{n}_nt", f"{n}_mixg", 2, 0)
+    P.c(f"{n}_mixg", f"{n}_mix", 0, 1)
     P.sig2(f"{n}_out", "+~", f"{n}_mix", f"{n}_res", vx, vy + 410)
 
 
@@ -1835,6 +1841,7 @@ def add_music(P):
     P.c("fm_agc", "fm_agc_pk"); P.c("fm_agc_pk", "fm_agc_ln")
     P.sig2("fm_lvl", "*~", facc, "fm_agc_ln", cx + 800, cy + 1940)
     soft_limit(P, "fm_lim", "fm_lvl", FM_LIMIT, 1.0, cx + 800, cy + 1960)
+    P.obj("fm_cc_r", "r chime_char", cx + 1000, cy + 1880); P.obj("fm_cc_v", "value fm_cc", cx + 1000, cy + 1895); P.c("fm_cc_r", "fm_cc_v")
     P.sig2("mu_chime_all", "+~", acc, "fm_lim", cx + 600, cy + 370)
     P.obj("mu_chime_scale", "*~ 0.22", cx + 600, cy + 380)
     P.c("mu_chime_all", "mu_chime_scale")

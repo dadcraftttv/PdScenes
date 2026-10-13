@@ -170,7 +170,11 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   (Oct 12): in key, but "could sound rounder" and "a little loud" -> the octave resonator went, level down. A
   delay-line string was not possible: Pd's feedback needs a block (64 samples), too slow above ~750 Hz. An automatic
   level (`env~` every 5 ms, only down, 0.9 of the way to `FM_LEVEL_DB` 85) keeps a clap and a knock 2-6 dB under the
-  synth chimes, then tanh at 0.7 (without it every found note hit the limiter). Found mode plays
+  synth chimes, then tanh at 0.7 (without it every found note hit the limiter). **Chime character** (`chime_char`,
+  Music, in presets, default 0.5; Samuel: the found sounds should *be* the chimes): toward 1 the hit gets
+  x(1 + `FM_CHAR_RAW` 6) louder and its band widens (Q 1.2 -> 0.3), the ring `FM_CHAR_RING` (0.85) quieter and
+  `FM_CHAR_SHORT` (0.7) shorter. Measured with a clap: the note's share in the tuned ring 0.67 -> 0.05; at 1 the
+  notes are ~4 dB quieter by rms (short hits at the limiter; more lift only squashed them). Found mode plays
   the synth until the first catch. Catching and the recording audio now run when the beat OR the melody needs them
   (`fs_need` = rhythm_src x beat_level or music_on x melody_src). Each voice is its own switch~ group `fmv<k>`, on
   at its note and off cdec + 600 ms later (like the glitch voices); the mix is group `fmelody`. Cost (desktop,
