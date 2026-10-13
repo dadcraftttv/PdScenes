@@ -300,6 +300,13 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   brings them back in 0.8 s); only steps start it.
   Music joins after the filter, so chorus/flanger/phaser/tremolo/reverse/glitch/echo/reverb/spatial shape it; pitch/ring/crush/dist/filter do not.
   It follows the Dry level. Only the real room tells us if the tuning is right — expect further tweaks from Samuel's reports.
+- **Tabs** (step D, Oct 12): Sound (presets/shortcuts, XY pad, input, effects), Music (Rhythm, Music), Realms, Scenes,
+  Setup (audio devices, appearance, behaviour, reset, about); the strip is the bottom card's top row (selected = accent
+  pill), each tab keeps its scroll, the last tab is remembered (`UiSettings.tab`). While a scene plays, Sound/Music/
+  Realms show a notice. The pad view moves between Sound (XY pad) and Scenes. **Realms** = Auto worlds renamed on
+  screen only: internal ids stay "world"; built-in presets are now "X realm" and `Worlds.renamedBuiltIn` migrates a
+  stored "X world" choice on load (test W). Next: Realm ingredient switches, then polish (mover dot, cue sound on a
+  Realm change with a Setup switch, content descriptions, 100 Hz accelerometer trial).
 - **Screen:** a bar pinned to the bottom (thumb reach while walking) holds the status, a "Now: <world> · why" line
   (night/walking/pocket/room words from `Worlds.room*()`, refreshed 1/s while visible), Start/Stop, Hold world
   (`Worlds.setHeld`: the selector keeps listening but nothing changes; a stop lets go) and Save sound (a preset named

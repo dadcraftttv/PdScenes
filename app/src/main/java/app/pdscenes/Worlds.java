@@ -42,12 +42,12 @@ final class Worlds {
     }
 
     static final World[] ALL = {
-            new World(WorldSelector.TRANQUIL, "Tranquil", "quiet room", "Tranquil world"),
-            new World(WorldSelector.FLUX, "Flux", "loud room", "Flux world"),
-            new World(WorldSelector.KINETIC, "Kinetic", "walking", "Kinetic world"),
-            new World(WorldSelector.GHOST, "Ghost", "midnight to 5 AM", "Ghost world"),
-            new World(WorldSelector.POCKET, "Pocket", "phone in a pocket", "Pocket world"),
-            new World(WorldSelector.UNSTABLE, "Unstable", "shaking the phone", "Unstable world", false),   // Samuel: opt-in
+            new World(WorldSelector.TRANQUIL, "Tranquil", "quiet room", "Tranquil realm"),
+            new World(WorldSelector.FLUX, "Flux", "loud room", "Flux realm"),
+            new World(WorldSelector.KINETIC, "Kinetic", "walking", "Kinetic realm"),
+            new World(WorldSelector.GHOST, "Ghost", "midnight to 5 AM", "Ghost realm"),
+            new World(WorldSelector.POCKET, "Pocket", "phone in a pocket", "Pocket realm"),
+            new World(WorldSelector.UNSTABLE, "Unstable", "shaking the phone", "Unstable realm", false),   // Samuel: opt-in
     };
 
     /** Stored in place of a preset name when the user switches a world off. */
@@ -82,13 +82,28 @@ final class Worlds {
 
     // ---- settings ----
 
+    /** The new name of a built-in preset from before Worlds became Realms ("Flux world" -> "Flux realm"), else null. */
+    static String renamedBuiltIn(String name) {
+        if (name == null || !name.endsWith(" world")) {
+            return null;
+        }
+        String realm = name.substring(0, name.length() - " world".length()) + " realm";
+        return PresetManager.builtIn(realm) != null ? realm : null;
+    }
+
     static void load(Context context) {
         app = context.getApplicationContext();
         SharedPreferences prefs = prefs();
         enabled = prefs.getBoolean(KEY_ENABLED, false);
         presetFor.clear();
         for (World w : ALL) {
-            presetFor.put(w.id, prefs.getString(KEY_PRESET_PREFIX + w.id, w.onByDefault ? w.defaultPreset : NONE));
+            String chosen = prefs.getString(KEY_PRESET_PREFIX + w.id, w.onByDefault ? w.defaultPreset : NONE);
+            String renamed = renamedBuiltIn(chosen);
+            if (renamed != null) {                  // "Kinetic world" became "Kinetic realm": keep the choice
+                chosen = renamed;
+                prefs.edit().putString(KEY_PRESET_PREFIX + w.id, chosen).apply();
+            }
+            presetFor.put(w.id, chosen);
         }
         updateAllowed();
     }

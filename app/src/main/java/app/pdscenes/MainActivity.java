@@ -218,11 +218,7 @@ public class MainActivity extends Activity {
         screen.addView(scroll, new android.widget.FrameLayout.LayoutParams(
                 android.widget.FrameLayout.LayoutParams.MATCH_PARENT, android.widget.FrameLayout.LayoutParams.MATCH_PARENT));
         // The card floats over the settings, which scroll on behind it; the end of the list stops just above it.
-        View card = buildBottomBar();
-        LinearLayout bar = new LinearLayout(this);      // the tab strip over the card: both stay at the bottom
-        bar.setOrientation(LinearLayout.VERTICAL);
-        bar.addView(buildTabStrip());
-        bar.addView(card);
+        View bar = buildBottomBar();
         android.widget.FrameLayout.LayoutParams barParams = new android.widget.FrameLayout.LayoutParams(
                 android.widget.FrameLayout.LayoutParams.MATCH_PARENT, android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
                 android.view.Gravity.BOTTOM);
@@ -375,24 +371,23 @@ public class MainActivity extends Activity {
         updateSceneUi();
     }
 
-    /** The tab strip: five equal tabs over the bottom card, the shown one bold and in the accent colour. */
+    /** The tab strip: five equal tabs, the card's top row; the shown one bold, accent-coloured, on a soft pill. */
     private View buildTabStrip() {
         LinearLayout strip = new LinearLayout(this);
         strip.setOrientation(LinearLayout.HORIZONTAL);
-        strip.setPadding(dp(4), 0, dp(4), dp(4));
         for (int t = 0; t < TAB_NAMES.length; t++) {
             TextView b = new TextView(this);
             b.setText(TAB_NAMES[t]);
             b.setTextSize(15);
             b.setGravity(android.view.Gravity.CENTER);
-            b.setPadding(0, dp(10), 0, dp(10));
-            b.setBackgroundResource(android.R.drawable.list_selector_background);
+            b.setPadding(0, dp(8), 0, dp(8));
             final int tab = t;
             b.setOnClickListener(v -> showTab(tab));
-            strip.addView(b, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+            lp.setMargins(dp(2), 0, dp(2), 0);
+            strip.addView(b, lp);
             tabButtons[t] = b;
         }
-        styleBarCard(strip);
         return strip;
     }
 
@@ -410,6 +405,14 @@ public class MainActivity extends Activity {
                 b.setTextColor(t == tab ? accentColor() : status != null ? status.getCurrentTextColor() : 0xFF888888);
                 b.setAlpha(t == tab ? 1f : 0.75f);
                 b.setSelected(t == tab);
+                if (t == tab) {
+                    android.graphics.drawable.GradientDrawable pill = new android.graphics.drawable.GradientDrawable();
+                    pill.setCornerRadius(dp(14));
+                    pill.setColor((accentColor() & 0x00FFFFFF) | 0x2E000000);
+                    b.setBackground(pill);
+                } else {
+                    b.setBackground(null);
+                }
             }
         }
         currentTab = tab;
@@ -423,8 +426,14 @@ public class MainActivity extends Activity {
     private View buildBottomBar() {
         LinearLayout bar = new LinearLayout(this);
         bar.setOrientation(LinearLayout.VERTICAL);
-        bar.setPadding(dp(14), dp(8), dp(14), dp(8));
+        bar.setPadding(dp(14), dp(6), dp(14), dp(8));
         styleBarCard(bar);
+        bar.addView(buildTabStrip());                    // the tabs: the card's top row, in thumb reach
+        View rule = new View(this);
+        rule.setBackgroundColor(0x33888888);
+        LinearLayout.LayoutParams ruleParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(1));
+        ruleParams.setMargins(0, dp(4), 0, dp(6));
+        bar.addView(rule, ruleParams);
 
         status = new TextView(this);
         status.setTextSize(14);

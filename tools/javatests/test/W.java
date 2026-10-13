@@ -143,16 +143,17 @@ public class W {
     check(changes==0,"level hovering between the thresholds causes no flicker: "+changes);
     // ---- controller ----
     Context ctx=new Context(new java.io.File("/tmp/wtest")); Worlds.load(ctx); Worlds.reset();
-    check(!Worlds.isEnabled()&&"Tranquil world".equals(Worlds.presetName("tranquil")),"defaults: off, each world has its preset");
+    check(!Worlds.isEnabled()&&"Tranquil realm".equals(Worlds.presetName("tranquil")),"defaults: off, each world has its preset");
+    check("Kinetic realm".equals(Worlds.renamedBuiltIn("Kinetic world"))&&Worlds.renamedBuiltIn("My world")==null&&Worlds.renamedBuiltIn("Kinetic realm")==null,"a stored built-in world preset name moves to its realm name, user presets are left alone");
     for(Worlds.World wd:Worlds.ALL){ check(PresetManager.builtIn(wd.defaultPreset)!=null,"built-in preset exists: "+wd.defaultPreset); }
-    for(String n:new String[]{"Tranquil world","Flux world","Kinetic world","Ghost world","Pocket world"}){ Map<String,Float> pr=PresetManager.builtIn(n); boolean ok=true; for(Param p:Params.ALL) if(p.inPreset){Float v=pr.get(p.id); if(v==null||Math.abs(p.clamp(v)-v)>1e-4) ok=false;} check(ok,n+" has valid values for every preset setting"); }
+    for(String n:new String[]{"Tranquil realm","Flux realm","Kinetic realm","Ghost realm","Pocket realm"}){ Map<String,Float> pr=PresetManager.builtIn(n); boolean ok=true; for(Param p:Params.ALL) if(p.inPreset){Float v=pr.get(p.id); if(v==null||Math.abs(p.clamp(v)-v)>1e-4) ok=false;} check(ok,n+" has valid values for every preset setting"); }
     ParamStore.set("wet",0.2f); ParamStore.set("reverb_mix",0f);
     Worlds.tick(0.033,-60f,false,12*60);
     check(ParamStore.get("wet")==0.2f,"auto worlds off: sliders untouched");
     Worlds.setEnabled(true); int notes[]={0}; Worlds.setListener(()->notes[0]++);
     for(int i=0;i<400;i++) Worlds.tick(0.033,-60f,false,12*60);
     check("tranquil".equals(Worlds.currentWorld()),"tranquil engaged");
-    Map<String,Float> tp=PresetManager.builtIn("Tranquil world");
+    Map<String,Float> tp=PresetManager.builtIn("Tranquil realm");
     check(Math.abs(ParamStore.get("reverb_mix")-tp.get("reverb_mix"))<1e-3&&Math.abs(ParamStore.get("wet")-tp.get("wet"))<1e-3,"sliders ended at the world's preset values (wet "+ParamStore.get("wet")+")");
     check(ParamStore.get("echo_movers")==ParamStore.get("echo_movers")&&ParamStore.get(Params.moversSwitchId("space"))==1f,"world's movers switched on");
     check(notes[0]>=2,"screen was told about the change and the fade: "+notes[0]);
@@ -178,7 +179,7 @@ public class W {
     ParamStore.set("wet",0.2f);
     // the "... enabled" switches belong to the user: worlds never flip them
     Worlds.setEnabled(false); for(int i=0;i<200;i++) Worlds.tick(0.033,-60f,false,12*60);
-    Worlds.setPreset("flux","Flux world"); Worlds.setEnabled(true); Worlds.reset();
+    Worlds.setPreset("flux","Flux realm"); Worlds.setEnabled(true); Worlds.reset();
     ParamStore.set("crush_on",0f); ParamStore.set("ring_on",0f); ParamStore.set("crush_mix",0f);
     for(int i=0;i<600;i++) Worlds.tick(0.033,(i%5<2?-6f:-16f),false,12*60);
     check("flux".equals(Worlds.currentWorld())&&ParamStore.get("crush_mix")>0.1f,"flux world is playing (crush mix "+ParamStore.get("crush_mix")+")");
@@ -193,7 +194,7 @@ public class W {
     check(Worlds.currentWorld()==null&&ParamStore.get("wet")==0.33f,"a world set to Off never plays");
     Worlds.setPreset("tranquil","No such preset"); for(int i=0;i<600;i++) Worlds.tick(0.033,-60f,false,12*60);
     check(ParamStore.get("wet")==0.33f,"a missing preset changes nothing");
-    Worlds.setPreset("tranquil","Tranquil world");
+    Worlds.setPreset("tranquil","Tranquil realm");
     // stop mid-world restores the user's settings
     Worlds.setEnabled(true); Worlds.reset(); ParamStore.set("wet",0.33f); ParamStore.set("reverb_mix",0.1f);
     for(int i=0;i<400;i++) Worlds.tick(0.033,-60f,false,12*60);

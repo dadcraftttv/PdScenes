@@ -198,7 +198,7 @@ final class PresetManager {
         tranquil.put("music_pad", 0.22f);                 // soft and low; only heard if Music is switched on
         tranquil.put("music_arp", 0.25f);
         tranquil.put("music_res", 0.6f);
-        BUILT_IN.put("Tranquil world", tranquil);
+        BUILT_IN.put("Tranquil realm", tranquil);
 
         // Edgy but see-through: Samuel heard heavy distortion + freeze turn running water into nothing but fuzz,
         // so the room itself must still come through.
@@ -212,7 +212,7 @@ final class PresetManager {
         flux.put("music_pad", 0.08f);
         flux.put("music_arp", 0.35f);
         flux.put("music_res", 1f);                       // the loud room rings in key
-        BUILT_IN.put("Flux world", flux);
+        BUILT_IN.put("Flux realm", flux);
 
         Map<String, Float> kinetic = make(250f, 0.5f, 0.45f, 80f, 0f);
         tremolo(kinetic, 0.6f, 4f);
@@ -223,7 +223,7 @@ final class PresetManager {
         kinetic.put("music_pad", 0.1f);                 // the notes start soft and swell as your pace rises
         kinetic.put("music_arp", 0.65f);
         kinetic.put("music_res", 0.5f);                 // footsteps and wind should not swamp the arpeggio
-        BUILT_IN.put("Kinetic world", kinetic);
+        BUILT_IN.put("Kinetic realm", kinetic);
 
         Map<String, Float> ghostWorld = make(450f, 0.5f, 0.4f, 80f, 0f);
         reverseEcho(ghostWorld, 0.8f, 600f);
@@ -241,7 +241,7 @@ final class PresetManager {
         ghostWorld.put("gc_pct_shuffle", 0f);
         mover(ghostWorld, "space_pan", 1, 0.05f, 0.9f);
         mover(ghostWorld, "rvs_time", 1, 0.04f, 0.5f);
-        BUILT_IN.put("Ghost world", ghostWorld);
+        BUILT_IN.put("Ghost realm", ghostWorld);
 
         // Unstable: shake the phone and everything piles on at once, glitchy by design; more shaking bends it further.
         Map<String, Float> unstable = make(180f, 0.55f, 0.45f, 220f, 0.35f);
@@ -258,7 +258,7 @@ final class PresetManager {
         mover(unstable, "ring_freq", 6, 2f, 0.8f);      // Shake = higher: the harder you shake, the wilder it gets
         mover(unstable, "pitch_semi", 6, 2f, 0.6f);
         mover(unstable, "crush_rate", 6, 2f, 0.7f);
-        BUILT_IN.put("Unstable world", unstable);
+        BUILT_IN.put("Unstable realm", unstable);
 
         // In a pocket the mic only hears cloth and rustle, so keep the room quiet and soft and let the
         // music and your footsteps carry it.
@@ -271,7 +271,7 @@ final class PresetManager {
         pocketWorld.put("music_arp", 0.45f);
         pocketWorld.put("music_res", 0f);               // the mic only hears cloth: no ringing rustle
         pocketWorld.put("music_harm", 0f);
-        BUILT_IN.put("Pocket world", pocketWorld);
+        BUILT_IN.put("Pocket realm", pocketWorld);
     }
 
     private PresetManager() { }
