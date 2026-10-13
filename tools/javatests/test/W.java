@@ -185,6 +185,21 @@ public class W {
     check("flux".equals(Worlds.currentWorld())&&ParamStore.get("crush_mix")>0.1f,"flux world is playing (crush mix "+ParamStore.get("crush_mix")+")");
     check(ParamStore.get("crush_on")==0f&&ParamStore.get("ring_on")==0f,"switched-off effects stay switched off in a world");
     Worlds.reset();
+    // Realm ingredients: Flux leaves Reverb alone; what it leaves alone stays the user's, and a stop gives back only
+    // what it changed
+    Worlds.reset(); Worlds.setEnabled(true); Worlds.setUses("flux","reverb",false);
+    check(!Worlds.uses("flux","reverb")&&Worlds.uses("flux","echo")&&"reverb".equals(Worlds.groupOf(Params.byId("reverb_mix"))),"ingredient switches: flux leaves reverb alone");
+    ParamStore.set("reverb_mix",0.05f); ParamStore.set("crush_mix",0f);
+    for(int i=0;i<600;i++) Worlds.tick(0.033,(i%5<2?-6f:-16f),false,12*60);
+    check("flux".equals(Worlds.currentWorld())&&ParamStore.get("reverb_mix")==0.05f&&ParamStore.get("crush_mix")>0.1f,"a skipped group stays at the user's value while the Realm plays (reverb "+ParamStore.get("reverb_mix")+", crush "+ParamStore.get("crush_mix")+")");
+    ParamStore.set("reverb_mix",0.4f);   // the user turns it up meanwhile
+    Worlds.reset();
+    check(ParamStore.get("reverb_mix")==0.4f&&ParamStore.get("crush_mix")==0f,"a stop gives back only what the Realm changed (reverb kept at the user's 0.4, crush back to 0)");
+    // switching the group back on while the Realm plays brings it in
+    Worlds.setEnabled(true); for(int i=0;i<600;i++) Worlds.tick(0.033,(i%5<2?-6f:-16f),false,12*60);
+    Worlds.setUses("flux","reverb",true); for(int i=0;i<200;i++) Worlds.tick(0.033,(i%5<2?-6f:-16f),false,12*60);
+    check(Math.abs(ParamStore.get("reverb_mix")-PresetManager.builtIn("Flux realm").get("reverb_mix"))<1e-3,"turning the ingredient back on while the Realm plays fades it in");
+    Worlds.reset();
     // stop restores home
     Worlds.reset();
     check(Worlds.currentWorld()==null,"reset leaves no world");

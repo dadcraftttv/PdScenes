@@ -855,6 +855,7 @@ public class MainActivity extends Activity {
                 @Override
                 public void onNothingSelected(AdapterView<?> parentView) { }
             });
+            addRealmIngredients(body, w);
         }
         TextView note = new TextView(this);
         note.setText(R.string.worlds_note);
@@ -863,6 +864,49 @@ public class MainActivity extends Activity {
         body.addView(note);
         refreshWorldRows();
         updateWorldStatus();
+    }
+
+    /**
+     * A Realm's ingredients: "What it changes: everything" folds open to one switch per group (Rhythm, Music, Echo...).
+     * Off = the Realm leaves that group at your own settings.
+     */
+    private void addRealmIngredients(LinearLayout body, Worlds.World w) {
+        TextView summary = new TextView(this);
+        summary.setTextSize(13);
+        summary.setPadding(dp(8), dp(4), 0, dp(4));
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(dp(16), 0, 0, dp(4));
+        box.setVisibility(View.GONE);
+        Runnable update = () -> {
+            List<String> left = new ArrayList<>();
+            for (String[] g : Worlds.GROUPS) {
+                if (!Worlds.uses(w.id, g[0])) {
+                    left.add(g[1].replaceAll(" \\(.*\\)", ""));
+                }
+            }
+            String what = left.isEmpty() ? getString(R.string.realm_changes_all)
+                    : left.size() == Worlds.GROUPS.length ? getString(R.string.realm_changes_none)
+                    : getString(R.string.realm_changes_but, String.join(", ", left));
+            summary.setText((box.getVisibility() == View.VISIBLE ? "\u25BE " : "\u25B8 ") + what);
+        };
+        for (String[] g : Worlds.GROUPS) {
+            CheckBox c = new CheckBox(this);
+            c.setText(g[1]);
+            c.setChecked(Worlds.uses(w.id, g[0]));
+            c.setOnCheckedChangeListener((b, on) -> {
+                Worlds.setUses(w.id, g[0], on);
+                update.run();
+            });
+            box.addView(c);
+        }
+        summary.setOnClickListener(v -> {
+            box.setVisibility(box.getVisibility() == View.VISIBLE ? View.GONE : View.VISIBLE);
+            update.run();
+        });
+        update.run();
+        body.addView(summary);
+        body.addView(box);
     }
 
     /** Fills each world's dropdown with the current presets (they change when you save or import one). */

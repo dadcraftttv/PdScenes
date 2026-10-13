@@ -305,7 +305,11 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   pill), each tab keeps its scroll, the last tab is remembered (`UiSettings.tab`). While a scene plays, Sound/Music/
   Realms show a notice. The pad view moves between Sound (XY pad) and Scenes. **Realms** = Auto worlds renamed on
   screen only: internal ids stay "world"; built-in presets are now "X realm" and `Worlds.renamedBuiltIn` migrates a
-  stored "X world" choice on load (test W). Next: Realm ingredient switches, then polish (mover dot, cue sound on a
+  stored "X world" choice on load (test W). **Ingredients** (`Worlds.GROUPS`: Rhythm, Music, Echo, Reverb, Glitch +
+  reverse, Color, Motion, Space and dry level; `uses`/`setUses`, prefs `skip_<world>_<group>`, cleared by Reset): a
+  Realm leaves a group it doesn't use at the user's values; `touched` tracks what a Realm actually set, so going home,
+  a stop, or the next Realm leaving a group alone gives back only that (test W). Under each Realm "What it changes:
+  everything / all but ..." folds open to the switches. Next: polish (mover dot, cue sound on a
   Realm change with a Setup switch, content descriptions, 100 Hz accelerometer trial).
 - **Screen:** a bar pinned to the bottom (thumb reach while walking) holds the status, a "Now: <world> · why" line
   (night/walking/pocket/room words from `Worlds.room*()`, refreshed 1/s while visible), Start/Stop, Hold world

@@ -93,6 +93,9 @@
     <string name="toast_imported">Imported \"%s\"</string>
     <string name="toast_deleted">Deleted</string>
     <string name="section_worlds">Realms (automatic)</string>
+    <string name="realm_changes_all">What it changes: everything</string>
+    <string name="realm_changes_none">What it changes: nothing (all left at your settings)</string>
+    <string name="realm_changes_but">What it changes: all but %s</string>
     <string name="tab_sound">Sound</string>
     <string name="tab_music">Music</string>
     <string name="tab_realms">Realms</string>
@@ -105,7 +108,7 @@
     <string name="worlds_off_status">Auto realms are off.</string>
     <string name="world_row">%1$s (%2$s)</string>
     <string name="world_off">Off (not used)</string>
-    <string name="worlds_note">Each realm fades the sliders to the preset you pick when its situation lasts a few seconds. When none applies, your own settings fade back. Locked sliders stay put. Only for the built-in effects, not scenes.</string>
+    <string name="worlds_note">Each realm fades the sliders to the preset you pick when its situation lasts a few seconds. When none applies, your own settings fade back. Locked sliders stay put, and so does any group a realm is set not to change. Only for the built-in effects, not scenes.</string>
     <string name="export_title">Name this preset</string>
     <string name="toast_exported">Exported</string>
     <string name="toast_read_failed">Could not read preset \"%s\"</string>
