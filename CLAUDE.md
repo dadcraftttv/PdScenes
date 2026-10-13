@@ -311,8 +311,9 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   a stop, or the next Realm leaving a group alone gives back only that (test W). Under each Realm "What it changes:
   everything / all but ..." folds open to the switches. **Polish:** a dot after a slider's label while a mover
   pushes it (`Modulation.isMoving`, checked with the Now line once a second); a Realm cue (`realm_cue 1|0` from
-  AudioService on each Realm change: A5 then E6 rising into a Realm, falling back home, 0.05 each after the limiter,
-  group `cue`; `cue_sound` "Realm change sound" in Behavior/Setup, noPreset, default on); content descriptions on
+  AudioService on each Realm change; Samuel asked for "a dreamy warp": a tone gliding A4 -> A5 over 900 ms into a
+  Realm, A5 -> A4 back home, with a 1.007 detuned twin and a quiet fifth, 300 ms swell, 1.2 s fade, peak ~0.05 after
+  the limiter, group `cue`; `cue_sound` "Realm change sound" in Behavior/Setup, noPreset, default on); content descriptions on
   tabs, sliders, lock boxes and the pad; the step accelerometer at 100 Hz (`ACCEL_PERIOD_FOR_STEPS_US` 10000, on
   trial: Samuel judges whether steps still land).
 - **Screen:** a bar pinned to the bottom (thumb reach while walking) holds the status, a "Now: <world> · why" line

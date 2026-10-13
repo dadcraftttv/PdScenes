@@ -201,9 +201,11 @@ FM_CHAR_RING = 0.85               # ...the ring this much quieter...
 FM_CHAR_SHORT = 0.7               # ...and this much shorter, the hit's band widened to Q 0.3
 FM_STRIKE_Q = 1.2                 # the strike is band-passed around the note (rounder than high-passed: Samuel)
 FM_ATTACK_MS = 5
-CUE_LOW_HZ, CUE_HIGH_HZ = 880, 1318.5   # the Realm cue: A5 and E6, a fifth apart...
-CUE_LEVEL = 0.05                  # ...this loud (after the limiter: about -26 dBFS)...
-CUE_GAP_MS, CUE_DECAY_MS = 90, 500   # ...the second note this much later, each fading over this
+CUE_LOW_HZ, CUE_HIGH_HZ = 440, 880     # the Realm cue: a warp gliding between A4 and A5 (up into a Realm)...
+CUE_GLIDE_MS = 900                # ...over this long...
+CUE_DETUNE = 1.007                # ...a detuned twin beating against it (a slow shimmer)...
+CUE_LEVEL = 0.022                 # ...this loud per tone (after the limiter: the three together about -26 dBFS)...
+CUE_SWELL_MS, CUE_FADE_MS = 300, 1200   # ...swelling in, then melting away
 RNF_GAP_MS = 180                  # Room notes, found: at most one note per this long...
 RNF_GAIN = 0.08                   # ...at this level into its soft limit (the Room notes slider scales it after)
 FM_LIMIT = 0.7                    # the found melody's soft limit (tanh)
@@ -3854,30 +3856,36 @@ def build():
         P.c(f"lim_{side}_cub", f"lim_{side}_back")
         P.c(f"lim_{side}_back", f"lim_{side}_sum", 0, 0); P.c(f"lim_{side}_base", f"lim_{side}_sum", 0, 1)
         P.sig2(f"limit_{side}", "*~", f"lim_{side}_sum", "duck_gain", x, 400)
-    # Realm cue: a soft two-note chime when a Realm starts (rising) or your own settings come back (falling), after the
-    # limiter so it is heard whatever plays; [realm_cue 1|0( from the app, cue_sound (Setup) switches it off.
+    # Realm cue: a dreamy warp (Samuel) when a Realm starts (gliding up an octave) or your own settings come back
+    # (gliding down): a soft tone with a detuned twin beating against it and a quiet fifth for a halo, swelling in and
+    # melting away, after the limiter so it is heard whatever plays; [realm_cue 1|0( from the app, cue_sound
+    # (Setup) switches it off.
     cx, cy = 1700, 300
     P.obj("cue_r", "r realm_cue", cx, cy); P.obj("cue_snd_r", "r cue_sound", cx + 120, cy)
     P.obj("cue_snd_v", "value cue_onv", cx + 120, cy + 15); P.c("cue_snd_r", "cue_snd_v")
     P.obj("cue_ex", ("expr ($f1+1)*(cue_onv>0)").replace("$", BS + "$"), cx, cy + 15); P.c("cue_r", "cue_ex")
     P.obj("cue_sel", "sel 2 1", cx, cy + 30); P.c("cue_ex", "cue_sel")
-    for k, (fa, fb) in enumerate(((CUE_LOW_HZ, CUE_HIGH_HZ), (CUE_HIGH_HZ, CUE_LOW_HZ))):   # 2 = a Realm: rising
-        P.obj(f"cue_t{k}", "t b b b b", cx + 120 * k, cy + 45); P.c("cue_sel", f"cue_t{k}", k, 0)
-        P.msg(f"cue_sw{k}", f"{BS}; sw_cue 1", cx + 120 * k, cy + 60); P.c(f"cue_t{k}", f"cue_sw{k}", 3, 0)
-        P.msg(f"cue_fa{k}", str(fa), cx + 120 * k + 40, cy + 60); P.c(f"cue_t{k}", f"cue_fa{k}", 2, 0); P.c(f"cue_fa{k}", "cue_oa")
-        P.msg(f"cue_fb{k}", str(fb), cx + 120 * k + 80, cy + 60); P.c(f"cue_t{k}", f"cue_fb{k}", 1, 0); P.c(f"cue_fb{k}", "cue_ob")
+    for k, (f0, f1) in enumerate(((CUE_LOW_HZ, CUE_HIGH_HZ), (CUE_HIGH_HZ, CUE_LOW_HZ))):   # 2 = a Realm: rising
+        P.obj(f"cue_t{k}", "t b b b", cx + 160 * k, cy + 45); P.c("cue_sel", f"cue_t{k}", k, 0)
+        P.msg(f"cue_sw{k}", f"{BS}; sw_cue 1", cx + 160 * k, cy + 60); P.c(f"cue_t{k}", f"cue_sw{k}", 2, 0)
+        P.msg(f"cue_gl{k}", f"{f0} {BS}, {f1} {CUE_GLIDE_MS}", cx + 160 * k + 60, cy + 60); P.c(f"cue_t{k}", f"cue_gl{k}", 1, 0)
+        P.c(f"cue_gl{k}", "cue_fq")
         P.c(f"cue_t{k}", "cue_go", 0, 0)
-    P.obj("cue_go", "t b b b", cx, cy + 80)
-    P.msg("cue_ma", f"0 {BS}, {CUE_LEVEL} 4 {BS}, 0 {CUE_DECAY_MS} 4", cx, cy + 95); P.c("cue_go", "cue_ma", 2, 0)
-    P.msg("cue_mb", f"0 {BS}, {CUE_LEVEL} 4 {CUE_GAP_MS} {BS}, 0 {CUE_DECAY_MS} {CUE_GAP_MS + 4}", cx + 150, cy + 95)
-    P.c("cue_go", "cue_mb", 1, 0)
-    P.obj("cue_off", f"del {CUE_GAP_MS + CUE_DECAY_MS + 200}", cx + 300, cy + 95); P.c("cue_go", "cue_off", 0, 0)
+    P.obj("cue_go", "t b b", cx, cy + 80)
+    P.msg("cue_env", f"0 {BS}, {CUE_LEVEL} {CUE_SWELL_MS} {BS}, 0 {CUE_FADE_MS} {CUE_SWELL_MS}", cx, cy + 95)
+    P.c("cue_go", "cue_env", 1, 0)
+    P.obj("cue_off", f"del {CUE_SWELL_MS + CUE_FADE_MS + 200}", cx + 300, cy + 95); P.c("cue_go", "cue_off", 0, 0)
     P.msg("cue_sw0ff", f"{BS}; sw_cue 0", cx + 300, cy + 110); P.c("cue_off", "cue_sw0ff")
-    P.obj("cue_oa", "osc~", cx, cy + 130); P.obj("cue_ob", "osc~", cx + 150, cy + 130)
-    P.obj("cue_ea", "vline~", cx + 60, cy + 130); P.obj("cue_eb", "vline~", cx + 210, cy + 130)
-    P.c("cue_ma", "cue_ea"); P.c("cue_mb", "cue_eb")
-    P.sig2("cue_sa", "*~", "cue_oa", "cue_ea", cx, cy + 150); P.sig2("cue_sb", "*~", "cue_ob", "cue_eb", cx + 150, cy + 150)
-    P.sig2("cue_mix", "+~", "cue_sa", "cue_sb", cx, cy + 170)
+    P.obj("cue_fq", "vline~", cx + 300, cy + 130)
+    P.obj("cue_fd", f"*~ {CUE_DETUNE}", cx + 360, cy + 145); P.obj("cue_f5", "*~ 1.5", cx + 420, cy + 145)
+    P.c("cue_fq", "cue_fd"); P.c("cue_fq", "cue_f5")
+    P.obj("cue_oa", "osc~", cx + 300, cy + 165); P.obj("cue_ob", "osc~", cx + 360, cy + 165); P.obj("cue_oc", "osc~", cx + 420, cy + 165)
+    P.c("cue_fq", "cue_oa"); P.c("cue_fd", "cue_ob"); P.c("cue_f5", "cue_oc")
+    P.obj("cue_gc", "*~ 0.35", cx + 420, cy + 180); P.c("cue_oc", "cue_gc")
+    P.sig2("cue_ab", "+~", "cue_oa", "cue_ob", cx + 300, cy + 185)
+    P.sig2("cue_abc", "+~", "cue_ab", "cue_gc", cx + 300, cy + 200)
+    P.obj("cue_ea", "vline~", cx, cy + 130); P.c("cue_env", "cue_ea")
+    P.sig2("cue_mix", "*~", "cue_abc", "cue_ea", cx, cy + 220)
     P.obj("grp_cue_r", "r sw_cue", 10, 10); P.obj("grp_cue_sw", "switch~", 10, 40); P.c("grp_cue_r", "grp_cue_sw")
     P.sig2("out_cl", "+~", "limit_l", "cue_mix", 1400, 415); P.sig2("out_cr", "+~", "limit_r", "cue_mix", 1500, 415)
     P.obj("dac", "dac~ 1 2", 1400, 430)
@@ -3885,7 +3893,7 @@ def build():
     P.c("out_cr", "dac", 0, 1)
 
     # --- switchable blocks: each one's DSP stops while it can't be heard ---
-    P.group("cue", r"^cue_(oa|ob|ea|eb|sa|sb|mix)$")                     # the Realm cue: on only while it sounds
+    P.group("cue", r"^cue_(fq|fd|f5|oa|ob|oc|gc|ab|abc|ea|mix)$")                    # the Realm cue: on only while it sounds
     P.group("reverb", r"^(c[lr]\d+_|c[lr]_acc\d|a[lr]\d_|rev_in$|rev_[lr]$|pk_rfb$|ln_rfb$|pk_rin$|ln_rin$)")
     add_switch(P, "reverb", ("reverb_on", "reverb_mix"), 300)
     P.group("pitch", r"^(rate_hz|ph1|ph2|ph2_off|delwrite_p|tap[12]_\w+|rd[12]|cos[12]|cos[12]_neg|win[12]|grain[12]|shifted)$")
