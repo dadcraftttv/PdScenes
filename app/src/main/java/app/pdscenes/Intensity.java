@@ -22,7 +22,7 @@ final class Intensity {
     static {
         rule(0.6f, 0.6f, "wet", "reverb_mix", "echo_scatter", "music_res");
         rule(0.5f, 0.3f, "feedback");
-        rule(1f, 0.8f, "gc_amount", "beat_glitch", "rvs_mix");
+        rule(1f, 0.8f, "gc_amount", "beat_glitch", "rvs_mix", "reverb_rev");
         rule(1f, 0.6f, "ring_mix", "crush_mix", "dist_mix", "flange_mix", "phaser_mix", "chorus_mix", "pitch_mix",
                 "filter_mix", "trem_depth");
         rule(0.6f, 0.5f, "music_react");

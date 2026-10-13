@@ -228,6 +228,7 @@ final class PresetManager {
         Map<String, Float> ghostWorld = make(450f, 0.5f, 0.4f, 80f, 0f);
         reverseEcho(ghostWorld, 0.8f, 600f);
         reverb(ghostWorld, 0.6f, 0.95f, 3500f);
+        ghostWorld.put("reverb_rev", 0.5f);             // the room's tail rising backwards out of each sound
         filter(ghostWorld, 0.6f, FILTER_LOW, 2500f, 1f);
         ghostWorld.put("pitch_semi", -5f);
         ghostWorld.put("pitch_mix", 0.3f);

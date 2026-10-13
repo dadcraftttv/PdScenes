@@ -37,7 +37,7 @@ DEFAULTS = [
     ("music_on", 0), ("music_key", 0), ("music_scale", 0), ("music_pad", 0.33), ("music_arp", 0.4),
     ("music_tone", 0.5), ("music_react", 0.8), ("music_res", 0.8), ("music_harm", 0.6), ("beat_follow", 1), ("beat_when", 1), ("rhythm_src", 1), ("melody_src", 1), ("harm_src", 1), ("pad_src", 1), ("bass_src", 0), ("tempo_mode", 0), ("tempo_bpm", 100), ("chime_char", 0.5), ("res_src", 1), ("cue_sound", 1), ("beat_glitch", 0.4), ("gate_attack", 5), ("gate_hold", 0), ("gate_release", 80), ("comp_attack", 40),
     ("comp_release", 40), ("music_drift", 1), ("echo_scatter", 0.5), ("gc_amount", 0), ("gc_level", 0.7), ("gc_pct_stutter", 35), ("gc_pct_reverse", 25),
-    ("gc_pct_shuffle", 20), ("gc_pct_stretch", 20), ("music_pad_reg", 2), ("pocket_hush", 0.5), ("pocket_guard", 0.6), ("handling_hush", 0.5), ("intensity", 0.5), ("mix_kick", 1), ("mix_bass", 1), ("mix_chimes", 1), ("mix_walk", 1), ("mix_ring", 1), ("mix_bells", 1),
+    ("gc_pct_shuffle", 20), ("gc_pct_stretch", 20), ("music_pad_reg", 2), ("pocket_hush", 0.5), ("pocket_guard", 0.6), ("handling_hush", 0.5), ("intensity", 0.5), ("mix_kick", 1), ("mix_bass", 1), ("mix_chimes", 1), ("mix_walk", 1), ("mix_ring", 1), ("mix_bells", 1), ("reverb_rev", 0),
 ]
 
 # Scales as semitone steps above the key note. The patch snaps every note it plays to these.
@@ -272,6 +272,15 @@ def pc_to_degree(iv):
     marks = list(iv) + [12]
     return [min(range(len(marks)), key=lambda i: (abs(marks[i] - pc), marks[i])) for pc in range(12)]
 DUCK_MS = 600           # how quickly the output dips (and comes back) when other audio plays
+RR_MIN_MS = 600             # reverse reverb: a stretch is this long in the smallest room...
+RR_SIZE_MS = 900            # ...plus this much more at the largest
+RR_MAX_MS = 1500            # ...and never longer (a beat below 40 BPM is capped)
+RR_BUF_MS = 7000            # the reverb's tail is kept this long (a swell can come up to ~4 slow beats later)
+RR_FADE_IN_MS = 30          # the swell opens this fast (its own rise does the rest)...
+RR_FADE_OUT_MS = 20         # ...and closes this fast at the moment of the sound
+RR_LEAD_MS = 25             # the read ends this long before the sound was noticed (~60 ms after it started: meter,
+                            # handling check), at the reverb's first echo (~30 ms after the sound), so the loudest moment is on time
+RR_GAIN = 1.5               # its level at reverb_rev 1 (the windows and the backwards tail lose a little)
 INT_DRIVE = 0.6             # Intensity 0..1 moves the beat's drive by -0.3..+0.3 (calmer / busier patterns)
 HND_HUSH_DB = 24            # handling hush at 1 turns the mic down this much at full handling (the app's 0-1 level)
 HND_ATTACK_MS = 15          # ...going down this fast (a tap rings on for a while; its very start can't be caught)
@@ -3184,6 +3193,75 @@ def add_handling(P, x=2200, y=300):
     return "hnd_ln"
 
 
+def add_reverse_reverb(P, x=2600, y=1300):
+    """Reverse reverb (roadmap item 7, Samuel Oct 13; for the Ghost realm): a sudden sound books one swell: its own
+    reverb tail, L ms of it, played backwards so it rises into the moment of the sound. A tail can only be reversed
+    once it has been heard, so the swell comes later and peaks at time B >= now + 2L: while the beat runs on the tempo
+    clock (msync, Samuel: "time the swells to the beat") L is one beat and B the first beat that far away, so every
+    swell lands on a beat; otherwise L = RR_MIN_MS + RR_SIZE_MS x room size and B = now + 2L. The read position runs
+    backwards at normal speed: delay 2t - B - c, from B - c - 2L up to B - c. One swell at a time (a sound while one is
+    booked or playing is ignored); handling noise books nothing. reverb_rev 0..1 (Reverb section); it needs the reverb.
+    Returns the output (both ears, in the middle)."""
+    ex = lambda n, t, xx, yy: P.obj(n, "expr " + t.replace(",", BS + ",").replace("$", BS + "$"), xx, yy)
+    P.sig2("rr_src0", "+~", "rev_l", "rev_r", x, y)
+    P.obj("rr_src", "*~ 0.5", x, y + 15); P.c("rr_src0", "rr_src")
+    P.obj("rr_wr", f"delwrite~ rr_buf {RR_BUF_MS}", x, y + 30); P.c("rr_src", "rr_wr")
+    # what it needs to know: room size, synced?, the beat length, the time since the last beat
+    P.obj("rr_r_size", "r reverb_size", x + 300, y); P.obj("rr_size_v", "value rr_size", x + 300, y + 15); P.c("rr_r_size", "rr_size_v")
+    P.obj("rr_r_sync", "r msync", x + 400, y); P.obj("rr_sync_v", "value rr_sync", x + 400, y + 15); P.c("rr_r_sync", "rr_sync_v")
+    P.obj("rr_r_amt", "r reverb_rev", x + 500, y); P.obj("rr_amt_v", "value rr_amt", x + 500, y + 15); P.c("rr_r_amt", "rr_amt_v")
+    P.obj("rr_r_beat", "r tempo", x + 600, y); P.obj("rr_beat_tm", "timer", x + 600, y + 30)
+    P.obj("rr_beat_b", "t b", x + 600, y + 15); P.c("rr_r_beat", "rr_beat_b"); P.c("rr_beat_b", "rr_beat_tm", 0, 0)
+    # a sudden sound (not handling noise), while on and not busy
+    on = handling_gate(P, "rr_hg", "gc_det_sel", x, y + 60)
+    P.obj("rr_free", "spigot 1", x, y + 110); P.c(on, "rr_free")
+    ex("rr_want", "(rr_amt>0)", x, y + 125); P.c("rr_free", "rr_want")
+    P.obj("rr_want_s", "sel 1", x, y + 140); P.c("rr_want", "rr_want_s")
+    P.obj("rr_go", "t b b b", x, y + 155); P.c("rr_want_s", "rr_go")
+    P.msg("rr_busy", "0", x + 100, y + 170); P.c("rr_go", "rr_busy", 2, 0); P.c("rr_busy", "rr_free", 0, 1)
+    P.c("rr_go", "rr_beat_tm", 1, 1)                                     # how long since the last beat
+    # out: L ; the wait until the swell starts (B - L) ; the delay at its start (B - c - 2L)
+    Pb, Ls = "max(tc_P,100)", f"min(max(tc_P,100),{RR_MAX_MS})"             # (a beat, guarded; L while synced)
+    nb = f"({Pb}-fmod($f1,{Pb}))"                                          # time to the next beat
+    ex("rr_plan", f"if(rr_sync>0,{Ls},{RR_MIN_MS}+{RR_SIZE_MS}*rr_size) ; "
+                  f"if(rr_sync>0,{nb}+{Pb}*ceil(max(0,2*{Ls}-{nb})/{Pb}),2*({RR_MIN_MS}+{RR_SIZE_MS}*rr_size))"
+                  .replace(" ; ", " " + BS + "; "), x, y + 190)
+    P.c("rr_beat_tm", "rr_plan")
+    # (B is the plan's second outlet; the wait is B - L, the delay ramp B - 2L -> B over L)
+    P.obj("rr_B", "f", x + 150, y + 210); P.obj("rr_L", "f", x + 250, y + 210)
+    P.c("rr_plan", "rr_B", 1, 1); P.c("rr_plan", "rr_L", 0, 1)
+    P.c("rr_go", "rr_plan_t", 0, 0)
+    P.obj("rr_plan_t", "t b b", x, y + 225)                              # (after the plan is in)
+    P.c("rr_plan_t", "rr_B", 0, 0)
+    # (the read ends RR_LEAD_MS before the sound was noticed: detection and the handling check take that long, so the
+    # swell rises right into the sound's own start)
+    ex("rr_sched", f"$f1-rr_L_v ; $f1-2*rr_L_v+{RR_LEAD_MS} ; $f1+{RR_LEAD_MS} ; rr_L_v".replace(" ; ", " " + BS + "; "), x + 150, y + 240)
+    P.obj("rr_Lw", "value rr_L_v", x + 250, y + 230); P.c("rr_L", "rr_Lw")
+    P.c("rr_plan_t", "rr_L", 1, 0)                                       # (L first: written to rr_L_v, then B)
+    P.c("rr_B", "rr_sched")
+    # start after the wait: the delay ramp and the envelope; free again when it ends
+    P.obj("rr_d0", "f", x + 150, y + 270); P.obj("rr_d1", "f", x + 250, y + 270); P.obj("rr_Ld", "f", x + 350, y + 270)
+    P.c("rr_sched", "rr_Ld", 3, 1); P.c("rr_sched", "rr_d1", 2, 1); P.c("rr_sched", "rr_d0", 1, 1)
+    P.obj("rr_wait", "del", x + 50, y + 270); P.c("rr_sched", "rr_wait", 0, 0)
+    P.obj("rr_start", "t b b b", x + 50, y + 290); P.c("rr_wait", "rr_start")
+    P.c("rr_start", "rr_Ld", 0, 0); P.c("rr_start", "rr_d1", 1, 0); P.c("rr_start", "rr_d0", 2, 0)
+    P.obj("rr_pk", "pack f f f", x + 150, y + 310)
+    P.c("rr_Ld", "rr_pk", 0, 0); P.c("rr_d1", "rr_pk", 0, 2); P.c("rr_d0", "rr_pk", 0, 1)   # (L last: the hot inlet)
+    P.msg("rr_dmsg", f"{BS}$2 {BS}, {BS}$3 {BS}$1", x + 150, y + 330)
+    P.msg("rr_emsg", f"0 {BS}, 1 {RR_FADE_IN_MS} {BS}, 0 {RR_FADE_OUT_MS} {BS}$1", x + 300, y + 330)
+    P.obj("rr_emt", f"- {RR_FADE_OUT_MS}", x + 300, y + 315)
+    P.c("rr_pk", "rr_dmsg"); P.c("rr_Ld", "rr_emt"); P.c("rr_emt", "rr_emsg")
+    P.obj("rr_dl", "vline~", x + 150, y + 350); P.c("rr_dmsg", "rr_dl")
+    P.obj("rr_env", "vline~", x + 300, y + 350); P.c("rr_emsg", "rr_env")
+    P.obj("rr_end", "del", x + 450, y + 330); P.c("rr_Ld", "rr_end")
+    P.msg("rr_free1", "1", x + 450, y + 350); P.c("rr_end", "rr_free1"); P.c("rr_free1", "rr_free", 0, 1)
+    P.obj("rr_rd", "delread4~ rr_buf", x + 150, y + 370); P.c("rr_dl", "rr_rd")
+    P.sig2("rr_sound", "*~", "rr_rd", "rr_env", x + 150, y + 390)
+    amt = smoothed(P, "reverb_rev", "reverb_rev", x + 700, y)
+    P.obj("rr_gain", f"*~ {RR_GAIN}", x + 700, y + 30); P.c(amt, "rr_gain")
+    return P.sig2("rr_out", "*~", "rr_sound", "rr_gain", x + 150, y + 410)
+
+
 def add_clip_watch(P, x=2200, y=20):
     """On-screen diagnostics: once a second, how many ~12 ms stretches (CLIP_WINDOW samples) held a sample at or
     over full scale, for three places: the mic as it arrives (the phone's own mic overloading, harsh, and Input gain
@@ -3912,7 +3990,9 @@ def build():
         P.sig2(f"rev_{side}", "*~", acc, "rev_gain", x0 + 400, 1150)
         P.sig2(f"in_{side}0", "+~", "mix_out", f"rev_{side}", x0 + 400, 1200)
         P.sig2(f"in_{side}1", "+~", f"in_{side}0", gc_l if side == "l" else gc_r, x0 + 400, 1210)
-        P.sig2(f"in_{side}", "+~", f"in_{side}1", f"wet_{side}", x0 + 400, 1220)
+        P.sig2(f"in_{side}2", "+~", f"in_{side}1", "rr_out", x0 + 400, 1215)   # (reverse reverb, below)
+        P.sig2(f"in_{side}", "+~", f"in_{side}2", f"wet_{side}", x0 + 400, 1220)
+    add_reverse_reverb(P)
 
     # --- spatial: ear delay (time difference between the ears), then pan, then output ---
     # Positive 'space_shift' delays the right ear, so the sound seems to come from the left
@@ -4049,6 +4129,8 @@ def build():
     P.group("cue", r"^cue_(fq|fd|f5|oa|ob|oc|gc|ab|abc|ea|dry|ein|ew|er|efb|ewet|mix|pan|pq|pcl|pqr|pcr|gl_l|gl_r|l|rr)$")                    # the Realm cue: on only while it sounds
     P.group("reverb", r"^(c[lr]\d+_|c[lr]_acc\d|a[lr]\d_|rev_in$|rev_[lr]$|pk_rfb$|ln_rfb$|pk_rin$|ln_rin$)")
     add_switch(P, "reverb", ("reverb_on", "reverb_mix"), 300)
+    P.group("revrev", r"^rr_(src0|src|wr|rd|sound)$")                     # reverse reverb
+    add_switch(P, "revrev", ("reverb_on", "reverb_mix", "reverb_rev"), 300)
     P.group("pitch", r"^(rate_hz|ph1|ph2|ph2_off|delwrite_p|tap[12]_\w+|rd[12]|cos[12]|cos[12]_neg|win[12]|grain[12]|shifted)$")
     add_switch(P, "pitch", ("pitch_on", "pitch_mix"), 300)
     P.group("chorus", r"^(chorus_wr|chorus_ph|ch[01]_\w+|ch_sum|ch_wet)$")

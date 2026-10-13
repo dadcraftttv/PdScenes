@@ -290,6 +290,10 @@ final class Params {
                     .inSection("reverb").rand(0.2f, 0.9f).resetWhenAbsent(),
             new Param("reverb_tone", "Reverb brightness", 1500f, 16000f, 6000f, " Hz",
                     Param.Curve.LOG).inSection("reverb").rand(2500f, 12000f).resetWhenAbsent(),
+            // The reverb's own tail played backwards: each sound comes back as a rising swell (Ghost realm). Needs the
+            // reverb. While the beat runs, each swell is two beats long and starts on the beat.
+            new Param("reverb_rev", "Reverse reverb (sounds come back as rising swells)", 0f, 1f, 0f, "",
+                    Param.Curve.LINEAR).inSection("reverb").rand(0f, 0.6f).resetWhenAbsent(),
 
             // ---- Chorus ---- (added after the first presets: older presets switch it off)
             new Param("chorus_on", "Chorus enabled", 0f, 1f, 1f, "", Param.Curve.LINEAR)

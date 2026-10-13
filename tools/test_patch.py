@@ -77,7 +77,7 @@ check(not bad, "patch loads with no Pd errors" + (": %s" % bad if bad else ""))
 
 jp = java_params()
 patch_text = open(PATCH).read()
-receivers = set(re.findall(r"#X obj \d+ \d+ r (\w+);", patch_text)) - {"step", "scale_n", "pad_glide", "mic_level", "pad_slot", "pool_n", "pool_x", "pocket", "pocket_down", "duck", "step_strength", "step_hit", "beat_sure", "groove", "gc_mode", "gc_try", "density_on", "motif", "drift_now", "drift_set", "drift_n", "music_register", "music_warm", "pulse", "tick16", "clock_walking", "gc_mode", "fs_need", "harm_organ", "fpad_need", "harm_run", "fpad_kick", "fpad_caught", "rh_swing_set", "fs_flourish_set", "rn_ring", "rnf_found", "realm_cue", "handling", "jolt"} - {r for r in re.findall(r"#X obj \d+ \d+ r (sw_\w+);", open(PATCH).read())}   # events and internal links, not settings
+receivers = set(re.findall(r"#X obj \d+ \d+ r (\w+);", patch_text)) - {"step", "scale_n", "pad_glide", "mic_level", "pad_slot", "pool_n", "pool_x", "pocket", "pocket_down", "duck", "step_strength", "step_hit", "beat_sure", "groove", "gc_mode", "gc_try", "density_on", "motif", "drift_now", "drift_set", "drift_n", "music_register", "music_warm", "pulse", "tick16", "clock_walking", "gc_mode", "fs_need", "harm_organ", "fpad_need", "harm_run", "fpad_kick", "fpad_caught", "rh_swing_set", "fs_flourish_set", "rn_ring", "rnf_found", "realm_cue", "handling", "jolt", "msync", "tempo"} - {r for r in re.findall(r"#X obj \d+ \d+ r (sw_\w+);", open(PATCH).read())}   # events and internal links, not settings
 pd_ids = {i for i, _, nopd in jp if not nopd}
 check(len(jp) >= 10, "parsed %d params from Params.java" % len(jp))
 check(pd_ids == receivers, "Params.java ids == patch receivers (java-only %s, patch-only %s)"
@@ -2150,6 +2150,49 @@ hot, _ = clip_counts(sine(440, 0.6, 3.0), gain=2.5, dry=1, wet=0)
 over_in, _ = clip_counts(np.clip(sine(440, 1.5, 3.0), -1, 1), gain=0.5, dry=1, wet=0)
 check(nq >= 2 and quiet[0] == 0 and quiet[1] == 0 and hot[0] == 0 and hot[1] > 100 and hot[2] > 100 and over_in[0] > 100 and over_in[1] == 0,
       "diagnostics count overloads: 0.3 at gain 2.5 %s, 0.6 at gain 2.5 %s, a clipped mic at gain 0.5 %s (%d reports in 3 s)" % (quiet, hot, over_in, nq))
+
+# reverse reverb: a sudden sound comes back as its own reverb tail played backwards, a swell that rises into the
+# moment of the sound, peaking 2 x its length later (or on a beat while the Rhythm runs on the tempo clock)
+def rr_swell(rev=1, listen=(), **over):
+    def one(r):
+        e = fresh(**dict(dict(dry=1, wet=0, reverb_mix=1, reverb_size=0.5, reverb_rev=r), **over))
+        if listen:
+            e.listen(*listen)
+        x = np.zeros(6 * SR, np.float32); n = int(0.05 * SR)
+        x[SR:SR + n] = np.random.default_rng(1).standard_normal(n) * 0.3 * np.exp(-np.arange(n) / (0.01 * SR))
+        t0 = len(e.heard.get("tempo", [])) if listen else 0
+        return e.run(x)[:, 0], e
+    a, ea = one(rev); b, _ = one(0)
+    d = np.abs(a - b); env = np.convolve(d, np.ones(441) / 441, "same")
+    end = int(np.max(np.nonzero(env > 0.1 * env.max())[0])) if env.max() > 0 else 0
+    return env, end, ea
+env, end, _ = rr_swell()
+L = 600 + 900 * 0.5
+rise = env[end - int(0.1 * SR):end].mean() / max(env[end - int(0.7 * SR):end - int(0.6 * SR)].mean(), 1e-9)
+check(abs((end / SR - 1.0) * 1000 - 2 * L) < 120 and rise > 4 and env[:int(1.5 * SR)].max() < 1e-4,
+      "reverse reverb: a clap comes back as a rising swell (x%.0f over its last 0.6 s) ending %.0f ms later (2 x %.0f)"
+      % (rise, (end / SR - 1.0) * 1000, L))
+env0, _, _ = rr_swell(rev=1, reverb_mix=0)
+check(env0.max() < 1e-5, "reverse reverb: silent without the reverb (%.6f)" % env0.max())
+# with the Rhythm on the clock the swell is a beat long and ends on a beat
+def rr_synced(r):
+    e = fresh(dry=1, wet=0, reverb_mix=1, reverb_size=0.5, reverb_rev=r, beat_on=1, beat_level=0.0001, beat_follow=1,
+              beat_when=1, rhythm_src=0, tempo_mode=1, tempo_bpm=100)
+    e.listen("tempo")
+    x = np.zeros(6 * SR, np.float32); n = int(0.05 * SR)
+    x[int(1.13 * SR):int(1.13 * SR) + n] = np.random.default_rng(1).standard_normal(n) * 0.3 * np.exp(-np.arange(n) / (0.01 * SR))
+    out, beats, step = [], [], int(0.01 * SR) // 64 * 64
+    for i in range(0, len(x) - step + 1, step):
+        k = len(e.heard["tempo"]); out.append(e.run(x[i:i + step])[:, 0])
+        if len(e.heard["tempo"]) > k:
+            beats.append(i / SR)
+    return np.concatenate(out), beats
+ys1, beats = rr_synced(1); ys0, _ = rr_synced(0)
+ds = np.convolve(np.abs(ys1[:len(ys0)] - ys0[:len(ys1)]), np.ones(441) / 441, "same")
+end_s = np.max(np.nonzero(ds > 0.1 * ds.max())[0]) / SR if ds.max() > 1e-4 else 0
+off = min(abs(end_s - bt) for bt in beats) if beats else 9
+check(ds.max() > 1e-3 and off < 0.03 and end_s > 1.13 + 2 * 0.6 - 0.05,
+      "reverse reverb with the Rhythm: the swell ends on a beat (%.0f ms from the nearest, at %.2f s; clap at 1.13 s)" % (off * 1000, end_s))
 
 # Mix: each part's level at 0 takes that part out, and only that part
 def mix_part(trim, value, x, steps=0.0, **over):

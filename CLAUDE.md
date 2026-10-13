@@ -133,6 +133,16 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   the groove note), `mix_ring` / `mix_bells` (`rn_out` / `rnf_out`). At 0 a part is silent but still runs (no extra
   switch~ factors). Turning Auto realms on asks first ("Let Realms change your sound?": they set the sliders from
   their own preset, the mix too; "What it changes" keeps a part).
+- **Reverse reverb** (roadmap item 7, Oct 13; `add_reverse_reverb`, `reverb_rev` Reverb section 0..1, in presets,
+  Intensity rule 1/0.8, Ghost realm 0.5): a sudden sound (`gc_det_sel` through `handling_gate`, one swell at a time)
+  books a swell: its reverb tail (`rr_buf`, the reverb's mono wet, 7 s) L ms long read backwards so it peaks at B.
+  Free: L = 600 + 900 x room size, B = 2L after the sound. Synced (`msync`, Samuel: "time the swells to the beat"): L =
+  one beat (`tc_P`, max 1500), B = the first beat at least 2L away (`r tempo` resets a timer). Delay ramp
+  B - 2L + lead -> B + lead over L (`RR_LEAD_MS` 25: the sound is noticed ~60 ms late and the reverb's first echo
+  is ~30 ms after it, so the loudest moment lands on time; 70 ended 50 ms early), 30 ms in, 20 ms out. Measured: a
+  clap's swell rises x40 over its last 0.6 s; synced it ends 11 ms from the beat. The first try (Reverse echo's
+  continuous two-grain reversal fed the reverb) rose nicely but peaked wherever the sound fell, never on the beat.
+  Audio group `revrev` (reverb_on x reverb_mix x reverb_rev).
 - **Mic-down protection** (`pocket_guard`, main, noPreset, default 0.6; 0 = no change): Samuel found mic-end-down pockets
   rustly but mic-up pockets fine. `PhoneContext.micDown()` (gravity along +y averaged ~1 s, hysteresis 0.5/0.3) and
   AudioService sends `pocket_down` = pocket && micDown. The patch adds guard*12 dB more cut and crossfades in a 2x `hip~ 300`.

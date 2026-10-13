@@ -25,6 +25,7 @@ There are two ways to use it:
 - **Music stays in time** with the beat, standing or walking.
 - A small dot shows which sliders a mover is moving.
 - **Welcome pages** on a new install, and **a quiet start**: a new install has everything off (the echo too), so you hear only the room until you turn things on.
+- **Reverse reverb** (Reverb section, and in the Ghost realm): sounds come back as rising swells, landing on the beat while the Rhythm plays.
 - **Mix** (Music tab): a level for every part of the music and rhythm, saved with your presets, so you can turn any part down or out.
 - **Intensity** in the bottom card: calmer to the left, busier to the right, your own settings in the middle.
 - **Handling noise:** tapping, gripping or rubbing the phone no longer becomes part of the music: those sounds are turned down and never caught as found sounds (see Handling hush).
@@ -212,6 +213,7 @@ Makes it sound like you're in a bigger space, like a church, a bathroom, or a ca
 - **Reverb level:** how much of the room sound you hear.
 - **Room size:** small room or huge hall.
 - **Reverb brightness:** a bright, glassy room or a soft, dark one.
+- **Reverse reverb:** a sudden sound comes back a moment later as its own echo played backwards: a ghostly swell that rises out of nothing and stops right where the sound began. While the Rhythm plays, each swell is one beat long and lands on a beat; otherwise it comes about two seconds later (longer in a bigger room). It needs the Reverb level up. 0 turns it off.
 
 ### Spatial
 
@@ -345,7 +347,7 @@ Switch on **Auto realms** and the app listens to the room and to how you are mov
 | Tranquil | The room is quiet | Soft, dreamy, swirling sound with lots of space |
 | Flux | The room is loud and lively, like voices, music or clatter (a steady roar like running water or a fan doesn't count) | Edgy and glitchy, with sounds that sometimes freeze and jump, but the room still comes through |
 | Kinetic | You are walking | A pulsing sound that speeds up when you move more |
-| Ghost | Midnight to 5 AM | Eerie backwards echoes and a deep, hollow room. Sudden sounds hang in the air, smeared out slowly or played backwards |
+| Ghost | Midnight to 5 AM | Eerie backwards echoes and a deep, hollow room. Sudden sounds hang in the air, smeared out slowly or played backwards, and come back as rising reverse-reverb swells |
 | Pocket | The phone is in a pocket or face down (covered and dark for about a second) and no other Realm fits | Quiet and muffled, with a soft room. Your drums and the music (if it is on) carry the sound. |
 
 A Realm only starts after the situation has lasted a few seconds, so a single clap won't flip it. The sliders then glide to the new sound over about three seconds. When nothing special is going on, your own settings glide back. Stopping the app also gives them back right away. A soft, dreamy "warp" plays when a Realm starts (gliding up), when your own settings come back (gliding down), and when one Realm hands over to another (swerving sideways, from one ear to the other); you can switch it off with **Realm change sound** on the Setup tab.
