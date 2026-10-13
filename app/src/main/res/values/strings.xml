@@ -20,6 +20,7 @@
     <string name="glitch_budget">Glitch budget: %1$d%% used · %2$d%% left to silence</string>
     <string name="glitch_budget_over">Glitch budget: %1$d%% (over 100, shared out in proportion)</string>
     <string name="why_pocket">in a pocket</string>
+    <string name="why_handling">handling</string>
     <string name="why_room_quiet">quiet room (%d dB)</string>
     <string name="why_room_lively">loud, lively room (%d dB)</string>
     <string name="why_room_steady">loud but steady room (%d dB)</string>
@@ -49,6 +50,7 @@
     <string name="diag_clip_gain">Over full scale after Input gain: %1$d (the compressor catches these)</string>
     <string name="diag_clip_out">Output limiter squashing hard: %1$d</string>
     <string name="diag_clip_out_help">The mix is too hot. If it sounds harsh, lower Input gain or some effect levels.</string>
+    <string name="diag_handling">Handling noises skipped in the last minute: %1$d (taps and grips on the phone aren\'t caught as found sounds)</string>
     <string name="diag_note">Counts cover the last minute. A single loud clap may count once; only repeated overloads matter.</string>
     <string name="status_mic_overload">Mic overloading: the sound is too loud or too close to the mic.</string>
     <string name="reset_all">Reset everything to defaults</string>

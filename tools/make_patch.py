@@ -37,7 +37,7 @@ DEFAULTS = [
     ("music_on", 0), ("music_key", 0), ("music_scale", 0), ("music_pad", 0.33), ("music_arp", 0.4),
     ("music_tone", 0.5), ("music_react", 0.8), ("music_res", 0.8), ("music_harm", 0.6), ("beat_follow", 1), ("beat_when", 1), ("rhythm_src", 1), ("melody_src", 1), ("harm_src", 1), ("pad_src", 1), ("bass_src", 0), ("tempo_mode", 0), ("tempo_bpm", 100), ("chime_char", 0.5), ("res_src", 1), ("cue_sound", 1), ("beat_glitch", 0.4), ("gate_attack", 5), ("gate_hold", 0), ("gate_release", 80), ("comp_attack", 40),
     ("comp_release", 40), ("music_drift", 1), ("echo_scatter", 0.5), ("gc_amount", 0), ("gc_level", 0.7), ("gc_pct_stutter", 35), ("gc_pct_reverse", 25),
-    ("gc_pct_shuffle", 20), ("gc_pct_stretch", 20), ("music_pad_reg", 2), ("pocket_hush", 0.5), ("pocket_guard", 0.6),
+    ("gc_pct_shuffle", 20), ("gc_pct_stretch", 20), ("music_pad_reg", 2), ("pocket_hush", 0.5), ("pocket_guard", 0.6), ("handling_hush", 0.5),
 ]
 
 # Scales as semitone steps above the key note. The patch snaps every note it plays to these.
@@ -272,6 +272,12 @@ def pc_to_degree(iv):
     marks = list(iv) + [12]
     return [min(range(len(marks)), key=lambda i: (abs(marks[i] - pc), marks[i])) for pc in range(12)]
 DUCK_MS = 600           # how quickly the output dips (and comes back) when other audio plays
+HND_HUSH_DB = 24            # handling hush at 1 turns the mic down this much at full handling (the app's 0-1 level)
+HND_ATTACK_MS = 15          # ...going down this fast (a tap rings on for a while; its very start can't be caught)
+HND_RELEASE_MS = 300        # ...and back up over this
+HND_TRIG = 0.3              # sudden sounds while handling is above this start nothing (no chime, glitch, catch)
+HND_JOLT_MS = 200           # a jolt (tap or grip, from the app) makes the sounds of the last/next this many ms handling
+HND_CHECK_MS = 40           # a glitch waits this long for a jolt reported just after the sound (sensor vs mic delay)
 POCKET_HUSH_MS = 400        # how fast the hush fades in and out
 POCKET_GUARD_DB = 12        # mic-down protection at 1 turns the mic down this much more...
 POCKET_GUARD_HP_HZ = 300    # ...and filters out the cloth thump below about this (12 dB/octave)
@@ -651,7 +657,7 @@ def add_found_kit(P, x):
     P.obj("fs_gains_t", f"table fs_gains {3 * FS_SLOTS}", x + 300, y)
     P.obj("fs_filled_t", "table fs_filled 3", x + 300, y + 20)
     # ---- recording: the mic from FS_PREROLL_MS ago into the staging table ----
-    P.sig2("fs_src", "*~", "mic_gated", "ph_ln", x, y + 80)
+    P.sig2("fs_src", "*~", "mic_gated", "hush_ln", x, y + 80)
     P.obj("fs_wr", "delwrite~ fs_buf 100", x, y + 100); P.c("fs_src", "fs_wr")
     P.obj("fs_rd", f"delread~ fs_buf {FS_PREROLL_MS}", x, y + 120)
     P.obj("fs_rec", "tabwrite~ fs_stage", x, y + 140); P.c("fs_rd", "fs_rec")
@@ -687,6 +693,9 @@ def add_found_kit(P, x):
     P.obj("fs_go", "t b b b b", x + 400, y + 100)
     P.c("fs_on", "fs_go")
     P.msg("fs_closed", "0", x + 480, y + 120); P.c("fs_go", "fs_closed", 3, 0); P.c("fs_closed", "fs_on", 0, 1)
+    # handling: a jolt just before it starts (hjolt) or while it records (fs_jv set by the jolt) drops the slice
+    P.obj("fs_jv_rd", "value hjolt", x + 600, y + 100); P.obj("fs_jv_wr", "value fs_jv", x + 600, y + 115)
+    P.c("fs_go", "fs_jv_rd", 3, 0); P.c("fs_jv_rd", "fs_jv_wr")
     P.msg("fs_reset", "0", x + 540, y + 120)
     for nm in ("all", "lo", "hi"):
         P.c("fs_reset", f"fs_max_{nm}", 0, 1); P.c("fs_reset", f"fs_mx_{nm}", 0, 1)
@@ -716,7 +725,8 @@ def add_found_kit(P, x):
     # (hats loosened to 6 dB after the first phone test caught no hats at all from real taps)
     # a mic pop: louder than FS_POP_DB and carried by its lows (a snap at the mic overloads it into a low thump; on
     # the phone +8 dBFS with all its weight below 150 Hz, where real knocks were -16 to -42) is not kept
-    ex("fs_role", f"if($f1<{FS_MIN_DB},-1,if($f1>{FS_POP_DB}&&$f2-$f1>-6,-2,if($f2-$f1>-6,0,if($f3-$f1>-6&&$f2-$f1<-15,2,1))))", x + 400, y + 220)
+    # (and a slice spoilt by handling, a jolt near its start, is dropped and reported as 4)
+    ex("fs_role", f"if($f1<{FS_MIN_DB},-1,if(fs_jv>0,-3,if($f1>{FS_POP_DB}&&$f2-$f1>-6,-2,if($f2-$f1>-6,0,if($f3-$f1>-6&&$f2-$f1<-15,2,1)))))", x + 400, y + 220)
     # inlets: $f1 overall (hot, last), $f2 lows, $f3 highs
     P.c("fs_d_t", "fs_max_hi", 2, 0); P.c("fs_max_hi", "fs_role", 0, 2)
     P.c("fs_d_t", "fs_max_lo", 2, 0); P.c("fs_max_lo", "fs_role", 0, 1)
@@ -726,9 +736,10 @@ def add_found_kit(P, x):
     P.obj("fs_lv_pk", "pack f f f", x + 300, y + 250); P.obj("fs_lv_s", "s fs_levels", x + 300, y + 270)
     P.c("fs_all_t", "fs_lv_pk", 1, 0); P.c("fs_max_lo", "fs_lv_pk", 0, 1); P.c("fs_max_hi", "fs_lv_pk", 0, 2); P.c("fs_lv_pk", "fs_lv_s")
     P.obj("fs_keep", "moses 0", x + 400, y + 250); P.c("fs_role", "fs_keep")
-    P.obj("fs_pop", "sel -2", x + 300, y + 290); P.c("fs_keep", "fs_pop", 0, 0)   # (a dropped pop is reported as 3)
+    P.obj("fs_pop", "sel -2 -3", x + 300, y + 290); P.c("fs_keep", "fs_pop", 0, 0)   # (a dropped pop is reported as 3)
     P.msg("fs_pop3", "3", x + 300, y + 310); P.obj("fs_pop_s", "s fs_caught", x + 300, y + 330)
     P.c("fs_pop", "fs_pop3"); P.c("fs_pop3", "fs_pop_s")
+    P.msg("fs_hnd4", "4", x + 340, y + 310); P.c("fs_pop", "fs_hnd4", 1, 0); P.c("fs_hnd4", "fs_pop_s")
     if os.environ.get("FS_DEBUG"):
         for nm, src, o in (("go", "fs_go", 0), ("onset", "fs_det_sel", 0), ("role", "fs_role", 0), ("all", "fs_max_all", 0),
                            ("lo", "fs_max_lo", 0), ("hi", "fs_max_hi", 0), ("use", "fs_use", 0)):
@@ -1917,7 +1928,7 @@ def add_music(P):
     # Path 1, sudden sounds: a chime whose loudness follows the room.
     P.obj("mu_ons_gate", "spigot 1", x + 300, 510)
     P.obj("mu_ons_gate_on", "spigot", x + 300, 540)
-    P.c("mu_onset_sel", "mu_ons_gate")
+    P.c(handling_gate(P, "mu_ons_hg", "mu_onset_sel", x + 400, 480, wait=False), "mu_ons_gate")   # not handling noise
     P.obj("mu_ons_t", "t b b b", x + 300, 570)
     P.msg("mu_ons_close", "0", x + 360, 600); P.msg("mu_ons_open", "1", x + 420, 600)
     P.obj("mu_ons_wait", "del 700", x + 380, 630)
@@ -2453,7 +2464,7 @@ def add_harmony(P, hx, ex, degree_to_hz):
     never the note being sung. It is held as long as the sound is, in a soft organ tone. Only a
     pitch that stays steady for a moment, clearly above the room's quiet, counts, so noise and speech blips play
     nothing. Two voices take turns, so a new note never bends the one still fading. Returns the output signal."""
-    P.sig2("mu_hm_src", "*~", "mic_gated", "ph_ln", hx, 20)          # quieter in a pocket, like the rest
+    P.sig2("mu_hm_src", "*~", "mic_gated", "hush_ln", hx, 20)          # quieter in a pocket, like the rest
     P.obj("mu_hm_aa", "lop~ 6000", hx, 35); P.c("mu_hm_src", "mu_hm_aa")         # (before halving the rate)
     P.obj("mu_hm_sig", f"sigmund~ -hop {HARM_HOP} -npts {HARM_NPTS} pitch env", hx, 50)   # env comes out first, then pitch
     P.c("mu_hm_aa", "mu_hm_sig")
@@ -2679,7 +2690,7 @@ def add_glitch_cloud(P):
         P.c(f"gcsw_{name}_t", f"gcsw_{name}_L", 0, 0); P.c(f"gcsw_{name}_L", f"gcsw_{name}_tail")
         P.c(f"gcsw_{name}_tail", f"gcsw_{name}_del"); P.c(f"gcsw_{name}_del", f"gcsw_{name}_off")
         return f"gcsw_{name}_t"
-    P.sig2("gc_src", "*~", "mic_gated", "ph_ln", x, y)                  # quieter in a pocket, like the rest
+    P.sig2("gc_src", "*~", "mic_gated", "hush_ln", x, y)                  # quieter in a pocket, like the rest
     P.obj("gc_wr", f"delwrite~ gc_buf {GC_BUF_MS}", x, y + 30)
     P.c("gc_src", "gc_wr")
     P.obj("gc_r_amt", "r gc_amount", x + 300, y)
@@ -2702,7 +2713,7 @@ def add_glitch_cloud(P):
     P.c("gc_det", "gc_det_chg"); P.c("gc_det_chg", "gc_det_sel")
     # Resting: after a glitch nothing new starts for a while (shorter at a high Amount).
     P.obj("gc_rest", "spigot 1", x, y + 200)
-    P.c("gc_det_sel", "gc_rest")
+    P.c(handling_gate(P, "gc_hg", "gc_det_sel", x + 60, y + 170), "gc_rest")   # not handling noise
     P.obj("gc_roll_t", "t b b", x, y + 230)
     P.obj("gc_roll", "random 1000", x + 60, y + 260)
     P.obj("gc_amt_rd", "f", x + 140, y + 260)
@@ -2982,7 +2993,7 @@ def add_room_notes(P, rx, ex, degree_to_hz):
     resonators glide to the new notes when the chord, key or scale changes. Returns the output signal."""
     # Input: the gated mic without rumble. It opens as soon as the level rises above the room's own quiet
     # (the floor the chimes use), so a single clap rings but a quiet room stays silent. With react = 0 it stays open.
-    P.sig2("rn_src", "*~", "mic_gated", "ph_ln", rx - 100, 20)    # quieter in a pocket, like the rest
+    P.sig2("rn_src", "*~", "mic_gated", "hush_ln", rx - 100, 20)    # quieter in a pocket, like the rest
     P.obj("rn_hip", "hip~ 120", rx, 20)
     P.c("rn_src", "rn_hip")
     # The level is measured in short windows, so the gate opens a little late; delay the sound to match.
@@ -3067,7 +3078,7 @@ def add_room_notes(P, rx, ex, degree_to_hz):
     P.obj("rnf_r_on", "r music_on", fx + 240, fy); P.obj("rnf_v_on", "value rnf_on", fx + 240, fy + 15); P.c("rnf_r_on", "rnf_v_on")
     P.obj("rnf_lb", "loadbang", fx + 320, fy); P.msg("rnf_open1", "1", fx + 320, fy + 15)
     P.obj("rnf_v_open", "value rnf_open", fx + 320, fy + 30); P.c("rnf_lb", "rnf_open1"); P.c("rnf_open1", "rnf_v_open")
-    P.obj("rnf_det", "t b", fx, fy + 50); P.c("fs_det_sel", "rnf_det")
+    P.obj("rnf_det", "t b", fx, fy + 50); P.c(handling_gate(P, "rnf_hg", "fs_det_sel", fx + 60, fy + 20, wait=False), "rnf_det")
     ex("rnf_chk", "(rnf_src>=1)*(rnf_pk==0)*(rnf_on>0)*(rnf_open==1)+$f1*0", fx, fy + 65); P.c("rnf_det", "rnf_chk")
     P.obj("rnf_sel", "sel 1", fx, fy + 80); P.c("rnf_chk", "rnf_sel")
     P.obj("rnf_go", "t b b b b", fx, fy + 95); P.c("rnf_sel", "rnf_go")
@@ -3110,6 +3121,45 @@ def add_room_notes(P, rx, ex, degree_to_hz):
     soft_limit(P, "rnf_lim", "rnf_lvl", FM_LIMIT, RNF_GAIN, fx, fy + 575)
     P.sig2("rnf_out", "*~", "rnf_lim", lvl, fx, fy + 680)
     return P.sig2("rnx_out", "+~", "rn_out", "rnf_out", fx, fy + 700)
+
+
+def handling_gate(P, n, src, x, y, outlet=0, wait=True):
+    """Passes a sudden-sound bang from src on only if it isn't handling noise: no jolt in the last HND_JOLT_MS and
+    handling under HND_TRIG. With wait, it checks HND_CHECK_MS later (a jolt reported a little after the mic heard
+    it still counts); chimes don't wait (an answer to a clap must be quick, and the mic's own delay usually lets the
+    jolt arrive first). Returns the gate's output (a bang)."""
+    P.obj(f"{n}_del", f"del {HND_CHECK_MS}" if wait else "t b", x, y); P.c(src, f"{n}_del", outlet, 0)
+    P.obj(f"{n}_ok", f"expr (hjolt==0)&&(hlev<{HND_TRIG})", x, y + 15); P.c(f"{n}_del", f"{n}_ok")
+    P.obj(f"{n}_sel", "sel 1", x, y + 30); P.c(f"{n}_ok", f"{n}_sel")
+    return f"{n}_sel"
+
+
+def add_handling(P, x=2200, y=300):
+    """Handling noise (taps, grips, rubbing; the app's HandlingDetector): [handling 0..1( turns the mic down by up to
+    handling_hush x HND_HUSH_DB (fast down, slower up), and [jolt( marks the next HND_JOLT_MS as handling for the
+    gates (value hjolt). value hlev = the level. Returns the gain signal."""
+    P.obj("hnd_r", "r handling", x, y); P.obj("hnd_v", "value hlev", x + 100, y + 15); P.c("hnd_r", "hnd_v")
+    P.obj("hnd_hr", "r handling_hush", x + 200, y); P.obj("hnd_hv", "value hhush", x + 200, y + 15); P.c("hnd_hr", "hnd_hv")
+    P.obj("hnd_g", f"expr pow(10, -$f1*hhush*{HND_HUSH_DB}/20)".replace("$", BS + "$").replace(",", BS + ","), x, y + 30)
+    P.c("hnd_r", "hnd_g")
+    P.obj("hnd_t", "t f f f", x, y + 45); P.c("hnd_g", "hnd_t")
+    P.obj("hnd_tm", f"expr if($f1<$f2, {HND_ATTACK_MS}, {HND_RELEASE_MS})".replace("$", BS + "$").replace(",", BS + ","), x + 100, y + 60)
+    P.obj("hnd_pk", "pack f 0", x, y + 75); P.obj("hnd_ln", "line~", x, y + 90)
+    P.c("hnd_t", "hnd_tm", 2, 0); P.c("hnd_tm", "hnd_pk", 0, 1)           # down or up? (with the gain before)
+    P.c("hnd_t", "hnd_tm", 1, 1)                                          # then this is the gain before
+    P.c("hnd_t", "hnd_pk", 0, 0); P.c("hnd_pk", "hnd_ln")
+    P.obj("hnd_lb", "loadbang", x + 300, y); P.msg("hnd_one", "1", x + 300, y + 15)
+    P.c("hnd_lb", "hnd_one"); P.c("hnd_one", "hnd_ln"); P.c("hnd_one", "hnd_tm", 0, 1)
+    # a jolt: handling for the next HND_JOLT_MS (restarted by each one), and it spoils a catch being recorded
+    P.obj("hnd_jr", "r jolt", x + 400, y); P.obj("hnd_jt", "t b b b", x + 400, y + 15); P.c("hnd_jr", "hnd_jt")
+    P.msg("hnd_j1", "1", x + 400, y + 30); P.obj("hnd_jv", "value hjolt", x + 400, y + 45)
+    P.c("hnd_jt", "hnd_j1", 2, 0); P.c("hnd_j1", "hnd_jv")
+    P.msg("hnd_f1", "1", x + 480, y + 30); P.obj("hnd_fv", "value fs_jv", x + 480, y + 45)
+    P.c("hnd_jt", "hnd_f1", 1, 0); P.c("hnd_f1", "hnd_fv")
+    P.obj("hnd_jd", f"del {HND_JOLT_MS}", x + 560, y + 30); P.c("hnd_jt", "hnd_jd", 0, 0)
+    P.msg("hnd_j0", "0", x + 560, y + 45); P.obj("hnd_jv0", "value hjolt", x + 560, y + 60)
+    P.c("hnd_jd", "hnd_j0"); P.c("hnd_j0", "hnd_jv0")
+    return "hnd_ln"
 
 
 def add_clip_watch(P, x=2200, y=20):
@@ -3275,6 +3325,8 @@ def build():
     P.c("ph_calc", "ph_t"); P.c("ph_t", "ph_v", 1, 0); P.c("ph_t", "ph_pk", 0, 0); P.c("ph_pk", "ph_ln")
     P.obj("ph_init", "loadbang", 1160, 230); P.msg("ph_init_msg", "1", 1160, 260)
     P.c("ph_init", "ph_init_msg"); P.c("ph_init_msg", "ph_v"); P.c("ph_init_msg", "ph_ln")
+    # handling noise (taps, grips, rubbing) is turned down the same way: hush_ln = everything that hears the hushed mic
+    P.sig2("hush_ln", "*~", "ph_ln", add_handling(P), 800, 365)
     # the thump filter, crossfaded in by (mic down) x (protection)
     ex("pg_amt", "$f1*$f2", 1100, 290)
     P.obj("pg_down", "f", 1040, 260)
@@ -3289,7 +3341,7 @@ def build():
     P.sig2("pg_diff", "-~", "pg_hp2", "mic_comp0", 120, 410)       # filtered minus plain, times the amount, plus plain
     P.sig2("pg_part", "*~", "pg_diff", "pg_ln", 120, 425)
     P.sig2("mic_comp1", "+~", "mic_comp0", "pg_part", 20, 390)
-    P.sig2("mic_comp", "*~", "mic_comp1", "ph_ln", 20, 395)
+    P.sig2("mic_comp", "*~", "mic_comp1", "hush_ln", 20, 395)
 
     # --- ring modulator with bypass ---
     P.obj("r_ring_freq", "r ring_freq", 250, 20)

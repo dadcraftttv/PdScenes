@@ -37,7 +37,7 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
    error); move the pin only together with pd-core. numpy lives in `tools/.venv` (run the tests with `tools/.venv/bin/python`).
 2. `python3 tools/make_patch.py && tools/.venv/bin/python tools/test_patch.py tools/.libpd/libpd.so` — must end `ALL PASSED`.
    Also `tools/test_scene_loader.py`, `test_scene_sensors.py`, `test_rj_analysis.py`, `test_bundled_scenes.py`, `test_scene_helpers.py` (same libpd argument).
-3. Java logic tests (no Android): `tools/javatests/run.sh` (or one at a time: `tools/javatests/run.sh W`; D = diagnostics). All must pass
+3. Java logic tests (no Android): `tools/javatests/run.sh` (or one at a time: `tools/javatests/run.sh W`; D = diagnostics, H = handling). All must pass
    (C and P print no summary line, just no `FAIL:`). Android classes are stand-ins in `tools/javatests/stubs*`: when app code
    starts using a new Android method, add it there. Java is not on PATH: `export JAVA_HOME=~/.jdks/jbr-21.0.11` and put its
    `bin` on PATH (Android Studio's bundled JDK 25 is too new for Gradle 8.14). adb: `~/Android/Sdk/platform-tools/adb -s ZD222T44PP`.
@@ -87,6 +87,19 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   world alone never quieted the rustle (Samuel heard all the cloth noise at the store). Pocket and world changes, plus a
   "Hearing:" line every 30 s (level, floor, swing), go to `files/events.log` (64 KB, one rollover):
   `adb shell run-as app.pdscenes cat files/events.log`. Phone logcat only holds ~10 minutes.
+- **Handling noise** (roadmap item 3, Oct 13; `HandlingDetector.java`, test H; `add_handling`, `handling_gate`):
+  taps, grips and rubbing on the phone. Measured on Samuel's phone (jerk = change of acceleration between readings at
+  200 Hz): table ~0, held still 0.1-0.3, walking in hand 0.4-0.9 (once 2.0), rubbing/fiddling 0.6-1.7 steadily, taps
+  4-7, grips 2.5-8 (a 15 Hz high-pass could NOT tell walking from taps). A jolt = jerk > 3 (walking or not, one per
+  100 ms): SensorInput sends `jolt` straight to Pd (built-in patch only). Handling level = max(jolt fading over 0.3 s,
+  fiddling = the jerk's recent peak 0.7..2.0 while NOT walking), sent as `handling` from the mover tick. Pd: `hush_ln`
+  = pocket hush x handling duck (`handling_hush`, main, noPreset, default 0.5 = -12 dB at full; 15 ms down, 300 up)
+  for everything that hears the hushed mic (mic_comp, found kit, glitch buffer, room notes, harmony tracker). A jolt
+  sets `value hjolt` for 200 ms; chimes and found room notes skip a sudden sound while hjolt or handling > 0.3 (no
+  wait); glitches check 40 ms later (`HND_CHECK_MS`); a found-sound slice is dropped (`fs_caught 4`, "Skipped a
+  handling noise") when a jolt was within 200 ms before its start or during it (`fs_jv`). Diagnostics count skips in
+  the last minute; the Now line says "handling". Untested on the phone: whether the jolt reaches Pd before the mic's
+  onset (the chimes assume so).
 - **Mic-down protection** (`pocket_guard`, main, noPreset, default 0.6; 0 = no change): Samuel found mic-end-down pockets
   rustly but mic-up pockets fine. `PhoneContext.micDown()` (gravity along +y averaged ~1 s, hysteresis 0.5/0.3) and
   AudioService sends `pocket_down` = pocket && micDown. The patch adds guard*12 dB more cut and crossfades in a 2x `hip~ 300`.

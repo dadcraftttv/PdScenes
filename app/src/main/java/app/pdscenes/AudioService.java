@@ -104,6 +104,21 @@ public class AudioService extends Service {
     private static volatile String outputLabel, inputAsked;
     private static volatile boolean callModeMic;
 
+    /** When the found sounds last skipped a handling noise (uptime ms), for the diagnostics' "last minute". */
+    private static final java.util.ArrayDeque<Long> handlingSkips = new java.util.ArrayDeque<>();
+    private float handlingSent;
+
+    /** Sounds skipped as handling noise in the last minute. */
+    static int handlingSkipsLastMinute() {
+        long cutoff = SystemClock.uptimeMillis() - 60000;
+        synchronized (handlingSkips) {
+            while (!handlingSkips.isEmpty() && handlingSkips.peekFirst() < cutoff) {
+                handlingSkips.removeFirst();
+            }
+            return handlingSkips.size();
+        }
+    }
+
     static ClipWatch clips() {
         return clips;
     }
@@ -159,6 +174,12 @@ public class AudioService extends Service {
                     pocketSent = pocket;
                     PdBase.sendFloat("pocket", pocket ? 1f : 0f);
                     logEvent(pocket ? "Phone went into a pocket" : "Phone came out of the pocket");
+                }
+                // handling noise (taps, grips, rubbing): the mic turned down while it lasts
+                float handling = HandlingDetector.level();
+                if (Math.abs(handling - handlingSent) > 0.02f || (handling == 0f) != (handlingSent == 0f)) {
+                    handlingSent = handling < 0.01f ? 0f : handling;
+                    PdBase.sendFloat("handling", handlingSent);
                 }
                 boolean down = pocket && PhoneContext.micDown();
                 if (down != micDownSent) {
@@ -512,6 +533,12 @@ public class AudioService extends Service {
                     if (role == 3) {
                         logEvent("Skipped a mic pop" + fsLevels);
                     }
+                    if (role == 4) {
+                        synchronized (handlingSkips) {
+                            handlingSkips.addLast(SystemClock.uptimeMillis());
+                        }
+                        logEvent("Skipped a handling noise (a tap or grip on the phone)" + fsLevels);
+                    }
                     return;
                 }
                 if (FPAD_CAUGHT.equals(source)) {
@@ -594,6 +621,10 @@ public class AudioService extends Service {
         PdBase.subscribe(CLIP_GAIN);
         PdBase.subscribe(CLIP_OUT);
         clips.reset();
+        synchronized (handlingSkips) {
+            handlingSkips.clear();
+        }
+        handlingSent = 0f;
         synchronized (kitCaught) {
             java.util.Arrays.fill(kitCaught, 0);   // a fresh patch starts with an empty kit
         }

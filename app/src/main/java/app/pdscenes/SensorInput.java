@@ -86,6 +86,7 @@ final class SensorInput implements SensorEventListener {
         sensorManager.registerListener(this, accel, accelRate, handler);
         register(Sensor.TYPE_GYROSCOPE, handler, rate);
         PhoneContext.reset();
+        HandlingDetector.reset();
         lastPocket = false;
         haveRotationVector = register(Sensor.TYPE_ROTATION_VECTOR, handler, rate);
         // Scenes may want the raw field; the built-in effects only need it when there is no fused sensor.
@@ -151,6 +152,10 @@ final class SensorInput implements SensorEventListener {
                 double at = SystemClock.elapsedRealtimeNanos() / 1e9;
                 StepDetector.onAcceleration(x, y, z, at);
                 PhoneContext.onAcceleration(x, y, z, at);
+                // a tap or a grip on the phone: the built-in patch skips the sound it makes (handling noise)
+                if (HandlingDetector.onAcceleration(x, y, z, at, StepDetector.walking(at)) && !sendToPd) {
+                    PdBase.sendBang("jolt");
+                }
                 gravity[0] = x;
                 gravity[1] = y;
                 gravity[2] = z;

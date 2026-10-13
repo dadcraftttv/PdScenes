@@ -584,6 +584,9 @@ public class MainActivity extends Activity {
         if (PhoneContext.inPocket()) {
             why.add(getString(R.string.why_pocket));
         }
+        if (HandlingDetector.level() > 0.3f) {
+            why.add(getString(R.string.why_handling));
+        }
         int room = Worlds.roomQuiet() ? R.string.why_room_quiet
                 : Worlds.roomLoud() ? (Worlds.roomLively() ? R.string.why_room_lively : R.string.why_room_steady)
                 : R.string.why_room_middle;
@@ -1827,6 +1830,7 @@ public class MainActivity extends Activity {
                 lines.add("  " + getString(R.string.diag_clip_in_help));
             }
             lines.add(getString(R.string.diag_clip_gain, c.episodes(ClipWatch.GAIN)));
+            lines.add(getString(R.string.diag_handling, AudioService.handlingSkipsLastMinute()));
             lines.add(getString(R.string.diag_clip_out, outs));
             if (outs > 0) {
                 lines.add("  " + getString(R.string.diag_clip_out_help));

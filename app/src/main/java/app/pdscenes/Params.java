@@ -109,6 +109,10 @@ final class Params {
             // Extra help only while the phone is pocketed mic end first (more cloth on the mic). 0 = exactly as without it.
             new Param("pocket_guard", "Mic-down protection (pocket, mic end first)", 0f, 1f, 0.6f, "",
                     Param.Curve.LINEAR).inSection("main").noRandom().noPreset().resetWhenAbsent(),
+            // Taps, grips and rubbing on the phone (the motion sensors notice them): mic down by up to 24 dB at 1 while
+            // it lasts. Their sounds never start chimes or glitches and are never caught for the found sounds, at any setting.
+            new Param("handling_hush", "Handling hush (mic quieter while the phone is tapped or rubbed)", 0f, 1f, 0.5f, "",
+                    Param.Curve.LINEAR).inSection("main").noRandom().noPreset().resetWhenAbsent(),
             new Param("dry", "Dry level (direct sound)", 0f, 1.5f, 1f, "", Param.Curve.LINEAR)
                     .inSection("main").rand(0.3f, 1.2f),
 

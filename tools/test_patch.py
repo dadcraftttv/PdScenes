@@ -77,7 +77,7 @@ check(not bad, "patch loads with no Pd errors" + (": %s" % bad if bad else ""))
 
 jp = java_params()
 patch_text = open(PATCH).read()
-receivers = set(re.findall(r"#X obj \d+ \d+ r (\w+);", patch_text)) - {"step", "scale_n", "pad_glide", "mic_level", "pad_slot", "pool_n", "pool_x", "pocket", "pocket_down", "duck", "step_strength", "step_hit", "beat_sure", "groove", "gc_mode", "gc_try", "density_on", "motif", "drift_now", "drift_set", "drift_n", "music_register", "music_warm", "pulse", "tick16", "clock_walking", "gc_mode", "fs_need", "harm_organ", "fpad_need", "harm_run", "fpad_kick", "fpad_caught", "rh_swing_set", "fs_flourish_set", "rn_ring", "rnf_found", "realm_cue"} - {r for r in re.findall(r"#X obj \d+ \d+ r (sw_\w+);", open(PATCH).read())}   # events and internal links, not settings
+receivers = set(re.findall(r"#X obj \d+ \d+ r (\w+);", patch_text)) - {"step", "scale_n", "pad_glide", "mic_level", "pad_slot", "pool_n", "pool_x", "pocket", "pocket_down", "duck", "step_strength", "step_hit", "beat_sure", "groove", "gc_mode", "gc_try", "density_on", "motif", "drift_now", "drift_set", "drift_n", "music_register", "music_warm", "pulse", "tick16", "clock_walking", "gc_mode", "fs_need", "harm_organ", "fpad_need", "harm_run", "fpad_kick", "fpad_caught", "rh_swing_set", "fs_flourish_set", "rn_ring", "rnf_found", "realm_cue", "handling", "jolt"} - {r for r in re.findall(r"#X obj \d+ \d+ r (sw_\w+);", open(PATCH).read())}   # events and internal links, not settings
 pd_ids = {i for i, _, nopd in jp if not nopd}
 check(len(jp) >= 10, "parsed %d params from Params.java" % len(jp))
 check(pd_ids == receivers, "Params.java ids == patch receivers (java-only %s, patch-only %s)"
@@ -1413,6 +1413,47 @@ def pocketed_catch():
     e = fresh(dry=0, wet=0, beat_level=1, beat_follow=1, beat_when=1, rhythm_src=1, pocket_hush=0); e.listen("fs_caught")
     e.send("pocket", 1); e.run(x); return [int(v) for v in e.heard["fs_caught"]]
 check(not pocketed_catch(), "found sounds: nothing is caught while the phone is in a pocket")
+# handling noise: a jolt (a tap or grip on the phone, from the app) near a sound means the sound is not caught
+def jolted_catch(jolt_at):
+    thump, clap, tick = fs_sounds()
+    x = (np.random.default_rng(3).standard_normal(4 * SR) * 0.0005).astype(np.float32)
+    s = clap(); x[2 * SR:2 * SR + len(s)] += s.astype(np.float32)
+    e = fresh(dry=0, wet=0, beat_level=1, beat_follow=1, beat_when=1, rhythm_src=1); e.listen("fs_caught")
+    if jolt_at is None:
+        e.run(x)
+    else:
+        j = int(jolt_at * SR); e.run(x[:j]); e.send("jolt", 1); e.run(x[j:])
+    return [int(v) for v in e.heard["fs_caught"]]
+jc = {k: jolted_catch(k) for k in (None, 1.0, 1.9, 2.05)}
+check(jc[None] == [1] and jc[1.0] == [1] and jc[1.9] == [4] and jc[2.05] == [4],
+      "handling: a sound with a jolt 100 ms before or 50 ms into it is skipped (4), a jolt a second earlier doesn't matter %s" % jc)
+# ...and it starts no chime or glitch, while the same claps without jolts do
+def jolted_triggers(jolts):
+    thump, clap, tick = fs_sounds()
+    x = (np.random.default_rng(3).standard_normal(12 * SR) * 0.0005).astype(np.float32)
+    at = [1.0 + 1.3 * k for k in range(8)]
+    for t in at:
+        s = clap(); i = int(t * SR); x[i:i + len(s)] += s.astype(np.float32)
+    e = fresh(music_on=1, music_pad=0, music_arp=0, music_react=1, wet=0, gc_amount=1, music_res=0); e.listen("chime_note", "gc_mode")
+    pos = 0
+    for t in at:
+        j = int((t - 0.02) * SR); e.run(x[pos:j]); pos = j
+        if jolts:
+            e.send("jolt", 1)
+    e.run(x[pos:])
+    return len(e.heard["chime_note"]), len(e.heard["gc_mode"])
+free, held = jolted_triggers(False), jolted_triggers(True)
+check(free[0] >= 3 and held[0] == 0 and held[1] <= free[1] - 4,
+      "handling: claps with a jolt 20 ms before start no chimes and fewer glitches (only the free clock's) (chimes, glitches: %s without jolts, %s with)" % (free, held))
+# ...and the mic is turned down while the phone is handled: 0.5 -> -12 dB, back within a second
+def handled_level(h):
+    e = fresh(wet=0, dry=1, handling_hush=0.5)
+    e.send("handling", h); y = e.run(sine(440, 0.1, 1.0))[:, 0]
+    e.send("handling", 0); z = e.run(sine(440, 0.1, 1.0))[:, 0]
+    return rms(y[SR // 2:]), rms(z[SR // 2:])
+(h0, _), (h1, back) = handled_level(0), handled_level(1)
+check(abs(20 * np.log10(h1 / h0) + 12) < 0.5 and abs(back / h0 - 1) < 0.02,
+      "handling: full handling at hush 0.5 turns the mic down %.1f dB, and it comes back (%.3f)" % (20 * np.log10(h1 / h0), back / h0))
 # the patterns play the caught sound: a 150 Hz thump comes back as kicks at 150 x 0.8 = 120 Hz; the synth kick is lower
 def kick_tones(src, catch):
     ev = [(0.5, "k")] if catch else []
