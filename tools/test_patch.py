@@ -1549,16 +1549,18 @@ check(not sw_o and tone_level(held_o, f_v) < 0.2 * tone_level(held_v, f_v) and t
 # the Realm cue: a dreamy warp, gliding up an octave when a Realm starts, down when your settings come back
 def realm_cue(state, on=1):
     e = fresh(dry=0, wet=0, cue_sound=on); e.run(e.silence(0.2)); e.send("realm_cue", state)
-    y = e.run(e.silence(1.8))[:, 0]
+    y = e.run(e.silence(4.5))[:, 0]
     def peak_hz(seg):
         S_ = np.abs(np.fft.rfft(seg * np.hanning(len(seg)), 8 * len(seg))); f = np.fft.rfftfreq(8 * len(seg), 1 / SR)
         S_[(f < 300) | (f > 1000)] = 0; return float(f[np.argmax(S_)])
-    return peak_hz(y[int(0.05 * SR):int(0.2 * SR)]), peak_hz(y[int(0.95 * SR):int(1.15 * SR)]), np.max(np.abs(y)), rms(y[int(1.75 * SR):])
-up0, up1, up_pk, up_end = realm_cue(1); dn0, dn1, _, _ = realm_cue(0); _, _, off_pk, _ = realm_cue(1, on=0)
-check(up0 < 520 and abs(up1 - 880) < 15 and dn0 > 780 and abs(dn1 - 440) < 10 and 0.02 < up_pk < 0.12 and up_end < 0.002
-      and off_pk < 1e-4,
+    return (peak_hz(y[int(0.05 * SR):int(0.2 * SR)]), peak_hz(y[int(0.95 * SR):int(1.15 * SR)]), np.max(np.abs(y)),
+            rms(y[int(4.3 * SR):]), rms(y[int(1.55 * SR):int(1.95 * SR)]))
+
+up0, up1, up_pk, up_end, up_echo = realm_cue(1); dn0, dn1, _, _, _ = realm_cue(0); _, _, off_pk, _, _ = realm_cue(1, on=0)
+check(up0 < 520 and abs(up1 - 880) < 15 and dn0 > 780 and abs(dn1 - 440) < 10 and 0.02 < up_pk < 0.12 and up_end < 0.0005
+      and up_echo > 0.001 and off_pk < 1e-4,
       "realm cue: a warp gliding up into a Realm (%.0f -> %.0f Hz) and down back home (%.0f -> %.0f Hz), soft (peak %.3f), "
-      "gone after ~1.6 s, silent when switched off" % (up0, up1, dn0, dn1, up_pk))
+      "its echo still heard after the tone (%.4f), all gone by ~4 s, silent when switched off" % (up0, up1, dn0, dn1, up_pk, up_echo))
 
 # found pad: a held hum is kept with its pitch; from the next chord change the pad's chord is sung by it (each note
 # folded within a tritone of the hum, its overtones carried), as loud as the synth pad; until then the synth plays.

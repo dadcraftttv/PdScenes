@@ -205,7 +205,9 @@ CUE_LOW_HZ, CUE_HIGH_HZ = 440, 880     # the Realm cue: a warp gliding between A
 CUE_GLIDE_MS = 900                # ...over this long...
 CUE_DETUNE = 1.007                # ...a detuned twin beating against it (a slow shimmer)...
 CUE_LEVEL = 0.022                 # ...this loud per tone (after the limiter: the three together about -26 dBFS)...
-CUE_SWELL_MS, CUE_FADE_MS = 300, 1200   # ...swelling in, then melting away
+CUE_SWELL_MS, CUE_FADE_MS = 300, 1200   # ...swelling in, then melting away...
+CUE_ECHO_MS, CUE_ECHO_FB, CUE_ECHO_WET = 320, 0.4, 0.4   # ...with a touch of echo (Samuel), which dies away within
+CUE_ECHO_TAIL_MS = 2500                 # this long after the tone
 RNF_GAP_MS = 180                  # Room notes, found: at most one note per this long...
 RNF_GAIN = 0.08                   # ...at this level into its soft limit (the Room notes slider scales it after)
 FM_LIMIT = 0.7                    # the found melody's soft limit (tanh)
@@ -3874,7 +3876,7 @@ def build():
     P.obj("cue_go", "t b b", cx, cy + 80)
     P.msg("cue_env", f"0 {BS}, {CUE_LEVEL} {CUE_SWELL_MS} {BS}, 0 {CUE_FADE_MS} {CUE_SWELL_MS}", cx, cy + 95)
     P.c("cue_go", "cue_env", 1, 0)
-    P.obj("cue_off", f"del {CUE_SWELL_MS + CUE_FADE_MS + 200}", cx + 300, cy + 95); P.c("cue_go", "cue_off", 0, 0)
+    P.obj("cue_off", f"del {CUE_SWELL_MS + CUE_FADE_MS + CUE_ECHO_TAIL_MS}", cx + 300, cy + 95); P.c("cue_go", "cue_off", 0, 0)
     P.msg("cue_sw0ff", f"{BS}; sw_cue 0", cx + 300, cy + 110); P.c("cue_off", "cue_sw0ff")
     P.obj("cue_fq", "vline~", cx + 300, cy + 130)
     P.obj("cue_fd", f"*~ {CUE_DETUNE}", cx + 360, cy + 145); P.obj("cue_f5", "*~ 1.5", cx + 420, cy + 145)
@@ -3885,7 +3887,14 @@ def build():
     P.sig2("cue_ab", "+~", "cue_oa", "cue_ob", cx + 300, cy + 185)
     P.sig2("cue_abc", "+~", "cue_ab", "cue_gc", cx + 300, cy + 200)
     P.obj("cue_ea", "vline~", cx, cy + 130); P.c("cue_env", "cue_ea")
-    P.sig2("cue_mix", "*~", "cue_abc", "cue_ea", cx, cy + 220)
+    P.sig2("cue_dry", "*~", "cue_abc", "cue_ea", cx, cy + 220)
+    # a touch of echo (Samuel): repeats every CUE_ECHO_MS, each CUE_ECHO_FB of the last
+    P.sig2("cue_ein", "+~", "cue_dry", "cue_efb", cx + 100, cy + 235)
+    P.obj("cue_ew", f"delwrite~ cue_echo {CUE_ECHO_MS + 100}", cx + 100, cy + 250); P.c("cue_ein", "cue_ew")
+    P.obj("cue_er", f"delread~ cue_echo {CUE_ECHO_MS}", cx + 200, cy + 235)
+    P.obj("cue_efb", f"*~ {CUE_ECHO_FB}", cx + 200, cy + 250); P.c("cue_er", "cue_efb")
+    P.obj("cue_ewet", f"*~ {CUE_ECHO_WET}", cx + 200, cy + 265); P.c("cue_er", "cue_ewet")
+    P.sig2("cue_mix", "+~", "cue_dry", "cue_ewet", cx, cy + 280)
     P.obj("grp_cue_r", "r sw_cue", 10, 10); P.obj("grp_cue_sw", "switch~", 10, 40); P.c("grp_cue_r", "grp_cue_sw")
     P.sig2("out_cl", "+~", "limit_l", "cue_mix", 1400, 415); P.sig2("out_cr", "+~", "limit_r", "cue_mix", 1500, 415)
     P.obj("dac", "dac~ 1 2", 1400, 430)
@@ -3893,7 +3902,7 @@ def build():
     P.c("out_cr", "dac", 0, 1)
 
     # --- switchable blocks: each one's DSP stops while it can't be heard ---
-    P.group("cue", r"^cue_(fq|fd|f5|oa|ob|oc|gc|ab|abc|ea|mix)$")                    # the Realm cue: on only while it sounds
+    P.group("cue", r"^cue_(fq|fd|f5|oa|ob|oc|gc|ab|abc|ea|dry|ein|ew|er|efb|ewet|mix)$")                    # the Realm cue: on only while it sounds
     P.group("reverb", r"^(c[lr]\d+_|c[lr]_acc\d|a[lr]\d_|rev_in$|rev_[lr]$|pk_rfb$|ln_rfb$|pk_rin$|ln_rin$)")
     add_switch(P, "reverb", ("reverb_on", "reverb_mix"), 300)
     P.group("pitch", r"^(rate_hz|ph1|ph2|ph2_off|delwrite_p|tap[12]_\w+|rd[12]|cos[12]|cos[12]_neg|win[12]|grain[12]|shifted)$")
