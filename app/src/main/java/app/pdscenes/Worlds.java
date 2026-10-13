@@ -65,6 +65,7 @@ final class Worlds {
     static final String[][] GROUPS = {
             {"rhythm", "Rhythm", "beat"},
             {"music", "Music", "music"},
+            {"mix", "Mix (the level of each part)", "mix"},
             {"echo", "Echo", "echo"},
             {"reverb", "Reverb", "reverb"},
             {"glitch", "Glitch", "glitch", "reverse"},

@@ -25,6 +25,7 @@ There are two ways to use it:
 - **Music stays in time** with the beat, standing or walking.
 - A small dot shows which sliders a mover is moving.
 - **Welcome pages** on a new install, and **a quiet start**: a new install has everything off (the echo too), so you hear only the room until you turn things on.
+- **Mix** (Music tab): a level for every part of the music and rhythm, saved with your presets, so you can turn any part down or out.
 - **Intensity** in the bottom card: calmer to the left, busier to the right, your own settings in the middle.
 - **Handling noise:** tapping, gripping or rubbing the phone no longer becomes part of the music: those sounds are turned down and never caught as found sounds (see Handling hush).
 - **Diagnostics** on the Setup tab shows which mic and headphones are really in use, how loud the mic hears the room, and whether anything overloads. If the mic itself keeps overloading, the status line at the bottom says so.
@@ -247,13 +248,12 @@ A beat that plays along with you. It used to be called "Walking beat", but it no
 - Every hit is a little different: slightly higher or lower, softer or harder, sometimes with a softer start. About one hit in forty plays backwards or at half speed, as a small surprise.
 - A snap right at the microphone can overload it into a loud low pop; those are recognized and not kept. Nothing is caught while the phone is in a pocket, so cloth rustle stays out of the kit.
 - **The beat learns from you:** if you clap or knock on the same spot in the bar a few times, the beat starts playing a drum there too, and lets it fade a few bars after you stop.
-- **Glitch loops woven into the beat:** with the Glitch cloud on (see Glitch), each glitch is recorded for one bar and comes back in the beat at the same spot, fading bar by bar. 0 turns this off.
+- **Glitch loops woven into the beat:** with the Glitch cloud on (see Glitch), each glitch is recorded for one bar and comes back in the beat at the same spot, fading bar by bar. Its level is in the Mix section; 0 turns it off.
 
 **Levels.**
 
 - **Beat level (0 = off):** how loud the drums are. It starts at 0, so you hear nothing until you turn it up.
-- **Hi-hat level:** the small, ticking cymbal sound (synth and found).
-- **Snare level:** the sharp, snappy hit of the synth snare.
+- The kick, snare, hi-hat and glitch-loop levels are in the **Mix** section (below Music).
 - **Kick drum pitch:** how low or high the synth kick sounds.
 
 ### Music
@@ -264,7 +264,7 @@ This adds a soft, drifting musical layer that reacts to the world around you, in
 - **Let the home chord drift:** every few minutes the music's home chord moves to a related one on the same notes (in C major, for example, to a D, G or A-minor feel), then often comes back home. Switching it off brings the home chord back at once. On by default.
 - **Light, pocket and stairs move the notes higher or lower:** in a bright place the chimes and walking notes sit a little higher, in a dark room a little lower and warmer, in a pocket an octave lower, and climbing stairs lifts them. The pad and bass stay put. On by default.
 - **Key and Scale:** the home note and the mood. It starts in C Major. Major sounds bright, Minor sounds sad or serious, Pentatonic is simple and open, Dorian and Mixolydian are folky, Lydian is dreamy, and Whole tone is floaty and unresolved. Try them all.
-- **Pad level:** a very soft, slow background of gentle chords. It blends smoothly from one chord into the next. It is meant to be the glue, never the star. Keep it low.
+- **The pad:** a very soft, slow background of gentle chords. It blends smoothly from one chord into the next. It is meant to be the glue, never the star. Its level (Pad level) is in the Mix section; keep it low.
 - **Pad register:** where the pad plays. **Low** is a soft bass note under everything that stays on the key's root and only sometimes moves. **Mid** is the chords. **Both** (the default) is the two together. When the beat is playing, the bass dips briefly on each step so it doesn't clash with the kick drum.
 - **Pad sounds:** **Found sounds** (the default), **Synth** or **Both**. With Found sounds, when you hum, sing or whistle a steady note (or a steady hum from a machine or a bird), the app keeps a short snippet of it, and from the next chord change the pad's chord is sung by that sound, stretched out and pitched to each chord note. It sounds like a choir of you holding the harmony. Until the first held note it plays the synth pad.
 - **Bass sound:** **Synth** (the default) or **Found sounds**, which plays the bass with that same held-note snippet, pitched down. It is subtle.
@@ -273,7 +273,7 @@ This adds a soft, drifting musical layer that reacts to the world around you, in
 - **Chime character (ring to your sound):** how the found melody sounds. Toward "ring", each note is a tuned, bell-like ring set off by your sound. Toward "your sound", each note is mostly your clap, knock or snap itself played at that pitch, short and punchy. It starts in the middle.
 - **Room notes:** how loud the room's own notes are.
 - **Room notes sound:** **Found sounds** (the default): each sudden sound around you plays one of your caught sounds on a note of the current chord. **Ring**: the sounds around you ring the chord like a bell, in your key (a light tap gives a quick chime, talking or a passing car builds up to a long bell). **Both** plays the two.
-- **Harmony:** hum, sing or whistle a long, steady note and an answering note from the current chord joins in, never doubling yours. It holds as long as your note does and fades when you stop. Talking, noise and short sounds are ignored. 0 turns it off.
+- **Harmony:** hum, sing or whistle a long, steady note and an answering note from the current chord joins in, never doubling yours. It holds as long as your note does and fades when you stop. Talking, noise and short sounds are ignored. Its level is in the Mix section; 0 turns it off.
 - **Harmony sound:** **Your voice** (the default): a copy of your own voice, shifted to the chord note, sings with you. Low voices get their harmony a third or more above; from middle C up (most women's and children's voices) it sings a third or more below, so it never turns chipmunk. **Organ** is a soft organ note an octave away instead. **Both** plays the two.
 - **Tone:** darker and rounder on the left, brighter and glassier on the right.
 - **How much the music follows what it hears:** at the right end the music responds strongly to the room. At the left it plays a calmer, steadier pattern.
@@ -288,6 +288,18 @@ What to expect:
 - The music remembers the last little run of chimes. When the room goes quiet for a while and you are standing still, it may play that phrase back with a twist, like a theme returning.
 - The music passes through your other effects, so Echo, Reverb, Chorus, Spatial and the rest all shape it. The Pitch, Ring, Bit-crush, Distortion and Filter effects do not touch it.
 - In Realms, Tranquil keeps the music very soft, Flux keeps the notes light but lets the loud room ring in key, Kinetic lets the notes grow with your pace, and Pocket switches Room notes off. Realms never switch the music on or off for you.
+
+### Mix
+
+One place to set how loud each part of the music and rhythm is, so you can turn any part down or take it out completely (0). The Mix is saved with your presets, so a preset you share carries your mix along with everything else. (Presets made before the Mix keep whatever mix you have.)
+
+- **Kick, Snare, Hi-hat:** each drum on its own, synth and found alike. **Glitch loops woven into the beat:** the glitch bars in the beat.
+- **Pad level:** the soft chords. **Bass:** the low note under the pad.
+- **Chimes:** the notes set off by sudden sounds, the slow standing-still pattern and remembered phrases coming back. **Walking notes:** the run of notes with your steps and the groove note.
+- **Room notes: ring** and **Room notes: found bells:** the two kinds of room notes (see Room notes sound), each on its own.
+- **Harmony:** the answering note.
+
+The ones marked with an "x" (Kick, Bass, Chimes, Walking notes and the two room-note levels) are new. They sit inside their group's own level: Beat level still turns all the drums up or down together, Notes and chimes level all the melody notes, Pad level the pad and bass, Room notes both room-note kinds. Each starts at 1 (as before) and goes from 0 (out) to 1.5 (half as loud again).
 
 ## Movers: sliders that move on their own
 
@@ -326,7 +338,7 @@ Tip: a gentle Smooth wave or Random drift on a few sliders makes the sound feel 
 
 ## The Realms tab
 
-Switch on **Auto realms** and the app listens to the room and to how you are moving, then changes the sound for you. (Realms were called Auto worlds before; they work the same.) They only work with the built-in effects, not with scenes.
+Switch on **Auto realms** and the app listens to the room and to how you are moving, then changes the sound for you. Because a Realm sets your sliders from its own preset (effects, music, rhythm and the Mix), the app asks first; your own settings come back when the Realm ends or you switch Auto realms off. To keep part of your sound, switch that part off under the Realm's "What it changes". (Realms were called Auto worlds before; they work the same.) They only work with the built-in effects, not with scenes.
 
 | Realm | When it plays | What it sounds like |
 | --- | --- | --- |
@@ -346,7 +358,7 @@ The **Now:** line in the card names the Realm and why it was chosen, for example
 
 **Choosing what each Realm plays.** Each Realm has a menu where you pick which preset it plays (the built-in ones are called "Tranquil realm", "Kinetic realm" and so on, and any preset you saved can be used), or turn that Realm off. Sliders you've **locked** are never changed by a Realm.
 
-**Choosing what each Realm changes.** Under each Realm's menu, tap **What it changes** to open its switches: Rhythm, Music, Echo, Reverb, Glitch, Color (ring, pitch, crush, distortion, filter), Motion (chorus, flanger, phaser, tremolo), and Space and dry level. Switch a group off and that Realm leaves it at your own settings. For example, untick Reverb under Kinetic and your reverb stays exactly where you set it while you walk. The line then reads "What it changes: all but Reverb". When a Realm ends, only what it actually changed goes back, so anything you adjusted in a group it left alone stays yours.
+**Choosing what each Realm changes.** Under each Realm's menu, tap **What it changes** to open its switches: Rhythm, Music, Mix (the level of each part), Echo, Reverb, Glitch, Color (ring, pitch, crush, distortion, filter), Motion (chorus, flanger, phaser, tremolo), and Space and dry level. Switch a group off and that Realm leaves it at your own settings. For example, untick Reverb under Kinetic and your reverb stays exactly where you set it while you walk. The line then reads "What it changes: all but Reverb". When a Realm ends, only what it actually changed goes back, so anything you adjusted in a group it left alone stays yours.
 
 Please tell me whether Realms change too early, too late, or not at all, and what phone and situation you were in.
 

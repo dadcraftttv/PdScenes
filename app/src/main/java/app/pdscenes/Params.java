@@ -34,6 +34,7 @@ final class Params {
             new Section("shape", "Gate and compressor shape", false),
             new Section("beat", "Rhythm", false),
             new Section("music", "Music", true),
+            new Section("mix", "Mix (the level of each part)", false),
             new Section("echo", "Echo", false),
             new Section("ring", "Ring modulator", false),
             new Section("pitch", "Pitch shifter", false),
@@ -138,14 +139,8 @@ final class Params {
             new Param("rhythm_src", "Beat sounds", 0f, 2f, 1f, "", Param.Curve.LINEAR)
                     .choices("Synth drums", "Found sounds (made from what the mic hears)", "Both")
                     .inSection("beat").noPreset().resetWhenAbsent(),
-            new Param("beat_glitch", "Glitch loops woven into the beat (needs Glitch cloud amount)", 0f, 1f, 0.4f, "",
-                    Param.Curve.LINEAR).inSection("beat").rand(0f, 0.8f).resetWhenAbsent(),
             new Param("beat_level", "Beat level (0 = off)", 0f, 1f, 0f, "",
                     Param.Curve.LINEAR).inSection("beat").rand(0f, 0.7f).resetWhenAbsent(),
-            new Param("beat_hats", "Hi-hat level", 0f, 1f, 0.5f, "", Param.Curve.LINEAR)
-                    .inSection("beat").rand(0f, 1f).resetWhenAbsent(),
-            new Param("beat_snare", "Snare level", 0f, 1f, 0.6f, "", Param.Curve.LINEAR)
-                    .inSection("beat").rand(0f, 1f).resetWhenAbsent(),
             new Param("beat_pitch", "Kick drum pitch", 40f, 120f, 55f, " Hz", Param.Curve.LOG)
                     .inSection("beat").rand(45f, 90f).decimals(0).resetWhenAbsent(),
 
@@ -163,8 +158,6 @@ final class Params {
                     .choices("Major", "Minor", "Major pentatonic", "Minor pentatonic", "Dorian",
                             "Mixolydian", "Lydian", "Whole tone")
                     .inSection("music").noPreset().resetWhenAbsent(),
-            new Param("music_pad", "Pad level (soft chords that drift)", 0f, 1f, 0.33f, "",
-                    Param.Curve.LINEAR).inSection("music").rand(0f, 0.6f).resetWhenAbsent(),
             // Low = a bass voice on the root under everything, Mid = the chords as before, Both (default) = the two together.
             new Param("music_pad_reg", "Pad register", 0f, 2f, 2f, "", Param.Curve.LINEAR)
                     .choices("Low (bass)", "Mid", "Both")
@@ -191,11 +184,35 @@ final class Params {
             new Param("res_src", "Room notes sound", 0f, 2f, 1f, "", Param.Curve.LINEAR)
                     .choices("Ring (the room rings the chord)", "Found sounds (a sound plays one of yours on the chord)", "Both")
                     .inSection("music").noPreset().resetWhenAbsent(),
-            new Param("music_harm", "Harmony (a held hum or whistle gets an answering note)", 0f, 1f, 0.6f, "",
-                    Param.Curve.LINEAR).inSection("music").rand(0.2f, 1f).resetWhenAbsent(),
             new Param("harm_src", "Harmony sound", 0f, 2f, 1f, "", Param.Curve.LINEAR)
                     .choices("Organ", "Your voice (a pitch-shifted copy of you)", "Both")
                     .inSection("music").noPreset().resetWhenAbsent(),
+
+            // ---- Mix (Samuel, Oct 13): a level for every part, 0 = taken out. The x trims sit inside their group's
+            // level (Beat level, Pad level, Notes and chimes level, Room notes): 1 = as before. Saved in presets
+            // (older presets leave them as they are), never randomized.
+            new Param("mix_kick", "Kick", 0f, 1.5f, 1f, "x", Param.Curve.LINEAR)
+                    .inSection("mix").noRandom(),   // synth and found kicks
+            new Param("beat_snare", "Snare level", 0f, 1f, 0.6f, "", Param.Curve.LINEAR)
+                    .inSection("mix").rand(0f, 1f).resetWhenAbsent(),
+            new Param("beat_hats", "Hi-hat level", 0f, 1f, 0.5f, "", Param.Curve.LINEAR)
+                    .inSection("mix").rand(0f, 1f).resetWhenAbsent(),
+            new Param("beat_glitch", "Glitch loops woven into the beat (needs Glitch cloud amount)", 0f, 1f, 0.4f, "",
+                    Param.Curve.LINEAR).inSection("mix").rand(0f, 0.8f).resetWhenAbsent(),
+            new Param("music_pad", "Pad level (soft chords that drift)", 0f, 1f, 0.33f, "",
+                    Param.Curve.LINEAR).inSection("mix").rand(0f, 0.6f).resetWhenAbsent(),
+            new Param("mix_bass", "Bass (inside the pad level)", 0f, 1.5f, 1f, "x", Param.Curve.LINEAR)
+                    .inSection("mix").noRandom(),   // synth and found bass
+            new Param("mix_chimes", "Chimes (inside Notes and chimes)", 0f, 1.5f, 1f, "x", Param.Curve.LINEAR)
+                    .inSection("mix").noRandom(),   // sudden-sound chimes, the still pattern, motif replays
+            new Param("mix_walk", "Walking notes (inside Notes and chimes)", 0f, 1.5f, 1f, "x", Param.Curve.LINEAR)
+                    .inSection("mix").noRandom(),   // footstep arpeggio and groove note
+            new Param("mix_ring", "Room notes: ring", 0f, 1.5f, 1f, "x", Param.Curve.LINEAR)
+                    .inSection("mix").noRandom(),   // the resonators
+            new Param("mix_bells", "Room notes: found bells", 0f, 1.5f, 1f, "x", Param.Curve.LINEAR)
+                    .inSection("mix").noRandom(),   // found sounds played on the chord
+            new Param("music_harm", "Harmony (a held hum or whistle gets an answering note)", 0f, 1f, 0.6f, "",
+                    Param.Curve.LINEAR).inSection("mix").rand(0.2f, 1f).resetWhenAbsent(),
 
             // ---- Echo ----
             new Param("echo_on", "Echo enabled", 0f, 1f, 1f, "", Param.Curve.LINEAR)

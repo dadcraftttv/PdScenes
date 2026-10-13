@@ -364,7 +364,7 @@ public class MainActivity extends Activity {
 
         // ---- the sections, each on its tab ----
         for (Params.Section section : Params.SECTIONS) {
-            LinearLayout tab = "beat".equals(section.id) || "music".equals(section.id) ? music
+            LinearLayout tab = "beat".equals(section.id) || "music".equals(section.id) || "mix".equals(section.id) ? music
                     : "behavior".equals(section.id) ? setup : sound;
             addSection(tab, section.id, section.title, section.openByDefault,
                     body -> fillEffectSection(body, section));
@@ -894,8 +894,23 @@ public class MainActivity extends Activity {
         auto.setPadding(0, dp(8), 0, 0);
         auto.setChecked(Worlds.isEnabled());
         auto.setOnClickListener(v -> {
-            Worlds.setEnabled(auto.isChecked());
-            updateWorldStatus();
+            if (!auto.isChecked()) {
+                Worlds.setEnabled(false);
+                updateWorldStatus();
+                return;
+            }
+            // Samuel: before Realms take over, say that they change the user's own settings (the mix too)
+            auto.setChecked(false);
+            new AlertDialog.Builder(this)
+                    .setTitle(R.string.realms_warn_title)
+                    .setMessage(R.string.realms_warn_text)
+                    .setPositiveButton(R.string.realms_warn_ok, (d, w) -> {
+                        auto.setChecked(true);
+                        Worlds.setEnabled(true);
+                        updateWorldStatus();
+                    })
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show();
         });
         body.addView(auto);
 

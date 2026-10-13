@@ -2151,6 +2151,33 @@ over_in, _ = clip_counts(np.clip(sine(440, 1.5, 3.0), -1, 1), gain=0.5, dry=1, w
 check(nq >= 2 and quiet[0] == 0 and quiet[1] == 0 and hot[0] == 0 and hot[1] > 100 and hot[2] > 100 and over_in[0] > 100 and over_in[1] == 0,
       "diagnostics count overloads: 0.3 at gain 2.5 %s, 0.6 at gain 2.5 %s, a clipped mic at gain 0.5 %s (%d reports in 3 s)" % (quiet, hot, over_in, nq))
 
+# Mix: each part's level at 0 takes that part out, and only that part
+def mix_part(trim, value, x, steps=0.0, **over):
+    e = fresh(**dict(dict(dry=0, wet=0, music_pad=0, music_arp=0, music_res=0, music_harm=0, melody_src=0), **over))
+    e.send(trim, value); e.run(e.silence(0.3))
+    if not steps:
+        return rms(e.run(x)[SR:, 0])
+    ys = [e.run(x[k:k + int(steps * SR)])[:, 0] for k in range(0, len(x) - int(steps * SR) + 1, int(steps * SR)) if e.send("step", steps) is None]
+    return rms(np.concatenate(ys)[SR:])
+quiet8 = (np.random.default_rng(3).standard_normal(8 * SR) * 0.0005).astype(np.float32)
+cl6 = claps(5, 1.1, 0.5)
+mix_cases = {
+    "kick": ("mix_kick", quiet8, 0, dict(beat_level=1, beat_follow=1, beat_when=1, rhythm_src=0, beat_snare=0, beat_hats=0, beat_glitch=0)),
+    "bass": ("mix_bass", quiet8, 0, dict(music_on=1, music_pad=1, music_pad_reg=0, pad_src=0, bass_src=0)),
+    "walking notes": ("mix_walk", quiet8, 0.5, dict(music_on=1, music_arp=1, beat_follow=0)),
+    "chimes": ("mix_chimes", cl6, 0, dict(music_on=1, music_arp=1, music_react=1)),
+    "room notes ring": ("mix_ring", cl6, 0, dict(music_on=1, music_res=1, res_src=0)),
+    "found bells": ("mix_bells", cl6, 0, dict(music_on=1, music_res=1, res_src=1, chime_char=0)),
+}
+res = {}
+for name, (trim, x, st, over) in mix_cases.items():
+    res[name] = (mix_part(trim, 1, x, st, **over), mix_part(trim, 0, x, st, **over))
+check(all(on > 0.002 and off < 0.05 * on for on, off in res.values()),
+      "mix: each part at 0 is silent (rms at 1 / at 0: %s)" % {k: "%.4f/%.5f" % v for k, v in res.items()})
+# ...and only that part: the walking notes' trim leaves the chimes alone
+ch_on = mix_part("mix_walk", 0, cl6, 0, music_on=1, music_arp=1, music_react=1)
+check(abs(ch_on / res["chimes"][0] - 1) < 0.1, "mix: the walking notes at 0 leave the chimes as they were (%.4f vs %.4f)" % (ch_on, res["chimes"][0]))
+
 # ---- 8. safety: loud input, max feedback, max gain ----
 e = fresh(gain=10, feedback=0.85, wet=1, dry=1.5, echo_time=50)
 rng = np.random.default_rng(1)

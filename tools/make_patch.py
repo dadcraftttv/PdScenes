@@ -37,7 +37,7 @@ DEFAULTS = [
     ("music_on", 0), ("music_key", 0), ("music_scale", 0), ("music_pad", 0.33), ("music_arp", 0.4),
     ("music_tone", 0.5), ("music_react", 0.8), ("music_res", 0.8), ("music_harm", 0.6), ("beat_follow", 1), ("beat_when", 1), ("rhythm_src", 1), ("melody_src", 1), ("harm_src", 1), ("pad_src", 1), ("bass_src", 0), ("tempo_mode", 0), ("tempo_bpm", 100), ("chime_char", 0.5), ("res_src", 1), ("cue_sound", 1), ("beat_glitch", 0.4), ("gate_attack", 5), ("gate_hold", 0), ("gate_release", 80), ("comp_attack", 40),
     ("comp_release", 40), ("music_drift", 1), ("echo_scatter", 0.5), ("gc_amount", 0), ("gc_level", 0.7), ("gc_pct_stutter", 35), ("gc_pct_reverse", 25),
-    ("gc_pct_shuffle", 20), ("gc_pct_stretch", 20), ("music_pad_reg", 2), ("pocket_hush", 0.5), ("pocket_guard", 0.6), ("handling_hush", 0.5), ("intensity", 0.5),
+    ("gc_pct_shuffle", 20), ("gc_pct_stretch", 20), ("music_pad_reg", 2), ("pocket_hush", 0.5), ("pocket_guard", 0.6), ("handling_hush", 0.5), ("intensity", 0.5), ("mix_kick", 1), ("mix_bass", 1), ("mix_chimes", 1), ("mix_walk", 1), ("mix_ring", 1), ("mix_bells", 1),
 ]
 
 # Scales as semitone steps above the key note. The patch snaps every note it plays to these.
@@ -877,7 +877,9 @@ def add_found_kit(P, x):
         P.sig2(f"fsv_{r}_s", "*~", f"fsv_{r}_rd", f"fsv_{r}_env", vx, vy + 190)
         P.c(f"fsv_{r}_s", f"fsv_{r}_f")
         outs.append(f"fsv_{r}_f")
-    P.sig2("fs_ks0", "+~", outs[0], outs[1], x + 1000, y + 900)
+    # (the Mix's kick trim; named fs_ks_* so it sits in the fsound group: outside it, a DSP loop between the two)
+    P.sig2("fs_ks_kick", "*~", outs[0], "ln_mix_kick", x + 1000, y + 890)
+    P.sig2("fs_ks0", "+~", "fs_ks_kick", outs[1], x + 1000, y + 900)
     # a soft limit, so no caught sound can jump out of the beat (tanh: gentle below, never above FS_LIMIT)
     soft_limit(P, "fs_ks", "fs_ks0", FS_LIMIT, FS_MAKEUP, x + 1000, y + 920)
     soft_limit(P, "fs_hat_lim", outs[2], FS_LIMIT, FS_MAKEUP, x + 1100, y + 920)
@@ -1614,7 +1616,9 @@ def add_beat(P):
     P.sig2("hat", "*~", "hat_raw", hats, x + 750, 380)
 
     # Mix, master level and on/off switch (a little headroom so the drums never clip the output).
-    P.sig2("beat_ks0", "+~", "kick", "snare", x, 480)
+    mixk = smoothed(P, "mix_kick", "mix_kick", x + 1300, 20)            # the Mix's kick trim (synth and found)
+    P.sig2("kick_m", "*~", "kick", mixk, x, 470)
+    P.sig2("beat_ks0", "+~", "kick_m", "snare", x, 480)
     P.obj("ks_r_str", "r step_strength", x + 1200, 140)
     P.obj("ks_calc", ("expr 0.8+0.4*$f1").replace("$", BS + "$"), x + 1200, 170)
     P.obj("ks_pk", "pack f 5", x + 1200, 200)
@@ -1798,7 +1802,12 @@ def add_music(P):
     P.c("mu_rr", "mu_rr_add"); P.c("mu_rr_add", "mu_rr_mod"); P.c("mu_rr_mod", "mu_rr", 0, 1)
     P.c("mu_rr", "mu_rr_sel")
     P.obj("mu_v_vel", "value cvel", cx, cy + 40)
-    P.c("mu_deg", "mu_v_vel", 3, 0)
+    # Mix (Samuel, Oct 13): chimes and walking notes share these voices, so their trims scale each note's velocity
+    for nm, recv in (("mixc", "mix_chimes"), ("mixw", "mix_walk")):
+        P.obj(f"mu_{nm}_r", f"r {recv}", cx - 200 + (60 if nm == "mixw" else 0), cy - 20)
+        P.obj(f"mu_{nm}_v", f"value {nm}", cx - 200 + (60 if nm == "mixw" else 0), cy - 5); P.c(f"mu_{nm}_r", f"mu_{nm}_v")
+    ex("mu_v_trim", "$f1*mixc", cx - 60, cy + 30)
+    P.c("mu_deg", "mu_v_trim", 3, 0); P.c("mu_v_trim", "mu_v_vel")
     voices = []
     for k in range(4):
         vx = cx + 600 + k * 260
@@ -1907,7 +1916,8 @@ def add_music(P):
     P.obj("mu_mo_vel", "value cvel", cx - 240, cy + 40)
     P.obj("mu_mo_t", "t f f f", cx - 300, cy + 60)
     P.obj("mu_mo_s", "s chime_deg", cx - 300, cy + 90)
-    P.c("mu_mo_q", "mu_mo_up"); P.c("mu_mo_up", "mu_mo_vel", 1, 0); P.c("mu_mo_up", "mu_mo_t", 0, 0)
+    ex("mu_mo_trim", "$f1*mixc", cx - 240, cy + 30)
+    P.c("mu_mo_q", "mu_mo_up"); P.c("mu_mo_up", "mu_mo_trim", 1, 0); P.c("mu_mo_trim", "mu_mo_vel"); P.c("mu_mo_up", "mu_mo_t", 0, 0)
     P.c("mu_mo_t", "mu_mo_s", 2, 0); P.c("mu_mo_t", "mu_reg_add", 0, 0)
     P._late_dn = getattr(P, "_late_dn", []) + [("mu_mo_t", "mu_dnc_t")]   # it counts as a chime for density
 
@@ -2013,7 +2023,9 @@ def add_music(P):
     P.c("mu_r_strength", "mu_pace_vel", 0, 1)
     P.obj("mu_r_pace", "r step", x + 1200, 640)                       # the pace comes from your real steps
     P.c("mu_r_pace", "mu_pace"); P.c("mu_pace", "mu_pace_f"); P.c("mu_pace_f", "mu_pace_vel")
-    P.c("mu_pace_vel", "mu_v_vel")
+    # (each arpeggio note sets its own velocity, trimmed by the Mix's walking notes, just before it plays)
+    P.obj("mu_arp_pv", "value apvel", x + 1000, 700); ex("mu_arp_trim", "$f1*mixw", x + 1000, 715)
+    P.obj("mu_arp_cv", "value cvel", x + 1000, 730); P.c("mu_arp_pv", "mu_arp_trim"); P.c("mu_arp_trim", "mu_arp_cv")
     P.obj("mu_arp_gate", "spigot", x + 1100, 660)
     P.c("mu_step_t", "mu_arp_gate", 0, 0)
     P.obj("mu_arp_t", "t b b b b", x + 1100, 690)
@@ -2049,6 +2061,7 @@ def add_music(P):
     P.c("mu_pat_idx", "mu_pat_tab")
     ex("mu_arp_deg", "$f1+$f2+$f3", x + 1100, 870)
     P.obj("mu_arp_n", "value scale_n", x + 1250, 780)
+    P.c("mu_arp_t", "mu_arp_pv", 3, 0)                                 # (first: this note's velocity)
     P.c("mu_arp_t", "mu_arp_n", 2, 0)                                 # bang: output the scale size
     P.c("mu_arp_n", "mu_arp_deg", 0, 2)
     P.c("mu_arp_t", "mu_v_chord", 1, 0); P.c("mu_v_chord", "mu_arp_deg", 0, 1)
@@ -2114,7 +2127,7 @@ def add_music(P):
     P.obj("mu_gr_t", "t b b", x + 1250, 1040)
     P.c("mu_gr_gate", "mu_gr_t")
     P.obj("mu_gr_pv", "value apvel", x + 1300, 1060)                   # this step's arpeggio loudness
-    ex("mu_gr_vel", f"$f1*{GROOVE_VEL}*$f2", x + 1300, 1080)
+    ex("mu_gr_vel", f"$f1*{GROOVE_VEL}*$f2*mixw", x + 1300, 1080)
     P.c("mu_gr_ln", "mu_gr_vel", 0, 1)
     P.obj("mu_gr_cv", "value cvel", x + 1300, 1100)
     P.c("mu_gr_t", "mu_gr_pv", 1, 0); P.c("mu_gr_pv", "mu_gr_vel"); P.c("mu_gr_vel", "mu_gr_cv")
@@ -2383,7 +2396,9 @@ def add_music(P):
     P.obj("ba_sg1", "+~ 1", bx + 40, 664); P.c("ba_sgain", "ba_sg1")      # the synth bass gives way to the found one
     P.sig2("ba_ss", "*~", "ba_s", "ba_sg1", bx, 664)
     P.sig2("ba_sall", "+~", "ba_ss", fb_out, bx, 667)
-    P.sig2("ba_e", "*~", "ba_sall", "ba_env", bx, 670)
+    mixb = smoothed(P, "mix_bass", "mix_bass", bx + 400, 600)              # the Mix's bass trim
+    P.sig2("ba_sm", "*~", "ba_sall", mixb, bx, 668)
+    P.sig2("ba_e", "*~", "ba_sm", "ba_env", bx, 670)
     # footstep duck, only while the walking beat is switched on and audible
     P.obj("ba_r_step", "r pulse", bx + 200, 600)
     P.obj("ba_r_bl", "r beat_level", bx + 280, 600)
@@ -3125,7 +3140,9 @@ def add_room_notes(P, rx, ex, degree_to_hz):
     P.sig2("rnf_lvl", "*~", "rnf_sum", "rnf_agc_ln", fx, fy + 560)
     soft_limit(P, "rnf_lim", "rnf_lvl", FM_LIMIT, RNF_GAIN, fx, fy + 575)
     P.sig2("rnf_out", "*~", "rnf_lim", lvl, fx, fy + 680)
-    return P.sig2("rnx_out", "+~", "rn_out", "rnf_out", fx, fy + 700)
+    mr = smoothed(P, "mix_ring", "mix_ring", fx + 200, fy + 640); mbl = smoothed(P, "mix_bells", "mix_bells", fx + 300, fy + 640)
+    P.sig2("rn_out_m", "*~", "rn_out", mr, fx, fy + 690); P.sig2("rnf_out_m", "*~", "rnf_out", mbl, fx + 100, fy + 690)
+    return P.sig2("rnx_out", "+~", "rn_out_m", "rnf_out_m", fx, fy + 700)
 
 
 def handling_gate(P, n, src, x, y, outlet=0, wait=True):

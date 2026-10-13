@@ -36,6 +36,9 @@
     <string name="section_audio">Audio devices</string>
     <string name="intensity_card">Intensity: calmer to busier, the middle plays your settings as they are</string>
     <string name="intensity_card_value">Intensity %1$d</string>
+    <string name="realms_warn_title">Let Realms change your sound?</string>
+    <string name="realms_warn_text">While a Realm plays, it sets your sliders from its own preset: effects, music, rhythm and the Mix. Your own settings come back when it ends or when you switch Auto realms off.\n\nTo keep part of your sound, open a Realm\'s \"What it changes\" below and switch that part off.</string>
+    <string name="realms_warn_ok">Turn on Realms</string>
     <string name="section_diag">Diagnostics</string>
     <string name="diag_not_running">Start the sound to see which mic and headphones are in use and whether anything overloads.</string>
     <string name="diag_mic">Mic in use: %1$s</string>

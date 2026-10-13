@@ -121,6 +121,18 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   by itself only on a fresh install (firstInstallTime == lastUpdateTime) and once (`UiSettings` walkthrough_seen;
   Reset everything leaves it); Setup, About has "Show the walkthrough again" and the feedback email (Samuel: email
   only, no Discord).
+- **Mix** (Samuel, Oct 13: "every musical and rhythmic element should either have a volume slider or on/off
+  switch"): section `mix` on the Music tab, in presets (Samuel: shared with a preset), a Realm ingredient (`Worlds.GROUPS`
+  "mix"). It holds the existing beat_snare, beat_hats, beat_glitch, music_pad, music_harm (moved from Rhythm/Music,
+  ids unchanged) and new trims 0-1.5 (default 1 = as before, noRandom, NOT resetWhenAbsent so older presets and the
+  built-in Realms leave them alone): `mix_kick` (synth kick and found kick; the found one is `fs_ks_kick`, named into
+  the fsound group: outside it the trim made a DSP loop between the toplevel and that group), `mix_bass` (synth +
+  found bass, `ba_sm`), `mix_chimes` / `mix_walk` (the chimes and walking notes share the 4 voices, so the trims scale
+  each note's velocity: chimes at `mu_deg` and motif replays, the arpeggio writes its own trimmed velocity on each
+  note from `apvel` (`mu_arp_t` outlet 3; before, an arpeggio note after a chime played at the chime's velocity) and
+  the groove note), `mix_ring` / `mix_bells` (`rn_out` / `rnf_out`). At 0 a part is silent but still runs (no extra
+  switch~ factors). Turning Auto realms on asks first ("Let Realms change your sound?": they set the sliders from
+  their own preset, the mix too; "What it changes" keeps a part).
 - **Mic-down protection** (`pocket_guard`, main, noPreset, default 0.6; 0 = no change): Samuel found mic-end-down pockets
   rustly but mic-up pockets fine. `PhoneContext.micDown()` (gravity along +y averaged ~1 s, hysteresis 0.5/0.3) and
   AudioService sends `pocket_down` = pocket && micDown. The patch adds guard*12 dB more cut and crossfades in a 2x `hip~ 300`.
