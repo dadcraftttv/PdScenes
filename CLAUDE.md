@@ -317,8 +317,8 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   Realm, A5 -> A4 back home, Realm to Realm (`realm_cue 2`, Samuel: "a lateral, sideways warp") a swerve around E5
   (-6%, +6%, back) sweeping from one ear to the other (random way; the others stay centred), with a 1.007 detuned twin and a quiet fifth, 300 ms swell, 1.2 s fade, a touch of echo
   (320 ms, feedback 0.4, wet 0.4; Samuel), peak ~0.05 after the limiter, group `cue`; `cue_sound` "Realm change sound" in Behavior/Setup, noPreset, default on); content descriptions on
-  tabs, sliders, lock boxes and the pad; the step accelerometer at 100 Hz (`ACCEL_PERIOD_FOR_STEPS_US` 10000, on
-  trial: Samuel judges whether steps still land).
+  tabs, sliders, lock boxes and the pad; the step accelerometer tried at 100 Hz and put back to 200 (Samuel, Oct 13:
+  walking was noticed too late).
 - **Screen:** a bar pinned to the bottom (thumb reach while walking) holds the status, a "Now: <world> · why" line
   (night/walking/pocket/room words from `Worlds.room*()`, refreshed 1/s while visible), Start/Stop, Hold world
   (`Worlds.setHeld`: the selector keeps listening but nothing changes; a stop lets go) and Save sound (a preset named
@@ -391,7 +391,7 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   Result: -34% everything on, -49% with Harmony 0; with Samuel's own settings (reverb 0.6, phaser 0.4, chorus 0.5,
   pitch 0.25, glitch cloud full, music, beat) -22%. What's left there: music 37% (Harmony 18 of it), reverb 13%,
   phaser 10% (its coefficients every 4 ms with [expr]; 8 ms would zipper at 5 Hz), glitch cloud 7%, pitch 7%. Room notes stay always on (with react < 1 their input never
-  closes). The step accelerometer ran at 200 Hz (~7.5% of a core, own thread); on trial at 100 Hz since Oct 13.
+  closes). The step accelerometer stays at 200 Hz (~7.5% of a core, own thread): 100 Hz noticed walking too late (Oct 13).
 - Presets store: sliders, movers, music pad/notes/tone/follow, beat, dry. A slider kept out of presets keeps its mover out too
   (`Params.withMovers`), or loading a preset or world switched it off. Not stored: gain/gate/compressor, smoothing/nudge,
   music on/key/scale, locks, worlds choices, audio device, scenes, appearance.
