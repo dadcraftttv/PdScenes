@@ -95,6 +95,32 @@ public class AudioService extends Service {
     private static final int[] kitCaught = new int[3];
     /** The last judged slice's levels (dBFS: all, lows, highs), logged with its catch. */
     private static final String FS_LEVELS = "fs_levels";
+    /** Overload counts from the patch, once a second (diagnostics): the mic as it arrives, after Input gain, output. */
+    private static final String CLIP_IN = "diag_clip_in", CLIP_GAIN = "diag_clip_gain", CLIP_OUT = "diag_clip_out";
+    private static final ClipWatch clips = new ClipWatch();
+    private int clipIn, clipGain;
+    private long lastMicClipLog;
+    /** The headphones being played to and the mic asked for (null = Automatic), for the diagnostics. */
+    private static volatile String outputLabel, inputAsked;
+    private static volatile boolean callModeMic;
+
+    static ClipWatch clips() {
+        return clips;
+    }
+
+    static String outputLabel() {
+        return outputLabel;
+    }
+
+    static String inputAsked() {
+        return inputAsked;
+    }
+
+    /** True while the mic is a Bluetooth headset's call-mode mic (mono, low quality). */
+    static boolean callModeMic() {
+        return callModeMic;
+    }
+
     /** The found pad kept a held note (its pitch, MIDI). */
     private static final String FPAD_CAUGHT = "fpad_caught";
     private volatile String fsLevels = "";
@@ -494,6 +520,30 @@ public class AudioService extends Service {
                     logEvent("Kept a held note for the found pad (" + names[((midi % 12) + 12) % 12] + (midi / 12 - 1) + ")");
                     return;
                 }
+                if (CLIP_IN.equals(source)) {
+                    clipIn = Math.round(x);
+                    return;
+                }
+                if (CLIP_GAIN.equals(source)) {
+                    clipGain = Math.round(x);
+                    return;
+                }
+                if (CLIP_OUT.equals(source)) {   // sent last: the second's report is complete
+                    int in = clipIn, started = clips.onSecond(in, clipGain, Math.round(x));
+                    long now = SystemClock.uptimeMillis();
+                    if ((started & 1 << ClipWatch.IN) != 0) {
+                        logEvent("Mic overloading (too loud or too close to the mic)");
+                    } else if (in > 0 && now - lastMicClipLog > 10000) {
+                        logEvent("Mic overloaded for a moment (" + in + " x 12 ms)");
+                    }
+                    if (in > 0) {
+                        lastMicClipLog = now;
+                    }
+                    if ((started & 1 << ClipWatch.OUT) != 0) {
+                        logEvent("Output limiter working hard");
+                    }
+                    return;
+                }
                 if (TEMPO.equals(source)) {
                     tempoBpm = x;
                     return;
@@ -540,6 +590,10 @@ public class AudioService extends Service {
         PdBase.subscribe(FS_CAUGHT);
         PdBase.subscribe(FS_LEVELS);
         PdBase.subscribe(FPAD_CAUGHT);
+        PdBase.subscribe(CLIP_IN);
+        PdBase.subscribe(CLIP_GAIN);
+        PdBase.subscribe(CLIP_OUT);
+        clips.reset();
         synchronized (kitCaught) {
             java.util.Arrays.fill(kitCaught, 0);   // a fresh patch starts with an empty kit
         }
@@ -603,6 +657,9 @@ public class AudioService extends Service {
             }
         }
         activeOutputId = out.id;
+        outputLabel = out.label;
+        inputAsked = in == null ? null : in.label;
+        callModeMic = AudioDevices.isBluetoothMic(in) && !AudioDevices.isLeAudio(in);
         selectDevices(AudioDevices.idOrDefault(in), out.id);
         // Which devices were asked for, and every mic Android lists: a tester's mic problem can be read back later.
         StringBuilder mics = new StringBuilder();

@@ -24,6 +24,7 @@ There are two ways to use it:
 - **Dry level no longer turns the music down:** it only changes your microphone's sound.
 - **Music stays in time** with the beat, standing or walking.
 - A small dot shows which sliders a mover is moving.
+- **Diagnostics** on the Setup tab shows which mic and headphones are really in use, how loud the mic hears the room, and whether anything overloads. If the mic itself keeps overloading, the status line at the bottom says so.
 - The Key and Scale menus no longer jump back to C major.
 - The app uses noticeably less battery and processor than the first builds with these features.
 
@@ -70,7 +71,7 @@ Inside a tab, settings are grouped in sections. Tap a section's heading to open 
 | Music | Rhythm and Music |
 | Realms | Auto realms: the sound changing by itself to fit where you are |
 | Scenes | Choosing and importing scenes, the scene's touch pad, its volume sliders |
-| Setup | Audio devices, appearance, behavior, Reset everything, About |
+| Setup | Audio devices, diagnostics, appearance, behavior, Reset everything, About |
 
 ## The Sound tab
 
@@ -382,6 +383,7 @@ A preset file holds the effect sliders, their movers, the Music and Rhythm level
 - **Appearance** switches between a light look, a dark look (the default) and a pure-black look that suits OLED screens.
 - **About and licenses** shows the open-source licenses. The app is free software and includes parts of the original RjDj project.
 
+- **Diagnostics** (tap to open) shows, while the sound runs: the mic Android is really using (handy with Input on Automatic), whether a Bluetooth mic is in thin call mode, the headphones being played to, the mic level after Input gain (with the noise gate's setting next to it, so you can see whether the room is above or below it), and overloads in the last minute. **Mic overloads** mean the sound was too loud or too close for the mic itself, which sounds harsh; Input gain can't fix that, because the overload happens before it. **Output limiter squashing hard** means the mix is too hot: if it sounds harsh, lower Input gain or some effect levels. One loud clap may count once; that's fine. When the mic keeps overloading, the status line at the bottom says "Mic overloading" on every tab until it stops. Please mention these numbers when you report a harsh or distorted sound.
 - **Behavior:** **Smoothing** sets how smoothly the sound glides when you change a slider (low gives instant, snappy changes, high gives slow slides). **Nudge strength** sets how far the Nudge button moves things. **Realm change sound** switches the warp sound off or on.
 - **Reset everything to defaults** and **About and licenses** (see below).
 

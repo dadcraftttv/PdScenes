@@ -37,7 +37,7 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
    error); move the pin only together with pd-core. numpy lives in `tools/.venv` (run the tests with `tools/.venv/bin/python`).
 2. `python3 tools/make_patch.py && tools/.venv/bin/python tools/test_patch.py tools/.libpd/libpd.so` — must end `ALL PASSED`.
    Also `tools/test_scene_loader.py`, `test_scene_sensors.py`, `test_rj_analysis.py`, `test_bundled_scenes.py`, `test_scene_helpers.py` (same libpd argument).
-3. Java logic tests (no Android): `tools/javatests/run.sh` (or one at a time: `tools/javatests/run.sh W`). All must pass
+3. Java logic tests (no Android): `tools/javatests/run.sh` (or one at a time: `tools/javatests/run.sh W`; D = diagnostics). All must pass
    (C and P print no summary line, just no `FAIL:`). Android classes are stand-ins in `tools/javatests/stubs*`: when app code
    starts using a new Android method, add it there. Java is not on PATH: `export JAVA_HOME=~/.jdks/jbr-21.0.11` and put its
    `bin` on PATH (Android Studio's bundled JDK 25 is too new for Gradle 8.14). adb: `~/Android/Sdk/platform-tools/adb -s ZD222T44PP`.
@@ -326,6 +326,17 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   folded sections (they catch up when opened).
 - **Reset everything button:** `ParamStore.resetAll` + `Worlds.resetSettings` + `AudioSettings.reset` + `SceneSettings.resetAll`, only after confirmation.
   Keeps saved presets, imported scenes and appearance (and brings back any deleted built-in scene). Nothing may ever reset settings except that button.
+- **Diagnostics** (roadmap item 2, Oct 13; `add_clip_watch`, `ClipWatch.java`, test D): once a second the patch
+  sends `diag_clip_in`, `diag_clip_gain`, `diag_clip_out` (out last) = how many `CLIP_WINDOW` (512-sample, ~12 ms)
+  stretches held a sample at/over full scale: the adc~ as it arrives (`CLIP_IN` 0.99), after Input gain (1.0; float,
+  the compressor soaks it up, so it is informational) and the output limiter's input (1.0). abs~, `-~ thr`, `*~ 1e9`,
+  `clip~ 0 1`, one env~ each. ClipWatch: a warning starts at 3 stretches within 5 s and ends after 5 s without any;
+  "episodes" = runs of seconds with any in the last minute. Setup tab "Diagnostics" (folded): the mic really in use
+  (`AudioDevices.inputInUse`, from this app's own `getActiveRecordingConfigurations`), call-mode note, output label +
+  rate, mic level (after gain) with a bar and the gate, episode counts. The status line says "Mic overloading" while
+  the input warning is on (only the mic's own overload: Input gain can't cause real clipping, it is applied in float).
+  Event log: "Mic overloading", "Mic overloaded for a moment" (at most every 10 s), "Output limiter working hard".
+  Scenes send no counts (the section says so).
 - **Calls and other audio** (Samuel's rule): the app never requests audio focus (Start must not pause the user's music).
   `AudioService.checkForCall` reads the audio mode every 0.5 s: call/ringing/VoIP -> `computeAudio(false)` until it ends
   (MODE_IN_COMMUNICATION is ignored while our own Bluetooth mic set it). An `AudioPlaybackCallback` counts the listed players
@@ -399,7 +410,7 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
 ## Open / next
 - **Ideas queue with details: `docs/ROADMAP.md`** (in-key resonators, pitch-following harmony, Ghost capture, Kinetic tiers, Unstable and Collective worlds, stems player).
 - Release prep: final name + applicationId, `source_url` in strings.xml, privacy policy, Play foreground-service + microphone declarations, icon, store listing.
-- Ideas, not requested: on-screen route/clipping diagnostics, beat-offset slider if drift returns, music independent of Dry level,
+- Ideas, not requested: beat-offset slider if drift returns, music independent of Dry level,
   location (`#loc`) scene input, unported scene objects.
 - The Beta Tester Guide lives in this repo: `docs/TESTER-GUIDE.md` (tester-facing: "Dad"/"DadCraft", plain words; moved
   from Samuel's Claude Docs on Oct 12, where an older Oct 10 copy remains). When behavior changes, update it in the

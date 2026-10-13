@@ -255,7 +255,9 @@ TEMPO_NUDGE = 0.3           # Tempo "Set": each step moves the beat this much of
 TEMPO_WALK_PULL = 0.5       # ...which is this far from your BPM toward the step rate (in the octave nearest your BPM)...
 TEMPO_RETURN = 0.25         # ...and standing still it glides back to the set BPM by this much each beat
 CLOCK_FRESH_MS = 2000        # no step for this long (plus a beat): the next step starts a fresh walk on its beat
-GATE_HYST_DB = 4             # the gate opens at its threshold and only closes this far below it (no flutter)
+CLIP_IN = 0.99                # diagnostics: the mic as it arrives counts as overloaded from here (some phones stop just short of 1)
+CLIP_WINDOW = 512             # ...counted in stretches of this many samples (~12 ms)
+GATE_HYST_DB = 4            # the gate opens at its threshold and only closes this far below it (no flutter)
 GC_BUF_MS = 4000
 GC_ONSET_DB = 10           # a sudden sound: the 5 ms level jumps this far above its recent average...
 GC_MIN_DB = 55             # ...and is at least this loud (-45 dBFS), so a quiet room's flicker doesn't count
@@ -3110,6 +3112,42 @@ def add_room_notes(P, rx, ex, degree_to_hz):
     return P.sig2("rnx_out", "+~", "rn_out", "rnf_out", fx, fy + 700)
 
 
+def add_clip_watch(P, x=2200, y=20):
+    """On-screen diagnostics: once a second, how many ~12 ms stretches (CLIP_WINDOW samples) held a sample at or
+    over full scale, for three places: the mic as it arrives (the phone's own mic overloading, harsh, and Input gain
+    can't help), after Input gain (over 1.0, soaked up by the compressor) and the output limiter's input (over 1.0,
+    where it squashes hard). Sent as floats diag_clip_in, diag_clip_gain, diag_clip_out (in that order, out last).
+    Cheap: abs, a threshold made from plain objects (x 1e9 then clipped to 0..1) and one env~ per place."""
+    places = (("in", ["adc"], CLIP_IN), ("gain", ["mic"], 1.0), ("out", ["out_l", "out_r"], 1.0))
+    for i, (n, srcs, thr) in enumerate(places):
+        cx = x + 200 * i
+        overs = []
+        for j, src in enumerate(srcs):
+            p = f"cw_{n}{j}"
+            P.obj(f"{p}_abs", "abs~", cx + 60 * j, y); P.c(src, f"{p}_abs")
+            P.obj(f"{p}_thr", f"-~ {thr}", cx + 60 * j, y + 15); P.c(f"{p}_abs", f"{p}_thr")
+            P.obj(f"{p}_big", "*~ 1e+09", cx + 60 * j, y + 30); P.c(f"{p}_thr", f"{p}_big")
+            P.obj(f"{p}_one", "clip~ 0 1", cx + 60 * j, y + 45); P.c(f"{p}_big", f"{p}_one")
+            overs.append(f"{p}_one")
+        if len(overs) == 2:
+            P.sig2(f"cw_{n}_sum", "+~", overs[0], overs[1], cx, y + 60); overs = [f"cw_{n}_sum"]
+        P.obj(f"cw_{n}_env", f"env~ {CLIP_WINDOW} {CLIP_WINDOW}", cx, y + 75); P.c(overs[0], f"cw_{n}_env")
+        P.obj(f"cw_{n}_hit", "> 0", cx, y + 90); P.c(f"cw_{n}_env", f"cw_{n}_hit")   # (silence reads 0 dB)
+        P.obj(f"cw_{n}_sel", "sel 1", cx, y + 105); P.c(f"cw_{n}_hit", f"cw_{n}_sel")
+        P.obj(f"cw_{n}_cnt", "f", cx, y + 120); P.obj(f"cw_{n}_inc", "+ 1", cx + 40, y + 120)
+        P.c(f"cw_{n}_sel", f"cw_{n}_cnt"); P.c(f"cw_{n}_cnt", f"cw_{n}_inc"); P.c(f"cw_{n}_inc", f"cw_{n}_cnt", 0, 1)
+        P.obj(f"cw_{n}_now", "f", cx + 100, y + 135); P.c(f"cw_{n}_inc", f"cw_{n}_now", 0, 1)   # the count so far
+        P.obj(f"cw_{n}_s", f"s diag_clip_{n}", cx + 100, y + 150); P.c(f"cw_{n}_now", f"cw_{n}_s")
+        P.msg(f"cw_{n}_z", "0", cx, y + 150)
+        P.c(f"cw_{n}_z", f"cw_{n}_cnt", 0, 1); P.c(f"cw_{n}_z", f"cw_{n}_now", 0, 1)
+    # every second: report in, gain, out (right to left), then start counting again
+    P.obj("cw_lb", "loadbang", x, y + 170); P.obj("cw_clock", "metro 1000", x, y + 185); P.c("cw_lb", "cw_clock")
+    P.obj("cw_t", "t b b b b", x, y + 200); P.c("cw_clock", "cw_t")
+    P.c("cw_t", "cw_in_now", 3, 0); P.c("cw_t", "cw_gain_now", 2, 0); P.c("cw_t", "cw_out_now", 1, 0)
+    for n, _, _ in places:
+        P.c("cw_t", f"cw_{n}_z", 0, 0)
+
+
 def build():
     P = Patch()
 
@@ -3931,6 +3969,7 @@ def build():
     P.obj("dac", "dac~ 1 2", 1400, 430)
     P.c("out_cl", "dac", 0, 0)
     P.c("out_cr", "dac", 0, 1)
+    add_clip_watch(P)
 
     # --- switchable blocks: each one's DSP stops while it can't be heard ---
     P.group("cue", r"^cue_(fq|fd|f5|oa|ob|oc|gc|ab|abc|ea|dry|ein|ew|er|efb|ewet|mix|pan|pq|pcl|pqr|pcr|gl_l|gl_r|l|rr)$")                    # the Realm cue: on only while it sounds

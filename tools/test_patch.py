@@ -2080,6 +2080,18 @@ for i in range(30):
 ym = np.concatenate(ys)
 check(not np.isnan(ym).any() and float(np.abs(ym).max()) <= 1.0 + 1e-6, "music: loud noise, steps and all voices stay within +-1 (max %.2f)" % float(np.abs(ym).max()))
 
+# ---- diagnostics: counting overloads once a second (in, after Input gain, at the output limiter) ----
+def clip_counts(sig, **over):
+    e = fresh(**over)
+    e.listen("diag_clip_in", "diag_clip_gain", "diag_clip_out")
+    e.run(sig)
+    return tuple(int(sum(e.heard[k])) for k in ("diag_clip_in", "diag_clip_gain", "diag_clip_out")), len(e.heard["diag_clip_out"])
+quiet, nq = clip_counts(sine(440, 0.3, 3.0), gain=2.5, dry=1, wet=0)
+hot, _ = clip_counts(sine(440, 0.6, 3.0), gain=2.5, dry=1, wet=0)
+over_in, _ = clip_counts(np.clip(sine(440, 1.5, 3.0), -1, 1), gain=0.5, dry=1, wet=0)
+check(nq >= 2 and quiet[0] == 0 and quiet[1] == 0 and hot[0] == 0 and hot[1] > 100 and hot[2] > 100 and over_in[0] > 100 and over_in[1] == 0,
+      "diagnostics count overloads: 0.3 at gain 2.5 %s, 0.6 at gain 2.5 %s, a clipped mic at gain 0.5 %s (%d reports in 3 s)" % (quiet, hot, over_in, nq))
+
 # ---- 8. safety: loud input, max feedback, max gain ----
 e = fresh(gain=10, feedback=0.85, wet=1, dry=1.5, echo_time=50)
 rng = np.random.default_rng(1)

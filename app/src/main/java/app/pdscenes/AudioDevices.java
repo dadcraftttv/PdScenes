@@ -48,14 +48,32 @@ final class AudioDevices {
             if (!input && !isHeadphones(new Device("", "", d.getId(), d.getType()))) {
                 continue;   // the phone speaker and earpiece are never offered as outputs
             }
-            // Same-type devices (two USB headsets) are told apart by their product name/address.
-            String detail = d.getProductName() != null ? d.getProductName().toString() : "";
             String key = d.getType() + ":" + d.getAddress();
-            String label = detail.isEmpty() || detail.equals(Build.MODEL)
-                    ? name : name + " (" + detail + ")";
-            result.add(new Device(key, label, d.getId(), d.getType()));
+            result.add(new Device(key, label(name, d), d.getId(), d.getType()));
         }
         return result;
+    }
+
+    /** Same-type devices (two USB headsets) are told apart by their product name. */
+    private static String label(String name, AudioDeviceInfo d) {
+        String detail = d.getProductName() != null ? d.getProductName().toString() : "";
+        return detail.isEmpty() || detail.equals(Build.MODEL) ? name : name + " (" + detail + ")";
+    }
+
+    /**
+     * The mic this app is really recording from, as Android reports it (with "Automatic" Android picks one), or
+     * null when it isn't recording or won't say.
+     */
+    static String inputInUse(Context context) {
+        AudioManager am = context.getSystemService(AudioManager.class);
+        for (android.media.AudioRecordingConfiguration c : am.getActiveRecordingConfigurations()) {
+            AudioDeviceInfo d = c.getAudioDevice();   // only this app's own recordings are listed
+            if (d != null) {
+                String name = typeName(context, d.getType());
+                return label(name != null ? name : context.getString(R.string.dev_other_input), d);
+            }
+        }
+        return null;
     }
 
     /** Input types that are not a named choice but could well be a real microphone. */

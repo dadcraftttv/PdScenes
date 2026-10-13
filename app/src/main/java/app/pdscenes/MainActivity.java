@@ -75,6 +75,8 @@ public class MainActivity extends Activity {
         public void run() {
             updateNowLine();
             updateMoverDots();
+            updateStatus();
+            updateDiagnostics();
             uiHandler.postDelayed(this, NOW_LINE_MS);
         }
     };
@@ -364,6 +366,7 @@ public class MainActivity extends Activity {
 
         // ---- Setup ----
         addAudioSection(setup);
+        addDiagnosticsSection(setup);
         addAppearanceSection(setup);
         LinearLayout resetRow = newButtonRow(setup);
         addButton(resetRow, R.string.reset_all, this::confirmResetAll);
@@ -1743,18 +1746,93 @@ public class MainActivity extends Activity {
     /** Reflects engine state and headphone presence on screen. */
     private void updateUi() {
         boolean on = AudioService.isRunning();
-        String error = AudioService.getLastError();
         startStop.setText(on ? R.string.stop : R.string.start);
+        updateStatus();
+        warning.setVisibility(headphonesConnected() ? View.GONE : View.VISIBLE);
+        updateNowLine();
+    }
+
+    /** The status line: stopped, running, paused for a call, an error, or the mic overloading (checked once a second). */
+    private void updateStatus() {
+        boolean on = AudioService.isRunning();
+        String error = AudioService.getLastError();
+        boolean overload = on && !AudioService.isPausedForCall() && AudioService.clips().warning(ClipWatch.IN);
+        status.setTypeface(overload ? Typeface.DEFAULT_BOLD : Typeface.DEFAULT);
         if (error != null && !on) {
             status.setText(error);
+        } else if (overload) {
+            status.setText(R.string.status_mic_overload);
         } else {
             int hz = AudioService.actualSampleRateHz();
             status.setText(!on ? getString(R.string.status_stopped)
                     : AudioService.isPausedForCall() ? getString(R.string.status_call)
                     : hz > 0 ? getString(R.string.status_running_rate, hz) : getString(R.string.status_running));
         }
-        warning.setVisibility(headphonesConnected() ? View.GONE : View.VISIBLE);
-        updateNowLine();
+    }
+
+    private TextView diagText;
+    private android.widget.ProgressBar diagLevel;
+
+    /** Setup's Diagnostics: the mic and headphones really in use, the mic level and overloads in the last minute. */
+    private void addDiagnosticsSection(LinearLayout parent) {
+        addSection(parent, "diagnostics", getString(R.string.section_diag), false, body -> {
+            diagText = new TextView(this);
+            diagText.setTextSize(14);
+            diagText.setPadding(0, dp(4), 0, dp(4));
+            body.addView(diagText);
+            diagLevel = new android.widget.ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+            diagLevel.setMax(80);   // -80 .. 0 dB
+            body.addView(diagLevel, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(10)));
+            TextView note = new TextView(this);
+            note.setText(R.string.diag_note);
+            note.setTextSize(13);
+            note.setPadding(0, dp(8), 0, 0);
+            body.addView(note);
+            updateDiagnostics();
+        });
+    }
+
+    private void updateDiagnostics() {
+        if (diagText == null || !diagText.isShown()) {
+            return;
+        }
+        boolean on = AudioService.isRunning();
+        diagLevel.setVisibility(on ? View.VISIBLE : View.GONE);
+        if (!on) {
+            diagText.setText(R.string.diag_not_running);
+            return;
+        }
+        List<String> lines = new ArrayList<>();
+        String mic = AudioDevices.inputInUse(this);
+        String asked = AudioService.inputAsked();
+        lines.add(mic != null ? getString(R.string.diag_mic, mic)
+                : getString(R.string.diag_mic_unknown, asked != null ? asked : getString(R.string.diag_automatic)));
+        if (AudioService.callModeMic()) {
+            lines.add("  " + getString(R.string.diag_call_mode));
+        }
+        int hz = AudioService.actualSampleRateHz();
+        String out = AudioService.outputLabel() != null ? AudioService.outputLabel() : "?";
+        lines.add(hz > 0 ? getString(R.string.diag_out_rate, out, hz) : getString(R.string.diag_out, out));
+        int level = Math.round(Math.max(-80f, Math.min(0f, Modulation.micLevelDb())));
+        int gate = Math.round(ParamStore.get("gate_thresh"));
+        lines.add(gate > -80 ? getString(R.string.diag_level_gate, level, gate) : getString(R.string.diag_level, level));
+        diagLevel.setProgress(level + 80);
+        ClipWatch c = AudioService.clips();
+        if (!c.hasReports()) {
+            lines.add(getString(R.string.diag_scene));
+        } else {
+            int in = c.episodes(ClipWatch.IN), outs = c.episodes(ClipWatch.OUT);
+            lines.add(getString(R.string.diag_clip_in, in));
+            if (in > 0) {
+                lines.add("  " + getString(R.string.diag_clip_in_help));
+            }
+            lines.add(getString(R.string.diag_clip_gain, c.episodes(ClipWatch.GAIN)));
+            lines.add(getString(R.string.diag_clip_out, outs));
+            if (outs > 0) {
+                lines.add("  " + getString(R.string.diag_clip_out_help));
+            }
+        }
+        diagText.setText(String.join("\n", lines));
     }
 
     private boolean headphonesConnected() {
