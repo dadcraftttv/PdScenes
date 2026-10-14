@@ -1,6 +1,6 @@
 # Beta Tester Guide
 
-Oct 13, 2026 · Dad
+Oct 14, 2026 · Dad
 
 ## What this app is
 
@@ -13,18 +13,10 @@ There are two ways to use it:
 - **Built-in effects (the default).** A set of sound-changing tools you can adjust with sliders. Most of this guide covers these.
 - **Scenes (optional).** Ready-made experiences from the original RjDj, which react to sound and to how you move the phone. The app comes with four official RjDj example scenes to try (see "The four built-in scenes" below). You can also import other scenes you already have, as a zip file or folder.
 
-## What's new (Oct 12-13)
+## What's new
 
-- **Five tabs** instead of one long list: Sound, Music, Realms, Scenes and Setup, switched from the row at the top of the card at the bottom of the screen.
-- **Realms** (formerly called Auto worlds): the same automatic sound changes, renamed. Each Realm can now be told which parts of the sound it may change, and a soft "warp" sound tells you when a Realm starts or ends.
-- **Rhythm** (was "Walking beat"): a steady tempo clock that follows your steps or a tempo you set, beat patterns that keep changing, and drums made from the sounds around you.
-- **Found sounds everywhere:** the melody, the chimes, the room's ringing notes, the pad chords and (if you want) the bass can all be played with sounds the app caught from your surroundings.
-- **Your voice as the harmony:** hum or sing a note and a copy of your own voice answers on a chord note.
-- **Gate and compressor shape** settings for the microphone.
-- **Dry level no longer turns the music down:** it only changes your microphone's sound.
-- **Music stays in time** with the beat, standing or walking.
-- A small dot shows which sliders a mover is moving.
-- **Welcome pages** on a new install, and **a quiet start**: a new install has everything off (the echo too), so you hear only the room until you turn things on.
+**Oct 13-14:**
+
 - **Stem packs** (Music tab): your own loops, playing with the built-in sound and arranged by where you are and how you move.
 - **Calm builds** (Music, off at first): standing still somewhere calm, the music slowly grows a layer at a time, then eases back.
 - **Scenes show their pictures and words** on the touch pad, and a few more imported scenes load completely.
@@ -33,6 +25,19 @@ There are two ways to use it:
 - **Intensity** in the bottom card: calmer to the left, busier to the right, your own settings in the middle.
 - **Handling noise:** tapping, gripping or rubbing the phone no longer becomes part of the music: those sounds are turned down and never caught as found sounds (see Handling hush).
 - **Diagnostics** on the Setup tab shows which mic and headphones are really in use, how loud the mic hears the room, and whether anything overloads. If the mic itself keeps overloading, the status line at the bottom says so.
+- **Welcome pages** on a new install, and **a quiet start**: a new install has everything off (the echo too), so you hear only the room until you turn things on.
+- **Dry level no longer turns the music down:** it only changes your microphone's sound.
+
+**Oct 12:**
+
+- **Five tabs** instead of one long list: Sound, Music, Realms, Scenes and Setup, switched from the row at the top of the card at the bottom of the screen.
+- **Realms** (formerly called Auto worlds): the same automatic sound changes, renamed. Each Realm can now be told which parts of the sound it may change, and a soft "warp" sound tells you when a Realm starts or ends.
+- **Rhythm** (was "Walking beat"): a steady tempo clock that follows your steps or a tempo you set, beat patterns that keep changing, and drums made from the sounds around you.
+- **Found sounds everywhere:** the melody, the chimes, the room's ringing notes, the pad chords and (if you want) the bass can all be played with sounds the app caught from your surroundings.
+- **Your voice as the harmony:** hum or sing a note and a copy of your own voice answers on a chord note.
+- **Gate and compressor shape** settings for the microphone.
+- **Music stays in time** with the beat, standing or walking.
+- A small dot shows which sliders a mover is moving.
 - The Key and Scale menus no longer jump back to C major.
 - The app uses noticeably less battery and processor than the first builds with these features.
 
