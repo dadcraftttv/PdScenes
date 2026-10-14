@@ -646,6 +646,9 @@ public class MainActivity extends Activity {
         if (PhoneContext.inPocket()) {
             why.add(getString(R.string.why_pocket));
         }
+        if (CalmBuild.level() > 0.02f) {
+            why.add(getString(R.string.why_building));
+        }
         if (HandlingDetector.level() > 0.3f) {
             why.add(getString(R.string.why_handling));
         }

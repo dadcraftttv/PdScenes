@@ -21,6 +21,7 @@
     <string name="glitch_budget_over">Glitch budget: %1$d%% (over 100, shared out in proportion)</string>
     <string name="why_pocket">in a pocket</string>
     <string name="why_handling">handling</string>
+    <string name="why_building">building</string>
     <string name="why_room_quiet">quiet room (%d dB)</string>
     <string name="why_room_lively">loud, lively room (%d dB)</string>
     <string name="why_room_steady">loud but steady room (%d dB)</string>

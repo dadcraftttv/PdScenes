@@ -281,6 +281,7 @@ RR_FADE_OUT_MS = 20         # ...and closes this fast at the moment of the sound
 RR_LEAD_MS = 25             # the read ends this long before the sound was noticed (~60 ms after it started: meter,
                             # handling check), at the reverb's first echo (~30 ms after the sound), so the loudest moment is on time
 RR_GAIN = 1.5               # its level at reverb_rev 1 (the windows and the backwards tail lose a little)
+CALM_CHIME_P = 40           # a calm build at its peak: a standing-still chime about every 6 s even in a quiet room
 INT_DRIVE = 0.6             # Intensity 0..1 moves the beat's drive by -0.3..+0.3 (calmer / busier patterns)
 HND_HUSH_DB = 24            # handling hush at 1 turns the mic down this much at full handling (the app's 0-1 level)
 HND_ATTACK_MS = 15          # ...going down this fast (a tap rings on for a while; its very start can't be caught)
@@ -1999,7 +2000,9 @@ def add_music(P):
     P.c("mu_still_on", "mu_still_t")
     P.obj("mu_roll", "random 1000", x + 800, 720)
     ex("mu_chance", "$f1<$f2", x + 800, 750)
-    ex("mu_p", f"320*pow($f1,3)/(1+pow($f2/{DENSITY_BUSY},2))*$f3/250", x + 900, 720)   # chance in 1000 every 0.25 s: 0 in a quiet room, about 1 in 3 when lively (less when busy lately)
+    # (a calm build adds a gentle chance of its own: up to CALM_CHIME_P in 1000 per 0.25 s at its peak, value calmc)
+    P.obj("mu_calm_r", "r calm_chimes", x + 1100, 650); P.obj("mu_calm_v", "value calmc", x + 1100, 665); P.c("mu_calm_r", "mu_calm_v")
+    ex("mu_p", f"(320*pow($f1,3)/(1+pow($f2/{DENSITY_BUSY},2))+calmc*{CALM_CHIME_P})*$f3/250", x + 900, 720)   # chance in 1000 every 0.25 s: 0 in a quiet room, about 1 in 3 when lively (less when busy lately)
     P.obj("mu_p_dn", "value mdens", x + 980, 690)
     P.obj("mu_rd_p", "value mloud", x + 900, 690)
     P.c("mu_still_t", "mu_roll", 0, 0)

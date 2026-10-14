@@ -77,7 +77,7 @@ check(not bad, "patch loads with no Pd errors" + (": %s" % bad if bad else ""))
 
 jp = java_params()
 patch_text = open(PATCH).read()
-receivers = set(re.findall(r"#X obj \d+ \d+ r (\w+);", patch_text)) - {"step", "scale_n", "pad_glide", "mic_level", "pad_slot", "pool_n", "pool_x", "pocket", "pocket_down", "duck", "step_strength", "step_hit", "beat_sure", "groove", "gc_mode", "gc_try", "density_on", "motif", "drift_now", "drift_set", "drift_n", "music_register", "music_warm", "pulse", "tick16", "clock_walking", "gc_mode", "fs_need", "harm_organ", "fpad_need", "harm_run", "fpad_kick", "fpad_caught", "rh_swing_set", "fs_flourish_set", "rn_ring", "rnf_found", "realm_cue", "handling", "jolt", "msync", "tempo"} - {r for r in re.findall(r"#X obj \d+ \d+ r (sw_\w+);", open(PATCH).read())}   # events and internal links, not settings
+receivers = set(re.findall(r"#X obj \d+ \d+ r (\w+);", patch_text)) - {"step", "scale_n", "pad_glide", "mic_level", "pad_slot", "pool_n", "pool_x", "pocket", "pocket_down", "duck", "step_strength", "step_hit", "beat_sure", "groove", "gc_mode", "gc_try", "density_on", "motif", "drift_now", "drift_set", "drift_n", "music_register", "music_warm", "pulse", "tick16", "clock_walking", "gc_mode", "fs_need", "harm_organ", "fpad_need", "harm_run", "fpad_kick", "fpad_caught", "rh_swing_set", "fs_flourish_set", "rn_ring", "rnf_found", "realm_cue", "handling", "jolt", "msync", "tempo", "calm_chimes"} - {r for r in re.findall(r"#X obj \d+ \d+ r (sw_\w+);", open(PATCH).read())}   # events and internal links, not settings
 pd_ids = {i for i, _, nopd in jp if not nopd}
 check(len(jp) >= 10, "parsed %d params from Params.java" % len(jp))
 check(pd_ids == receivers, "Params.java ids == patch receivers (java-only %s, patch-only %s)"
@@ -2193,6 +2193,14 @@ end_s = np.max(np.nonzero(ds > 0.1 * ds.max())[0]) / SR if ds.max() > 1e-4 else 
 off = min(abs(end_s - bt) for bt in beats) if beats else 9
 check(ds.max() > 1e-3 and off < 0.03 and end_s > 1.13 + 2 * 0.6 - 0.05,
       "reverse reverb with the Rhythm: the swell ends on a beat (%.0f ms from the nearest, at %.2f s; clap at 1.13 s)" % (off * 1000, end_s))
+
+# calm builds: at its peak the app sends calm_chimes 1, and standing still in a quiet room chimes start to come
+def calm_chimes(c):
+    e = fresh(music_on=1, music_arp=1, music_pad=0, music_res=0, wet=0); e.listen("chime_note")
+    e.send("calm_chimes", c); e.run((np.random.default_rng(5).standard_normal(30 * SR) * 0.0005).astype(np.float32))
+    return len(e.heard["chime_note"])
+cq0, cq1 = calm_chimes(0), calm_chimes(1)
+check(cq0 == 0 and 2 <= cq1 <= 12, "calm build: a quiet room stays quiet (%d chimes in 30 s), at the build's peak a few soft chimes come (%d)" % (cq0, cq1))
 
 # Mix: each part's level at 0 takes that part out, and only that part
 def mix_part(trim, value, x, steps=0.0, **over):

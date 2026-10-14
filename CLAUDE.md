@@ -143,6 +143,15 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   clap's swell rises x40 over its last 0.6 s; synced it ends 11 ms from the beat. The first try (Reverse echo's
   continuous two-grain reversal fed the reverb) rose nicely but peaked wherever the sound fell, never on the beat.
   Audio group `revrev` (reverb_on x reverb_mix x reverb_rev).
+- **Calm builds** (roadmap item 8, Oct 14; `CalmBuild.java`, test B; `calm_build` toggle in Music, off by default,
+  noPreset, noPd: Samuel, "keeping it your own works best"): calm = switch on, music on, not walking, room not
+  loud-and-lively. After `WAIT_S` 30 s of calm, the level rises over 180 s, holds 60, falls over 120, then rests 180
+  before another; not calm -> it fades within `DROP_S` 5 s and waits for 30 s of calm again. Layers join along the
+  rise (pad from 0, room notes from 0.25, standing-still chimes from 0.5, harmony and reverb from 0.75) and each is
+  lifted up to +40% at the top in `Modulation.output` after Intensity (only what is on, never past the slider's top;
+  resent on a change > 0.005). The chimes layer goes to Pd as `calm_chimes`: an extra still-pattern chance of
+  `CALM_CHIME_P` (40 in 1000 per 0.25 s at the top, about one soft chime every ~6 s in a quiet room). Event log
+  "Calm build starts/ends"; the Now line says "building".
 - **Mic-down protection** (`pocket_guard`, main, noPreset, default 0.6; 0 = no change): Samuel found mic-end-down pockets
   rustly but mic-up pockets fine. `PhoneContext.micDown()` (gravity along +y averaged ~1 s, hysteresis 0.5/0.3) and
   AudioService sends `pocket_down` = pocket && micDown. The patch adds guard*12 dB more cut and crossfades in a 2x `hip~ 300`.

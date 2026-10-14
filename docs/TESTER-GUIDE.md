@@ -25,6 +25,7 @@ There are two ways to use it:
 - **Music stays in time** with the beat, standing or walking.
 - A small dot shows which sliders a mover is moving.
 - **Welcome pages** on a new install, and **a quiet start**: a new install has everything off (the echo too), so you hear only the room until you turn things on.
+- **Calm builds** (Music, off at first): standing still somewhere calm, the music slowly grows a layer at a time, then eases back.
 - **Reverse reverb** (Reverb section, and in the Ghost realm): sounds come back as rising swells, landing on the beat while the Rhythm plays.
 - **Mix** (Music tab): a level for every part of the music and rhythm, saved with your presets, so you can turn any part down or out.
 - **Intensity** in the bottom card: calmer to the left, busier to the right, your own settings in the middle.
@@ -265,6 +266,7 @@ This adds a soft, drifting musical layer that reacts to the world around you, in
 - **Music on/off:** the switch for the whole section.
 - **Let the home chord drift:** every few minutes the music's home chord moves to a related one on the same notes (in C major, for example, to a D, G or A-minor feel), then often comes back home. Switching it off brings the home chord back at once. On by default.
 - **Light, pocket and stairs move the notes higher or lower:** in a bright place the chimes and walking notes sit a little higher, in a dark room a little lower and warmer, in a pocket an octave lower, and climbing stairs lifts them. The pad and bass stay put. On by default.
+- **Calm builds:** off at first. Switch it on and, when you stand still in a calm place for about half a minute, the music slowly grows on its own, one layer at a time: the pad warms up, the room notes ring a little more, a few soft chimes start to come, then harmony and reverb open up. It takes about three minutes to reach the top, holds for a minute, eases back over two, then rests for at least three minutes before the next one. Walk, or step into a loud, lively place, and it fades away within a few seconds. It only grows parts that are already on, and never moves your sliders. The Now line says "building" while it happens. It is your own setting: presets don't save or change it.
 - **Key and Scale:** the home note and the mood. It starts in C Major. Major sounds bright, Minor sounds sad or serious, Pentatonic is simple and open, Dorian and Mixolydian are folky, Lydian is dreamy, and Whole tone is floaty and unresolved. Try them all.
 - **The pad:** a very soft, slow background of gentle chords. It blends smoothly from one chord into the next. It is meant to be the glue, never the star. Its level (Pad level) is in the Mix section; keep it low.
 - **Pad register:** where the pad plays. **Low** is a soft bass note under everything that stays on the key's root and only sometimes moves. **Mid** is the chords. **Both** (the default) is the two together. When the beat is playing, the bass dips briefly on each step so it doesn't clash with the kick drum.
@@ -424,6 +426,7 @@ Thank you for trying this. Anything you notice is useful, even "it felt weird." 
 - **Crashes or freezes:** what you were doing just before.
 - **Movers:** do the tilt, shake, spin, compass, light, pocket and stairs movements feel right? Does a sensor seem to be missing on your phone?
 - **Intensity:** try both ends while you walk. Is the left end calm without going dead, and the right end busy without turning into a mess? Is the middle the sound you set up?
+- **Calm builds:** switch it on and stand somewhere calm for five minutes or so. Does the build feel gradual and natural? Is the top too much or too little? Does it get out of the way quickly when you start walking?
 - **Handling:** tap, grip and rub the phone while it plays. Are those sounds quieter, and do they stay out of the beat and the chimes (Diagnostics counts the skipped ones)? Walk holding the phone: does the found-sound beat still pick up the sounds around you? Clap and knock nearby with the phone still: are those still caught?
 - **Pocket:** with the phone in a pocket, both mic end up and mic end down, how much cloth noise do you hear? Can you still hear the world around you? Which Pocket hush and Mic-down protection settings worked for you?
 - **Presets:** does Export then Import bring back the same sound?

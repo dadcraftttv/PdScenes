@@ -147,6 +147,7 @@ final class Modulation {
     static void reset() {
         java.util.Arrays.fill(moving, false);
         lastIntensity = ParamStore.get(Intensity.ID);   // what was sent (no mover is pushing it now)
+        lastCalm = CalmBuild.level();
         micLevelDb = -100f;
         upright = leanRight = spin = south = padX = padY = 0f;
         shakeLevel = 0f;
@@ -230,6 +231,16 @@ final class Modulation {
             sink.send(p.id, output(p, ParamStore.get(p.id)));
         }
         // Intensity moved by its mover: everything it scales goes out again (only on a real change)
+        float c = CalmBuild.level();   // a calm build growing or easing back: its layers go out again
+        if (Math.abs(c - lastCalm) > 0.005f || (c == 0f && lastCalm != 0f)) {
+            lastCalm = c;
+            for (String id : CalmBuild.scaled()) {
+                Param p = Params.byId(id);
+                if (p != null && !isMoving(id)) {
+                    sink.send(id, output(p, ParamStore.get(id)));
+                }
+            }
+        }
         float t = intensityNow();
         if (Math.abs(t - lastIntensity) > 0.003f) {
             lastIntensity = t;
@@ -243,6 +254,7 @@ final class Modulation {
     }
 
     private static float lastIntensity = 0.5f;
+    private static float lastCalm;
 
     /** True while a mover is pushing this slider around (the screen marks it with a dot). */
     static boolean isMoving(String paramId) {
@@ -253,7 +265,8 @@ final class Modulation {
     /** The value to give Pd for a parameter whose slider is at {@code base}. */
     static float output(Param p, float base) {
         float v = moved(p, base);
-        return Intensity.scales(p.id) ? Intensity.apply(p, v, intensityNow()) : v;
+        v = Intensity.scales(p.id) ? Intensity.apply(p, v, intensityNow()) : v;
+        return CalmBuild.scales(p.id) ? CalmBuild.apply(p, v) : v;   // (a calm build lifts a few layers)
     }
 
     /** Intensity as it plays now: its slider, moved by its own mover if it has one. */

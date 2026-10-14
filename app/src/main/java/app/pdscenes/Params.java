@@ -151,6 +151,10 @@ final class Params {
                     Param.Curve.LINEAR).inSection("music").toggle().noPreset().resetWhenAbsent(),
             new Param("music_follow", "Light, pocket and stairs move the notes higher or lower", 0f, 1f, 1f, "",
                     Param.Curve.LINEAR).inSection("music").toggle().noPreset().noPd().resetWhenAbsent(),
+            // Calm builds (Samuel, Oct 14): standing still in a calm room, the music slowly grows a layer at a time,
+            // then eases back (CalmBuild.java). Off by default, the user's own (not in presets).
+            new Param("calm_build", "Calm builds (standing still, the music slowly grows)", 0f, 1f, 0f, "",
+                    Param.Curve.LINEAR).inSection("music").toggle().noPreset().noPd().resetWhenAbsent(),
             new Param("music_key", "Key", 0f, 11f, 0f, "", Param.Curve.LINEAR)
                     .choices("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
                     .inSection("music").noPreset().resetWhenAbsent(),

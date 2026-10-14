@@ -107,6 +107,7 @@ public class AudioService extends Service {
     /** When the found sounds last skipped a handling noise (uptime ms), for the diagnostics' "last minute". */
     private static final java.util.ArrayDeque<Long> handlingSkips = new java.util.ArrayDeque<>();
     private float handlingSent;
+    private float calmChimesSent;
 
     /** Sounds skipped as handling noise in the last minute. */
     static int handlingSkipsLastMinute() {
@@ -207,6 +208,17 @@ public class AudioService extends Service {
                 double nowS = SystemClock.elapsedRealtimeNanos() / 1e9;   // the sensors' clock
                 Worlds.tick(dt, Modulation.micLevelDb(), StepDetector.walking(nowS),
                         PhoneContext.inPocket(), minuteOfDay, PhoneContext.secondsSinceShake(nowS));
+                // calm builds: standing still in a calm room, the music grows a layer at a time (if switched on)
+                boolean calm = ParamStore.get(CalmBuild.ID) >= 0.5f && ParamStore.get("music_on") >= 0.5f
+                        && !StepDetector.walking(nowS) && !(Worlds.roomLoud() && Worlds.roomLively());
+                if (CalmBuild.tick(dt, calm)) {
+                    logEvent(CalmBuild.phase() == CalmBuild.Phase.RISING ? "Calm build starts" : "Calm build ends");
+                }
+                float chimes = CalmBuild.layer(CalmBuild.CHIMES);
+                if (Math.abs(chimes - calmChimesSent) > 0.01f || (chimes == 0f) != (calmChimesSent == 0f)) {
+                    calmChimesSent = chimes;
+                    PdBase.sendFloat("calm_chimes", chimes);
+                }
                 int scale = Math.round(ParamStore.get("music_scale"));
                 if (noteRegister.tick(dt, PhoneContext.brightness(), PhoneContext.inPocket(), PhoneContext.climb(),
                         SCALE_SIZES[Math.max(0, Math.min(SCALE_SIZES.length - 1, scale))],
@@ -625,6 +637,8 @@ public class AudioService extends Service {
             handlingSkips.clear();
         }
         handlingSent = 0f;
+        calmChimesSent = 0f;
+        CalmBuild.reset();
         synchronized (kitCaught) {
             java.util.Arrays.fill(kitCaught, 0);   // a fresh patch starts with an empty kit
         }
