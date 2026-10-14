@@ -174,6 +174,15 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   0.8). Arrangement: pad always, bass walking/lively/loud, drums walking, lead lively or brisk (pace >= 0.6), texture
   night/pocket/Ghost; 8 s hold per role; sections every 4 loops of the longest stem. Untested on the phone (Samuel
   has no packs yet; the test pack was put on his phone and selected).
+- **Call and response** (roadmap 12, Oct 14; `CallResponse.java`, test L; `music_answer` Music 0..1 default 0.5, in
+  presets): the Harmony tracker (now also run for it: `fpc_run` includes music_answer) sends `heard_deg <step>` at each
+  note-on and `heard_off` at note-off; a phrase = notes with pauses < 1.5 s (max 6); after `ANSWER_AFTER_S` 1.6 s of
+  quiet (Samuel: 0.7 was "answering too soon") it is answered once (cooldown 3 s) through the motif path (`motif
+  <step> <vel>`, velocity 0.55 x level): same rhythm, +2 steps (-2 if it reached step 14), 40% the last note on the key
+  note's octave. The "Hearing:" harmony count only counts while Harmony > 0. Tests set music_answer 0 unless testing it.
+- **Send feedback** (Setup, About; Oct 14): a mailto email to dadcraftstudios@gmail.com, subject with the version,
+  body with a prompt, phone/Android/app version, what's playing, and (box ticked by default, explained) the last 200
+  event-log lines in the body (no attachment, no FileProvider). 0.9.0-rc2 = versionCode 10.
 - **Mic-down protection** (`pocket_guard`, main, noPreset, default 0.6; 0 = no change): Samuel found mic-end-down pockets
   rustly but mic-up pockets fine. `PhoneContext.micDown()` (gravity along +y averaged ~1 s, hysteresis 0.5/0.3) and
   AudioService sends `pocket_down` = pocket && micDown. The patch adds guard*12 dB more cut and crossfades in a 2x `hip~ 300`.

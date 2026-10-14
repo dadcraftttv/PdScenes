@@ -95,6 +95,10 @@ public class AudioService extends Service {
     private static final int[] kitCaught = new int[3];
     /** The last judged slice's levels (dBFS: all, lows, highs), logged with its catch. */
     private static final String FS_LEVELS = "fs_levels";
+    /** Call and response: the patch's pitch tracker reports each steady note (a scale step) and its end. */
+    private static final String HEARD_DEG = "heard_deg", HEARD_OFF = "heard_off";
+    private final CallResponse callResponse = new CallResponse(new java.util.Random());
+
     /** A scene's [rj_image] and [rj_text] objects report here (scene_lib), drawn by ScenePad. */
     private static final String SCENE_GFX = "rj_gfx";
     /** Overload counts from the patch, once a second (diagnostics): the mic as it arrives, after Input gain, output. */
@@ -229,6 +233,22 @@ public class AudioService extends Service {
                     PdBase.sendFloat("music_register", noteRegister.steps());
                     PdBase.sendFloat("music_warm", noteRegister.warm() ? 1f : 0f);
                     logEvent("Notes moved " + noteRegister.steps() + " steps" + (noteRegister.warm() ? ", warm" : ""));
+                }
+                // call and response: a sung phrase that just ended gets its answer (played like a motif)
+                int scaleSize = SCALE_SIZES[Math.max(0, Math.min(SCALE_SIZES.length - 1,
+                        Math.round(Modulation.output(Params.byId("music_scale"), ParamStore.get("music_scale")))))];
+                float answerLevel = ParamStore.get("music_on") >= 0.5f ? ParamStore.get("music_answer") : 0f;
+                List<MotifMemory.Note> answer = callResponse.poll(nowS, answerLevel, scaleSize);
+                if (answer != null && !answer.isEmpty()) {
+                    logEvent("Answered a sung phrase: " + answer.size() + " notes");
+                    float vel = CallResponse.velocity(answerLevel);
+                    for (MotifMemory.Note n : answer) {
+                        handler.postDelayed(() -> {
+                            if (running) {
+                                PdBase.sendList(MOTIF_PLAY, (float) n.degree, vel);
+                            }
+                        }, Math.round(n.at * 1000));
+                    }
                 }
                 List<MotifMemory.Note> phrase = motif.poll(nowS, StepDetector.walking(nowS));
                 if (phrase != null) {
@@ -586,6 +606,10 @@ public class AudioService extends Service {
                     }
                     return;
                 }
+                if (HEARD_DEG.equals(source)) {
+                    callResponse.onNote(Math.round(x), SystemClock.elapsedRealtimeNanos() / 1e9);
+                    return;
+                }
                 if (TEMPO.equals(source)) {
                     tempoBpm = x;
                     return;
@@ -595,10 +619,19 @@ public class AudioService extends Service {
                     return;
                 }
                 if (HARMONY_RECEIVER.equals(source)) {
-                    harmonyNotes.incrementAndGet();
+                    if (ParamStore.get("music_harm") > 0) {   // (the tracker also runs for call and response)
+                        harmonyNotes.incrementAndGet();
+                    }
                     return;
                 }
                 Modulation.setMicLevelDb(x - 100f);   // env~ reports dB with 100 = full scale
+            }
+
+            @Override
+            public void receiveBang(String source) {
+                if (HEARD_OFF.equals(source)) {
+                    callResponse.onNoteOff(SystemClock.elapsedRealtimeNanos() / 1e9);
+                }
             }
 
             @Override
@@ -637,6 +670,9 @@ public class AudioService extends Service {
         PdBase.subscribe(FS_LEVELS);
         PdBase.subscribe(FPAD_CAUGHT);
         PdBase.subscribe(SCENE_GFX);
+        PdBase.subscribe(HEARD_DEG);
+        PdBase.subscribe(HEARD_OFF);
+        callResponse.reset();
         SceneGraphics.SCENE.clear();   // a new patch starts with nothing on screen
         PdBase.subscribe(CLIP_IN);
         PdBase.subscribe(CLIP_GAIN);

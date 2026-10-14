@@ -1154,6 +1154,78 @@ public class MainActivity extends Activity {
         LinearLayout row = newButtonRow(body);
         addButton(row, R.string.show_licenses, this::showLicenses);
         addButton(row, R.string.walk_show_again, this::showWalkthrough);
+        LinearLayout row2 = newButtonRow(body);
+        addButton(row2, R.string.feedback_send, this::sendFeedback);
+    }
+
+    /**
+     * Opens an email to DadCraft with the phone, Android and app version filled in and, if the tester agrees, the
+     * end of the event log (no audio: times, room levels, what the app did), so a report carries what's needed.
+     */
+    private void sendFeedback() {
+        CheckBox withLog = new CheckBox(this);
+        withLog.setText(R.string.feedback_with_log);
+        withLog.setChecked(true);
+        TextView note = new TextView(this);
+        note.setText(R.string.feedback_log_note);
+        note.setTextSize(13);
+        note.setPadding(0, dp(8), 0, 0);
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(dp(20), dp(8), dp(20), 0);
+        box.addView(withLog);
+        box.addView(note);
+        new AlertDialog.Builder(this).setTitle(R.string.feedback_send).setView(box)
+                .setPositiveButton(R.string.feedback_write, (d, w) -> {
+                    String version = "?";
+                    try {
+                        version = getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
+                    } catch (PackageManager.NameNotFoundException ignored) {
+                        // keep "?"
+                    }
+                    StringBuilder body = new StringBuilder(getString(R.string.feedback_body_start)).append("\n\n\n");
+                    body.append("---\n").append(getString(R.string.feedback_device, Build.MANUFACTURER + " " + Build.MODEL,
+                            Build.VERSION.RELEASE, version)).append("\n");
+                    SceneLibrary.Scene scene = SceneSettings.current(this);
+                    body.append(getString(R.string.feedback_playing, scene != null ? scene.name
+                            : getString(R.string.scene_built_in))).append("\n");
+                    if (withLog.isChecked()) {
+                        body.append("\n").append(getString(R.string.feedback_log_heading)).append("\n").append(eventLogTail(200));
+                    }
+                    Intent mail = new Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:"))
+                            .putExtra(Intent.EXTRA_EMAIL, new String[]{getString(R.string.feedback_address)})
+                            .putExtra(Intent.EXTRA_SUBJECT, getString(R.string.feedback_subject, version))
+                            .putExtra(Intent.EXTRA_TEXT, body.toString());
+                    try {
+                        startActivity(mail);
+                    } catch (android.content.ActivityNotFoundException e) {
+                        toast(R.string.feedback_no_mail, getString(R.string.feedback_address));
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, null).show();
+    }
+
+    /** The last {@code lines} lines of the event log (the older file first, if it rolled over). */
+    private String eventLogTail(int lines) {
+        java.util.ArrayDeque<String> tail = new java.util.ArrayDeque<>();
+        for (String name : new String[]{"events.log.1", "events.log"}) {
+            File f = new File(getFilesDir(), name);
+            if (!f.isFile()) {
+                continue;
+            }
+            try (java.io.BufferedReader r = new java.io.BufferedReader(new java.io.FileReader(f))) {
+                String l;
+                while ((l = r.readLine()) != null) {
+                    tail.addLast(l);
+                    if (tail.size() > lines) {
+                        tail.removeFirst();
+                    }
+                }
+            } catch (IOException ignored) {
+                // a missing or unreadable log just leaves less to send
+            }
+        }
+        return tail.isEmpty() ? getString(R.string.feedback_log_empty) : String.join("\n", tail);
     }
 
     /** When the app was first installed and last updated (ms); equal on a fresh install. */

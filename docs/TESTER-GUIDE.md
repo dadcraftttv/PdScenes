@@ -1,6 +1,6 @@
 # Beta Tester Guide
 
-Oct 14, 2026 · Dad
+Oct 14, 2026 · Dad · for 0.9.0-rc2
 
 ## What this app is
 
@@ -17,6 +17,8 @@ There are two ways to use it:
 
 **Oct 13-14:**
 
+- **Call and response** (Music): sing, hum or whistle a short phrase, pause, and the app answers it with chimes, a third away, in key.
+- **Send feedback** (Setup, About): writes an email to Dad with your phone and app details and, if you like, the app's event log.
 - **Stem packs** (Music tab): your own loops, playing with the built-in sound and arranged by where you are and how you move.
 - **Calm builds** (Music, off at first): standing still somewhere calm, the music slowly grows a layer at a time, then eases back.
 - **Scenes show their pictures and words** on the touch pad, and a few more imported scenes load completely.
@@ -288,6 +290,7 @@ This adds a soft, drifting musical layer that reacts to the world around you, in
 - **Room notes sound:** **Found sounds** (the default): each sudden sound around you plays one of your caught sounds on a note of the current chord. **Ring**: the sounds around you ring the chord like a bell, in your key (a light tap gives a quick chime, talking or a passing car builds up to a long bell). **Both** plays the two.
 - **Harmony:** hum, sing or whistle a long, steady note and an answering note from the current chord joins in, never doubling yours. It holds as long as your note does and fades when you stop. Talking, noise and short sounds are ignored. Its level is in the Mix section; 0 turns it off.
 - **Harmony sound:** **Your voice** (the default): a copy of your own voice, shifted to the chord note, sings with you. Low voices get their harmony a third or more above; from middle C up (most women's and children's voices) it sings a third or more below, so it never turns chipmunk. **Organ** is a soft organ note an octave away instead. **Both** plays the two.
+- **Call and response:** sing, hum or whistle a short phrase (one to six notes) and pause. A moment after you stop, the app answers it with chimes: the same rhythm and shape, a third higher (a third lower if you sang high), in key, sometimes ending on the home note. While the Rhythm plays, the answer falls on the beat. It answers each phrase once. Higher plays the answer louder; 0 turns it off. It needs Music on.
 - **Tone:** darker and rounder on the left, brighter and glassier on the right.
 - **How much the music follows what it hears:** at the right end the music responds strongly to the room. At the left it plays a calmer, steadier pattern.
 
@@ -422,7 +425,7 @@ A preset file holds the effect sliders, their movers, the Music and Rhythm level
 
 - **Audio devices** has Input (microphone) and Output menus. Output is always headphones or earbuds, wired or Bluetooth. The app picks wired first, then Bluetooth, and you can choose another pair from the menu. For Input you can pick the phone's own mic, a wired headset mic, or a Bluetooth headset mic. Careful with that last one: most Bluetooth earbuds can only use their mic in "phone call mode", which sounds thin and low quality. For the best sound, choose the phone's mic or a wired headset. Some newer headsets (Bluetooth LE Audio) do better, and the app shows a hint under the Input menu about the one you picked. Wired headphones also have the least delay.
 - **Appearance** switches between a light look, a dark look (the default) and a pure-black look that suits OLED screens.
-- **About and licenses** shows the open-source licenses and where to send feedback, and can show the welcome pages again. The app is free software and includes parts of the original RjDj project.
+- **About and licenses** shows the open-source licenses and where to send feedback, and can show the welcome pages again. **Send feedback** writes an email to Dad for you: your phone model, Android and app versions are filled in, and if you leave the box ticked, the app's recent event log is added (no sound and nothing you said: just times, the room's loudness as numbers, and what the app did). You can read and change everything before sending. The app is free software and includes parts of the original RjDj project.
 
 - **Diagnostics** (tap to open) shows, while the sound runs: the mic Android is really using (handy with Input on Automatic), whether a Bluetooth mic is in thin call mode, the headphones being played to, the mic level after Input gain (with the noise gate's setting next to it, so you can see whether the room is above or below it), and overloads in the last minute. **Mic overloads** mean the sound was too loud or too close for the mic itself, which sounds harsh; Input gain can't fix that, because the overload happens before it. **Output limiter squashing hard** means the mix is too hot: if it sounds harsh, lower Input gain or some effect levels. It also counts **handling noises skipped**: taps and grips on the phone that weren't caught as found sounds. One loud clap may count once; that's fine. When the mic keeps overloading, the status line at the bottom says "Mic overloading" on every tab until it stops. Please mention these numbers when you report a harsh or distorted sound.
 - **Behavior:** **Smoothing** sets how smoothly the sound glides when you change a slider (low gives instant, snappy changes, high gives slow slides). **Nudge strength** sets how far the Nudge button moves things. **Realm change sound** switches the warp sound off or on.
@@ -442,6 +445,7 @@ Thank you for trying this. Anything you notice is useful, even "it felt weird." 
 - **Battery and heat:** does your phone get warm, or does the battery drain fast?
 - **Anything confusing** on screen, such as a label or button you didn't understand. Is the card at the bottom easy to reach while walking, are the tabs easy to tap, and does the Now: line make sense? Is everything on the tab you expected?
 - **Crashes or freezes:** what you were doing just before.
+- **Call and response:** does the answer come at a natural moment after you stop singing, and does it sound like your phrase?
 - **Movers:** do the tilt, shake, spin, compass, light, pocket and stairs movements feel right? Does a sensor seem to be missing on your phone?
 - **Intensity:** try both ends while you walk. Is the left end calm without going dead, and the right end busy without turning into a mess? Is the middle the sound you set up?
 - **Scenes with pictures:** if you have scenes that draw on screen (Smile, Moogarina, MoonBootSynthPad, Showtime, TouchVocoder, Atsuke), do their pictures and words appear in the right places and change as you play?
@@ -460,6 +464,6 @@ Thank you for trying this. Anything you notice is useful, even "it felt weird." 
 - **Headphones and mic:** did the app refuse to start, stop when you unplugged, or pick the wrong mic? Did it go quiet during a call and come back after, and did it dip when another app played music?
 - **Scenes:** does each of the four built-in scenes make sound, and does it react the way its description says? Tell me which ones felt dead, too loud or confusing.
 
-Send feedback to DadCraft on Discord, or email it to dadcraftstudios@gmail.com. Screenshots help, and so does a short description of the steps that led to a problem.
+The easiest way: **Setup > About and licenses > Send feedback**, which fills in your phone and app details for you. Or send feedback to DadCraft on Discord, or email it to dadcraftstudios@gmail.com. Screenshots help, and so does a short description of the steps that led to a problem.
 
 Please use headphones, keep the volume low at first, and take a break if the sound is intense. The app can get loud.

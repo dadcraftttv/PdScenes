@@ -37,7 +37,7 @@ DEFAULTS = [
     ("music_on", 0), ("music_key", 0), ("music_scale", 0), ("music_pad", 0.33), ("music_arp", 0.4),
     ("music_tone", 0.5), ("music_react", 0.8), ("music_res", 0.8), ("music_harm", 0.6), ("beat_follow", 1), ("beat_when", 1), ("rhythm_src", 1), ("melody_src", 1), ("harm_src", 1), ("pad_src", 1), ("bass_src", 0), ("tempo_mode", 0), ("tempo_bpm", 100), ("chime_char", 0.5), ("res_src", 1), ("cue_sound", 1), ("beat_glitch", 0.4), ("gate_attack", 5), ("gate_hold", 0), ("gate_release", 80), ("comp_attack", 40),
     ("comp_release", 40), ("music_drift", 1), ("echo_scatter", 0.5), ("gc_amount", 0), ("gc_level", 0.7), ("gc_pct_stutter", 35), ("gc_pct_reverse", 25),
-    ("gc_pct_shuffle", 20), ("gc_pct_stretch", 20), ("music_pad_reg", 2), ("pocket_hush", 0.5), ("pocket_guard", 0.6), ("handling_hush", 0.5), ("intensity", 0.5), ("mix_kick", 1), ("mix_bass", 1), ("mix_chimes", 1), ("mix_walk", 1), ("mix_ring", 1), ("mix_bells", 1), ("reverb_rev", 0), ("stems_level", 0.8),
+    ("gc_pct_shuffle", 20), ("gc_pct_stretch", 20), ("music_pad_reg", 2), ("pocket_hush", 0.5), ("pocket_guard", 0.6), ("handling_hush", 0.5), ("intensity", 0.5), ("mix_kick", 1), ("mix_bass", 1), ("mix_chimes", 1), ("mix_walk", 1), ("mix_ring", 1), ("mix_bells", 1), ("reverb_rev", 0), ("stems_level", 0.8), ("music_answer", 0.5),
 ]
 
 # Scales as semitone steps above the key note. The patch snaps every note it plays to these.
@@ -994,14 +994,16 @@ def add_found_pad(P, px, bx, ex):
     Until the first take, found means synth."""
     n_take = int(FP_TAKE_S * 48000) + 2000
     # ---- what is needed: catching (and the tracker) when found pad or bass is chosen ----
-    P.obj("fpc_go_need", "t b b b", px, 1150)
-    for k, nm in enumerate(("pad_src", "bass_src", "music_harm")):
+    P.obj("fpc_go_need", "t b b b b", px, 1150)
+    for k, nm in enumerate(("pad_src", "bass_src", "music_harm", "music_answer")):
         P.obj(f"fpc_r{k}", f"r {nm}", px + 70 * k, 1100); P.obj(f"fpc_t{k}", "t b f", px + 70 * k, 1115)
         P.obj(f"fpc_w{k}", f"value fpn{k}", px + 70 * k, 1130); P.obj(f"fpc_v{k}", f"value fpn{k}", px + 70 * k, 1170)
         P.c(f"fpc_r{k}", f"fpc_t{k}"); P.c(f"fpc_t{k}", f"fpc_w{k}", 1, 0); P.c(f"fpc_t{k}", "fpc_go_need", 0, 0)
         P.c("fpc_go_need", f"fpc_v{k}", k, 0)
     ex("fpc_need", "($f1>=1)||($f2==1)", px, 1190); P.c("fpc_v1", "fpc_need", 0, 1); P.c("fpc_v0", "fpc_need", 0, 0)
-    ex("fpc_run", "($f2>0)||$f1", px + 140, 1190); P.c("fpc_v2", "fpc_run", 0, 1)   # (the level first: it fires first)
+    # (the tracker also runs for call and response, music_answer)
+    ex("fpc_run", "($f2>0)||$f1||($f3>0)", px + 140, 1190); P.c("fpc_v2", "fpc_run", 0, 1)   # (the levels first: they fire first)
+    P.c("fpc_v3", "fpc_run", 0, 2)
     P.obj("fpc_need_t", "t f f", px, 1205); P.c("fpc_need", "fpc_need_t")
     P.c("fpc_need_t", "fpc_run", 0, 0)
     P.obj("fpc_need_chg", "change -1", px + 60, 1215); P.c("fpc_need_t", "fpc_need_chg", 1, 0)
@@ -2595,6 +2597,8 @@ def add_harmony(P, hx, ex, degree_to_hz):
     P.c("mu_hm_vsemi", "mu_hm_vrate")
     P.obj("mu_hm_vw", "f 40", hx + 960, 590); P.c("mu_hm_vwt", "mu_hm_vw", 0, 1)
     P.obj("mu_hm_vsemi_s", "s harm_semi", hx + 800, 580); P.c("mu_hm_vsemi", "mu_hm_vsemi_s")   # (for the tests)
+    # call and response (the app): each heard note as a scale step, and when it ends
+    P.obj("mu_hm_heard_s", "s heard_deg", hx + 200, 425); P.c("mu_hm_d", "mu_hm_heard_s")
     P.obj("mu_hm_degout", "s harm_deg", hx + 300, 480)
     P.c("mu_hm_deg", "mu_hm_degout")
     # Note on: frequency first, then pick the other voice and open it; note off closes the voice that is playing.
@@ -2611,6 +2615,7 @@ def add_harmony(P, hx, ex, degree_to_hz):
     P.c("mu_hm_flip", "mu_hm_cur", 0, 1)
     P.c("mu_hm_on2", "mu_hm_cur", 0, 0)
     P.obj("mu_hm_off", "t b", hx + 200, 700)
+    P.obj("mu_hm_heard_off", "s heard_off", hx + 260, 715); P.c("mu_hm_off", "mu_hm_heard_off")
     P.c("mu_hm_sel", "mu_hm_off", 1, 0)
     P.obj("mu_hm_vsel", "sel 0 1", hx + 120, 730)
     P.obj("mu_hm_osel", "sel 0 1", hx + 200, 730)

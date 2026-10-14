@@ -188,6 +188,9 @@ final class Params {
             new Param("res_src", "Room notes sound", 0f, 2f, 1f, "", Param.Curve.LINEAR)
                     .choices("Ring (the room rings the chord)", "Found sounds (a sound plays one of yours on the chord)", "Both")
                     .inSection("music").noPreset().resetWhenAbsent(),
+            // Sing, hum or whistle a short phrase and the app answers it a moment later, a third away, in key (CallResponse.java).
+            new Param("music_answer", "Call and response (a sung phrase gets an answer)", 0f, 1f, 0.5f, "",
+                    Param.Curve.LINEAR).inSection("music").rand(0f, 1f).resetWhenAbsent(),
             new Param("harm_src", "Harmony sound", 0f, 2f, 1f, "", Param.Curve.LINEAR)
                     .choices("Organ", "Your voice (a pitch-shifted copy of you)", "Both")
                     .inSection("music").noPreset().resetWhenAbsent(),
