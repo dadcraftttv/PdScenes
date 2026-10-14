@@ -25,6 +25,7 @@ There are two ways to use it:
 - **Music stays in time** with the beat, standing or walking.
 - A small dot shows which sliders a mover is moving.
 - **Welcome pages** on a new install, and **a quiet start**: a new install has everything off (the echo too), so you hear only the room until you turn things on.
+- **Stem packs** (Music tab): your own loops, playing with the built-in sound and arranged by where you are and how you move.
 - **Calm builds** (Music, off at first): standing still somewhere calm, the music slowly grows a layer at a time, then eases back.
 - **Scenes show their pictures and words** on the touch pad, and a few more imported scenes load completely.
 - **Reverse reverb** (Reverb section, and in the Ghost realm): sounds come back as rising swells, landing on the beat while the Rhythm plays.
@@ -293,6 +294,15 @@ What to expect:
 - The music remembers the last little run of chimes. When the room goes quiet for a while and you are standing still, it may play that phrase back with a twist, like a theme returning.
 - The music passes through your other effects, so Echo, Reverb, Chorus, Spatial and the rest all shape it. The Pitch, Ring, Bit-crush, Distortion and Filter effects do not touch it.
 - In Realms, Tranquil keeps the music very soft, Flux keeps the notes light but lets the loud room ring in key, Kinetic lets the notes grow with your pace, and Pocket switches Room notes off. Realms never switch the music on or off for you.
+
+### Stem packs (your own loops)
+
+A stem pack is a set of loops from a song (pad, bass, drums, lead, texture) that plays with the built-in sound and follows where you are and how you move: the pad is always there, bass and drums come in when you walk, the lead in a lively place or on a brisk walk, the texture at night, in a pocket or in the Ghost realm. Parts change only at the start of a bar, fading over one bar, and if the pack has sections (like a verse and a chorus) it moves between them every few loops.
+
+- **Choose pack** picks the pack that plays (or None). **Import zip** and **Import folder** add one. **How to make a pack** explains the format. **Delete a pack** removes one from the phone.
+- While a pack plays, the tempo locks to the pack's tempo (walking changes which parts play, not the tempo), the chimes, pad and harmony follow the pack's key, and the app's own beat steps back while the pack's drums play. Your own settings come back when you choose None.
+- **Stems level** (in Mix) sets how loud the pack is.
+- Packs only play with the built-in sound, not with scenes.
 
 ### Mix
 

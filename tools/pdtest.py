@@ -114,8 +114,12 @@ class Engine:
         """Send a list of floats to a receiver, like PdBase.sendList."""
         L = self.lib
         L.libpd_start_message(len(values))
+        L.libpd_add_symbol.argtypes = [ctypes.c_char_p]
         for v in values:
-            L.libpd_add_float(float(v))
+            if isinstance(v, str):
+                L.libpd_add_symbol(v.encode())   # (words too, e.g. a file path)
+            else:
+                L.libpd_add_float(float(v))
         L.libpd_finish_list.argtypes = [ctypes.c_char_p]
         L.libpd_finish_list(name.encode())
 

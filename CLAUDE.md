@@ -45,7 +45,7 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
    error); move the pin only together with pd-core. numpy lives in `tools/.venv` (run the tests with `tools/.venv/bin/python`).
 2. `python3 tools/make_patch.py && tools/.venv/bin/python tools/test_patch.py tools/.libpd/libpd.so` — must end `ALL PASSED`.
    Also `tools/test_scene_loader.py`, `test_scene_sensors.py`, `test_rj_analysis.py`, `test_bundled_scenes.py`, `test_scene_helpers.py` (same libpd argument).
-3. Java logic tests (no Android): `tools/javatests/run.sh` (or one at a time: `tools/javatests/run.sh W`; D = diagnostics, H = handling, I = intensity, F = first run). All must pass
+3. Java logic tests (no Android): `tools/javatests/run.sh` (or one at a time: `tools/javatests/run.sh W`; D = diagnostics, H = handling, I = intensity, F = first run, B = calm build, G = scene graphics, K = stem packs). All must pass
    (C and P print no summary line, just no `FAIL:`). Android classes are stand-ins in `tools/javatests/stubs*`: when app code
    starts using a new Android method, add it there. Java is not on PATH: `export JAVA_HOME=~/.jdks/jbr-21.0.11` and put its
    `bin` on PATH (Android Studio's bundled JDK 25 is too new for Gradle 8.14). adb: `~/Android/Sdk/platform-tools/adb -s ZD222T44PP`.
@@ -160,6 +160,20 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   resent on a change > 0.005). The chimes layer goes to Pd as `calm_chimes`: an extra still-pattern chance of
   `CALM_CHIME_P` (40 in 1000 per 0.25 s at the top, about one soft chime every ~6 s in a quiet room). Event log
   "Calm build starts/ends"; the Now line says "building".
+- **Stems player** (roadmap 9 in ROADMAP.md, Oct 14; `StemPack` parse, `StemArrangement`, `PackPlayer`, `PackLibrary`,
+  test K; `add_stems`, Pd test "stems:"; `tools/make_test_pack.py` writes a synth test pack): packs live in
+  files/packs/<name>/ with pack.txt (title, bpm, key "A minor", bars; "file role: x [bars: n] [section: B]", _A/_B
+  file suffixes = sections; max 8 stems). Import zip/folder (Music tab "Stem packs"); non-WAV stems are decoded once
+  with MediaExtractor/MediaCodec into `.decoded-<file>.wav`; loop lengths are checked (warnings). Selected pack in
+  prefs `pdscenes_packs`, not in presets (Samuel); built-in sound only. While playing, `Modulation.output` lets
+  `PackPlayer` override tempo_mode (2 = locked: the clock sits on tc_Pu, steps change nothing), tempo_bpm, music_key,
+  music_scale, and beat_level x 0.3 while the pack's drums play (Samuel agreed). Pd: STEM_SLOTS 8, each two tables via
+  soundfiler (`[list]` after `[route]`: route leaves a path as a selector), restarted by vline~ (N / file rate, so any
+  sample rate plays at its speed) on downbeats where bar % bars == 0 (`stem_start` -> next downbeat is bar 0), level
+  taken at the downbeat and faded over a bar; stereo into in_l/in_r before the spatial stage, x `stems_level` (Mix,
+  0.8). Arrangement: pad always, bass walking/lively/loud, drums walking, lead lively or brisk (pace >= 0.6), texture
+  night/pocket/Ghost; 8 s hold per role; sections every 4 loops of the longest stem. Untested on the phone (Samuel
+  has no packs yet; the test pack was put on his phone and selected).
 - **Mic-down protection** (`pocket_guard`, main, noPreset, default 0.6; 0 = no change): Samuel found mic-end-down pockets
   rustly but mic-up pockets fine. `PhoneContext.micDown()` (gravity along +y averaged ~1 s, hysteresis 0.5/0.3) and
   AudioService sends `pocket_down` = pocket && micDown. The patch adds guard*12 dB more cut and crossfades in a 2x `hip~ 300`.

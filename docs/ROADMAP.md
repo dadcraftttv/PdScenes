@@ -57,7 +57,7 @@ Plan first, agreed with Samuel, then build; test on the phone after every step. 
    shrink away. Opposite of the current behavior (quiet room = quiet notes), so only as an option, if Samuel wants it.
 8. **(BUILT 2026-10-09: chimes thin out when lots was played in the last ~8 s) Density memory.** Generative rule sets that look at how dense the recent music has been and adapt (avoids too many
    notes in a row).
-9. **Stems player (hybrid approach).** Dimensions used stems made in a DAW, layered and faded by sensor data; all-Pd
+9. **(BUILT 2026-10-14, imported packs; see CLAUDE.md) Stems player (hybrid approach).** Dimensions used stems made in a DAW, layered and faded by sensor data; all-Pd
    synthesis was too heavy. Samuel makes synthwave stems, so the app could play his loops. Plan: ship compressed audio,
    decode once with MediaExtractor/MediaCodec into WAV in the app's cache, stream with `readsf~` (from disk, not RAM).
    Needs a size budget for the APK/AAB and a layering/fade rule set.

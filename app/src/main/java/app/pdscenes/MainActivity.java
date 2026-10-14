@@ -58,6 +58,9 @@ public class MainActivity extends Activity {
     private static final int REQ_IMPORT = 3;
     private static final int REQ_IMPORT_SCENE = 4;
     private static final int REQ_IMPORT_SCENE_FOLDER = 5;
+    private static final int REQ_IMPORT_PACK = 21;
+    private static final int REQ_IMPORT_PACK_FOLDER = 22;
+    private TextView packStatus;
 
     private final List<Row> rows = new ArrayList<>();
     /** The mover controls under each slider, greyed out while their section's movers are off. */
@@ -370,6 +373,8 @@ public class MainActivity extends Activity {
                     body -> fillEffectSection(body, section));
         }
 
+        addSection(music, "packs", getString(R.string.section_packs), false, this::fillPacksSection);
+
         // ---- Setup ----
         addAudioSection(setup);
         addDiagnosticsSection(setup);
@@ -645,6 +650,9 @@ public class MainActivity extends Activity {
         }
         if (PhoneContext.inPocket()) {
             why.add(getString(R.string.why_pocket));
+        }
+        if (AudioService.packNow() != null) {
+            why.add(getString(R.string.why_pack, AudioService.packNow()));
         }
         if (CalmBuild.level() > 0.02f) {
             why.add(getString(R.string.why_building));
@@ -1603,7 +1611,143 @@ public class MainActivity extends Activity {
             importSceneFrom(uri);
         } else if (requestCode == REQ_IMPORT_SCENE_FOLDER) {
             importSceneFolderFrom(uri);
+        } else if (requestCode == REQ_IMPORT_PACK || requestCode == REQ_IMPORT_PACK_FOLDER) {
+            importPackFrom(uri, requestCode == REQ_IMPORT_PACK_FOLDER);
         }
+    }
+
+    // ---- stem packs ----
+
+    /** Music tab: the stem pack playing with the built-in sound, and importing more. */
+    private void fillPacksSection(LinearLayout body) {
+        packStatus = new TextView(this);
+        packStatus.setTextSize(15);
+        packStatus.setPadding(0, dp(4), 0, dp(4));
+        body.addView(packStatus);
+        LinearLayout row = newButtonRow(body);
+        addButton(row, R.string.pack_choose, this::choosePack);
+        addButton(row, R.string.pack_import, () -> startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT)
+                .addCategory(Intent.CATEGORY_OPENABLE).setType("*/*"), REQ_IMPORT_PACK));
+        addButton(row, R.string.pack_import_folder, () -> startActivityForResult(
+                new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), REQ_IMPORT_PACK_FOLDER));
+        LinearLayout row2 = newButtonRow(body);
+        addButton(row2, R.string.pack_howto, () -> new AlertDialog.Builder(this).setTitle(R.string.pack_howto)
+                .setMessage(R.string.pack_howto_text).setPositiveButton(R.string.close, null).show());
+        addButton(row2, R.string.pack_delete, this::deletePack);
+        updatePackStatus();
+    }
+
+    private void updatePackStatus() {
+        if (packStatus == null) {
+            return;
+        }
+        PackLibrary.Entry e = PackLibrary.selected(this);
+        packStatus.setText(e == null ? getString(R.string.pack_none_status)
+                : getString(R.string.pack_status, e.pack.title, bpmText(e.pack.bpm),
+                e.pack.keyName(), e.pack.stems.size()));
+    }
+
+    private static String bpmText(float bpm) {
+        return bpm == Math.rint(bpm) ? Long.toString((long) bpm) : Float.toString(bpm);
+    }
+
+    private void choosePack() {
+        List<PackLibrary.Entry> packs = PackLibrary.list(this);
+        String[] items = new String[packs.size() + 1];
+        items[0] = getString(R.string.pack_none);
+        for (int i = 0; i < packs.size(); i++) {
+            PackLibrary.Entry e = packs.get(i);
+            items[i + 1] = e.pack != null ? e.title() : getString(R.string.pack_broken, e.title(), e.problem);
+        }
+        new AlertDialog.Builder(this).setTitle(R.string.pack_choose).setItems(items, (d, which) -> {
+            if (which > 0 && packs.get(which - 1).pack == null) {
+                toast(R.string.pack_cant_play, packs.get(which - 1).problem);
+                return;
+            }
+            PackLibrary.select(this, which == 0 ? null : packs.get(which - 1).dir.getName());
+            updatePackStatus();
+            restartIfBuiltIn();
+        }).setNegativeButton(android.R.string.cancel, null).show();
+    }
+
+    private void deletePack() {
+        List<PackLibrary.Entry> packs = PackLibrary.list(this);
+        if (packs.isEmpty()) {
+            toast(R.string.pack_none_to_delete);
+            return;
+        }
+        String[] items = new String[packs.size()];
+        for (int i = 0; i < items.length; i++) {
+            items[i] = packs.get(i).title();
+        }
+        new AlertDialog.Builder(this).setTitle(R.string.pack_delete).setItems(items, (d, which) ->
+                new AlertDialog.Builder(this).setMessage(getString(R.string.pack_delete_confirm, items[which]))
+                        .setPositiveButton(R.string.pack_delete, (d2, w2) -> {
+                            boolean wasPlaying = PackLibrary.selected(this) != null
+                                    && PackLibrary.selected(this).dir.equals(packs.get(which).dir);
+                            PackLibrary.delete(this, packs.get(which));
+                            updatePackStatus();
+                            if (wasPlaying) {
+                                restartIfBuiltIn();
+                            }
+                        }).setNegativeButton(android.R.string.cancel, null).show())
+                .setNegativeButton(android.R.string.cancel, null).show();
+    }
+
+    /** A pack change takes effect at once while the built-in sound runs (the sound restarts briefly). */
+    private void restartIfBuiltIn() {
+        if (AudioService.isRunning() && SceneSettings.current(this) == null) {
+            startForegroundService(new Intent(this, AudioService.class).setAction(AudioService.ACTION_RESTART));
+        }
+    }
+
+    /** Copies a pack (zip or folder) in, decodes it and checks it, off the main thread; then it plays. */
+    private void importPackFrom(Uri uri, boolean folder) {
+        toast(R.string.pack_importing);
+        new Thread(() -> {
+            File packs = PackLibrary.packsDir(this);
+            File staging = null;
+            try {
+                String name;
+                if (folder) {
+                    if (!packs.isDirectory() && !packs.mkdirs()) {
+                        throw new IOException("Cannot create " + packs);
+                    }
+                    staging = SceneLibrary.newStaging(packs);
+                    TreeImporter.copyAll(getContentResolver(), uri, staging);
+                    name = TreeImporter.treeName(getContentResolver(), uri);
+                } else {
+                    try (InputStream in = getContentResolver().openInputStream(uri)) {
+                        if (in == null) {
+                            throw new IOException(getString(R.string.err_open_file));
+                        }
+                        staging = PackLibrary.unzipToStaging(in, packs);
+                    }
+                    String last = uri.getLastPathSegment();
+                    name = last == null ? "pack" : last.replaceAll(".*[/:]", "").replaceAll("\\.zip$", "");
+                }
+                PackLibrary.Result r = PackLibrary.install(staging, name, packs);
+                runOnUiThread(() -> {
+                    PackLibrary.select(this, r.entry.dir.getName());
+                    updatePackStatus();
+                    String msg = getString(R.string.pack_imported, r.entry.title(), r.entry.pack.stems.size());
+                    if (!r.warnings.isEmpty()) {
+                        msg += "\n\n" + getString(R.string.pack_warnings) + "\n\u2022 " + String.join("\n\u2022 ", r.warnings);
+                    }
+                    new AlertDialog.Builder(this).setTitle(R.string.pack_import_done).setMessage(msg)
+                            .setPositiveButton(R.string.close, null).show();
+                    restartIfBuiltIn();
+                });
+            } catch (IOException | RuntimeException e) {
+                String why = e.getMessage();
+                runOnUiThread(() -> new AlertDialog.Builder(this).setTitle(R.string.pack_import_failed)
+                        .setMessage(why).setPositiveButton(R.string.close, null).show());
+            } finally {
+                if (staging != null) {
+                    SceneLibrary.deleteRecursively(staging);
+                }
+            }
+        }).start();
     }
 
     private void exportTo(Uri uri) {

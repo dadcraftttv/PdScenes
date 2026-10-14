@@ -34,6 +34,14 @@ final class StepDetector {
     private static final double STEADY_DEV = 0.15;   // within 15% of the usual interval counts as steady...
     private static final double BREAK_DEV = 0.30;    // ...more than 30% off (a stumble, a new pace) starts over
     private static double avgInterval;
+
+    /** How brisk the walk is: 0 = a stroll (1 step a second or slower) .. 1 = brisk (2.6 steps a second), as the patch's pace. */
+    static synchronized float pace() {
+        if (avgInterval <= 0) {
+            return 0;
+        }
+        return (float) Math.max(0, Math.min(1, (1 / Math.max(avgInterval, 0.25) - 1) / 1.6));
+    }
     private static double steadyS;
     // Extra bumps (a scuff, a heel and toe, the phone knocking in a pocket) come much sooner than the next step would.
     // They are skipped, so the drums don't stumble. If skipped bumps fall about halfway between steps, the pace

@@ -59,6 +59,20 @@ final class TreeImporter {
         return result;
     }
 
+    /** Copies the whole picked folder into {@code dest} (a stem pack: the caller finds pack.txt in it). */
+    static void copyAll(ContentResolver resolver, Uri tree, File dest) throws IOException {
+        if (!dest.mkdirs()) {
+            throw new IOException("Cannot create " + dest);
+        }
+        TreeImporter importer = new TreeImporter(resolver, tree, dest);
+        importer.copyInto(DocumentsContract.getTreeDocumentId(tree), dest);
+    }
+
+    /** The picked folder's own name. */
+    static String treeName(ContentResolver resolver, Uri tree) {
+        return new TreeImporter(resolver, tree, null).nameOf(DocumentsContract.getTreeDocumentId(tree));
+    }
+
     /** Copies {@code dir} as a scene if it holds _main.pd; otherwise looks in its sub-folders. */
     private void visit(Doc dir, int depth, Result result) {
         List<Doc> children = children(dir.id);

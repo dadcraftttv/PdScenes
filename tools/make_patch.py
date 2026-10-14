@@ -37,7 +37,7 @@ DEFAULTS = [
     ("music_on", 0), ("music_key", 0), ("music_scale", 0), ("music_pad", 0.33), ("music_arp", 0.4),
     ("music_tone", 0.5), ("music_react", 0.8), ("music_res", 0.8), ("music_harm", 0.6), ("beat_follow", 1), ("beat_when", 1), ("rhythm_src", 1), ("melody_src", 1), ("harm_src", 1), ("pad_src", 1), ("bass_src", 0), ("tempo_mode", 0), ("tempo_bpm", 100), ("chime_char", 0.5), ("res_src", 1), ("cue_sound", 1), ("beat_glitch", 0.4), ("gate_attack", 5), ("gate_hold", 0), ("gate_release", 80), ("comp_attack", 40),
     ("comp_release", 40), ("music_drift", 1), ("echo_scatter", 0.5), ("gc_amount", 0), ("gc_level", 0.7), ("gc_pct_stutter", 35), ("gc_pct_reverse", 25),
-    ("gc_pct_shuffle", 20), ("gc_pct_stretch", 20), ("music_pad_reg", 2), ("pocket_hush", 0.5), ("pocket_guard", 0.6), ("handling_hush", 0.5), ("intensity", 0.5), ("mix_kick", 1), ("mix_bass", 1), ("mix_chimes", 1), ("mix_walk", 1), ("mix_ring", 1), ("mix_bells", 1), ("reverb_rev", 0),
+    ("gc_pct_shuffle", 20), ("gc_pct_stretch", 20), ("music_pad_reg", 2), ("pocket_hush", 0.5), ("pocket_guard", 0.6), ("handling_hush", 0.5), ("intensity", 0.5), ("mix_kick", 1), ("mix_bass", 1), ("mix_chimes", 1), ("mix_walk", 1), ("mix_ring", 1), ("mix_bells", 1), ("reverb_rev", 0), ("stems_level", 0.8),
 ]
 
 # Scales as semitone steps above the key note. The patch snaps every note it plays to these.
@@ -281,6 +281,8 @@ RR_FADE_OUT_MS = 20         # ...and closes this fast at the moment of the sound
 RR_LEAD_MS = 25             # the read ends this long before the sound was noticed (~60 ms after it started: meter,
                             # handling check), at the reverb's first echo (~30 ms after the sound), so the loudest moment is on time
 RR_GAIN = 1.5               # its level at reverb_rev 1 (the windows and the backwards tail lose a little)
+STEM_SLOTS = 8              # a stem pack plays up to this many loops at once
+STEM_GAIN = 1.0             # stems at Stems level 1 play as loud as the files (their own mix)
 CALM_CHIME_P = 40           # a calm build at its peak: a standing-still chime about every 6 s even in a quiet room
 INT_DRIVE = 0.6             # Intensity 0..1 moves the beat's drive by -0.3..+0.3 (calmer / busier patterns)
 HND_HUSH_DB = 24            # handling hush at 1 turns the mic down this much at full handling (the app's 0-1 level)
@@ -564,6 +566,9 @@ def add_tempo_clock(P):
     near = f"({iv})*pow(2,rint(ln(tc_Pu/({iv}))/ln(2)))"
     newP = f"if(tc_mode==1,$f3+{TEMPO_NUDGE}*((1-{TEMPO_WALK_PULL})*tc_Pu+{TEMPO_WALK_PULL}*{near}-$f3),{newP})"
     newN = f"if(tc_mode==1,max($f4,$f1+1),{newN})"
+    # tempo_mode 2 = locked to a stem pack's BPM: exactly tc_Pu, and steps move neither the tempo nor the beat
+    newP = f"if(tc_mode==2,tc_Pu,{newP})"
+    newN = f"if(tc_mode==2,max($f4,$f1+1),{newN})"
     ex("tc_calc", f"{newP} ; {newN} ; {iv} ; $f1".replace(" ; ", " " + BS + "; "), x + 200, y + 150)
     # inlets: $f1 now (hot, last), $f2 interval s, $f3 P, $f4 N, $f5 B, $f6 L
     P.c("tc_step_t", "tc_calc", 1, 1)
@@ -594,7 +599,7 @@ def add_tempo_clock(P):
     P.c("tc_beat", "tc_timer2", 3, 1)
     P.c("tc_beat", "tc_bI", 2, 0); P.c("tc_beat", "tc_bL", 2, 0); P.c("tc_beat", "tc_bP", 1, 0); P.c("tc_beat", "tc_bN", 0, 0)
     walk = "(($f3-$f4<1.25*$f5)*($f5>0))"
-    pe = f"if(tc_mode==1&&{walk}==0,$f2+(tc_Pu-$f2)*{TEMPO_RETURN},$f2)"       # (Set, standing: back toward your BPM)
+    pe = f"if(tc_mode==2,tc_Pu,if(tc_mode==1&&{walk}==0,$f2+(tc_Pu-$f2)*{TEMPO_RETURN},$f2))"   # (Set, standing: back toward your BPM; locked: at once)
     ex("tc_next", f"$f1 ; $f1+{pe} ; max({pe},{CLOCK_MIN_MS}) ; {walk} ; 60000/max({pe},1) ; {pe}".replace(" ; ", " " + BS + "; "), x, y + 380)
     P.obj("tc_wP2", "value tc_P", x + 400, y + 400); P.c("tc_next", "tc_wP2", 5, 0)
     P.obj("tc_r_tm", "r tempo_mode", x + 900, y); P.obj("tc_v_tm", "value tc_mode", x + 900, y + 20); P.c("tc_r_tm", "tc_v_tm")
@@ -3265,6 +3270,71 @@ def add_reverse_reverb(P, x=2600, y=1300):
     return P.sig2("rr_out", "*~", "rr_sound", "rr_gain", x + 150, y + 410)
 
 
+def add_stems(P, x=3200, y=1300):
+    """The stems player (Samuel, Oct 14): a pack's loops, up to STEM_SLOTS, each held in two tables (left, right) and
+    restarted exactly on the tempo clock's downbeat every `bars` bars, so they stay locked to the beat (the app locks
+    the clock to the pack's BPM: tempo_mode 2). Each plays at its file's own speed (the vline~ ramp lasts N / file
+    rate). The app sends: stem_file <slot> <path> (loads; a mono file plays on both sides), stem_bars <slot> <bars>,
+    stem_lvl <slot> <level> (taken at the next downbeat, faded over one bar), stem_start (the next downbeat is bar 0),
+    stem_on 0/1 (DSP). Out: stems_l, stems_r, times stems_level (Mix)."""
+    ex = lambda n, t, xx, yy: P.obj(n, "expr " + t.replace(",", BS + ",").replace("$", BS + "$").replace(" ; ", " " + BS + "; "), xx, yy)
+    # the bar count: each downbeat (tick16 0) counts one; stem_start makes the next one bar 0
+    P.obj("st_tick", "r tick16", x, y); P.obj("st_down", "sel 0", x, y + 15); P.c("st_tick", "st_down")
+    P.obj("st_bar", "f -1", x, y + 30); P.obj("st_inc", "+ 1", x + 50, y + 30)
+    P.c("st_down", "st_bar"); P.c("st_bar", "st_inc"); P.c("st_inc", "st_bar", 0, 1)
+    P.obj("st_r_start", "r stem_start", x + 100, y); P.msg("st_m1", "-1", x + 100, y + 15)
+    P.c("st_r_start", "st_m1"); P.c("st_m1", "st_bar", 0, 1)
+    P.obj("st_barv", "value st_barn", x + 100, y + 45); P.c("st_inc", "st_barv")
+    P.obj("st_go", "t b", x, y + 60); P.c("st_inc", "st_go")
+    P.obj("st_r_file", "r stem_file", x + 200, y); P.obj("st_r_bars", "r stem_bars", x + 300, y)
+    P.obj("st_r_lvl", "r stem_lvl", x + 400, y)
+    idx = " ".join(str(i) for i in range(STEM_SLOTS))
+    P.obj("st_rt_file", f"route {idx}", x + 200, y + 15); P.c("st_r_file", "st_rt_file")
+    P.obj("st_rt_bars", f"route {idx}", x + 300, y + 15); P.c("st_r_bars", "st_rt_bars")
+    P.obj("st_rt_lvl", f"route {idx}", x + 400, y + 15); P.c("st_r_lvl", "st_rt_lvl")
+    lefts, rights = [], []
+    for i in range(STEM_SLOTS):
+        sx, sy = x + 220 * i, y + 100
+        P.obj(f"st{i}_tl", f"table stl{i} 1", sx, sy); P.obj(f"st{i}_tr", f"table str{i} 1", sx + 100, sy)
+        # loading: the file's samples into the two tables; its length, rate and channels kept
+        P.obj(f"st{i}_ls", "list", sx, sy + 10); P.c("st_rt_file", f"st{i}_ls", i, 0)   # ([route] leaves the path as a selector)
+        P.msg(f"st{i}_rd", f"read -resize {BS}$1 stl{i} str{i}", sx, sy + 20); P.c(f"st{i}_ls", f"st{i}_rd")
+        P.obj(f"st{i}_sf", "soundfiler", sx, sy + 40); P.c(f"st{i}_rd", f"st{i}_sf")
+        P.obj(f"st{i}_N", f"value stN{i}", sx, sy + 60); P.c(f"st{i}_sf", f"st{i}_N")
+        P.obj(f"st{i}_info", "unpack f f f", sx + 60, sy + 60); P.c(f"st{i}_sf", f"st{i}_info", 1, 0)
+        P.obj(f"st{i}_R", f"value stR{i}", sx + 60, sy + 80); P.c(f"st{i}_info", f"st{i}_R", 0, 0)
+        P.obj(f"st{i}_chs", "sel 1", sx + 140, sy + 80); P.c(f"st{i}_info", f"st{i}_chs", 2, 0)
+        P.msg(f"st{i}_mono", f"set stl{i}", sx + 140, sy + 95); P.msg(f"st{i}_ster", f"set str{i}", sx + 190, sy + 95)
+        P.c(f"st{i}_chs", f"st{i}_mono", 0, 0); P.c(f"st{i}_chs", f"st{i}_ster", 1, 0)
+        P.obj(f"st{i}_B", f"value stB{i}", sx, sy + 110); P.c("st_rt_bars", f"st{i}_B", i, 0)
+        P.obj(f"st{i}_T", f"value stT{i}", sx + 60, sy + 110); P.c("st_rt_lvl", f"st{i}_T", i, 0)
+        # on a downbeat: restart if this stem's loop begins here (bar % bars == 0), and take the new level
+        P.obj(f"st{i}_t", "t b b", sx, sy + 130); P.c("st_go", f"st{i}_t")
+        ex(f"st{i}_now", f"(fmod(st_barn,max(stB{i},1))==0)*(stN{i}>0)", sx, sy + 150); P.c(f"st{i}_t", f"st{i}_now", 0, 0)
+        P.obj(f"st{i}_sel", "sel 1", sx, sy + 165); P.c(f"st{i}_now", f"st{i}_sel")
+        ex(f"st{i}_play", f"stN{i}+1 ; stN{i}/max(stR{i},1)*1000", sx, sy + 180); P.c(f"st{i}_sel", f"st{i}_play")
+        P.obj(f"st{i}_pk", "pack f f", sx, sy + 195)
+        P.c(f"st{i}_play", f"st{i}_pk", 1, 1); P.c(f"st{i}_play", f"st{i}_pk", 0, 0)
+        P.msg(f"st{i}_ramp", f"1 {BS}, {BS}$1 {BS}$2", sx, sy + 210); P.c(f"st{i}_pk", f"st{i}_ramp")
+        P.obj(f"st{i}_ix", "vline~", sx, sy + 225); P.c(f"st{i}_ramp", f"st{i}_ix")
+        ex(f"st{i}_lv", f"stT{i} ; 4*max(tc_P,100)", sx + 100, sy + 150); P.c(f"st{i}_t", f"st{i}_lv", 1, 0)
+        P.obj(f"st{i}_lk", "pack f f", sx + 100, sy + 165)
+        P.c(f"st{i}_lv", f"st{i}_lk", 1, 1); P.c(f"st{i}_lv", f"st{i}_lk", 0, 0)
+        P.obj(f"st{i}_ln", "line~", sx + 100, sy + 180); P.c(f"st{i}_lk", f"st{i}_ln")
+        P.obj(f"st{i}_rl", f"tabread4~ stl{i}", sx, sy + 245); P.c(f"st{i}_ix", f"st{i}_rl")
+        P.obj(f"st{i}_rr", f"tabread4~ str{i}", sx + 80, sy + 245); P.c(f"st{i}_ix", f"st{i}_rr")
+        P.c(f"st{i}_mono", f"st{i}_rr"); P.c(f"st{i}_ster", f"st{i}_rr")
+        lefts.append(P.sig2(f"st{i}_ol", "*~", f"st{i}_rl", f"st{i}_ln", sx, sy + 265))
+        rights.append(P.sig2(f"st{i}_or", "*~", f"st{i}_rr", f"st{i}_ln", sx + 80, sy + 265))
+    for side, outs in (("l", lefts), ("r", rights)):
+        acc = outs[0]
+        for k, o in enumerate(outs[1:]):
+            acc = P.sig2(f"st_sum{side}{k}", "+~", acc, o, x + 60 * k, y + 420 + (20 if side == "r" else 0))
+        P.sig2(f"st_mix_{side}", "*~", acc, "ln_stems_level", x, y + 460 + (20 if side == "r" else 0))
+        P.obj(f"stems_{side}", f"*~ {STEM_GAIN}", x, y + 500 + (20 if side == "r" else 0)); P.c(f"st_mix_{side}", f"stems_{side}")
+    smoothed(P, "stems_level", "stems_level", x + 500, y)
+
+
 def add_clip_watch(P, x=2200, y=20):
     """On-screen diagnostics: once a second, how many ~12 ms stretches (CLIP_WINDOW samples) held a sample at or
     over full scale, for three places: the mic as it arrives (the phone's own mic overloading, harsh, and Input gain
@@ -3994,8 +4064,10 @@ def build():
         P.sig2(f"in_{side}0", "+~", "mix_out", f"rev_{side}", x0 + 400, 1200)
         P.sig2(f"in_{side}1", "+~", f"in_{side}0", gc_l if side == "l" else gc_r, x0 + 400, 1210)
         P.sig2(f"in_{side}2", "+~", f"in_{side}1", "rr_out", x0 + 400, 1215)   # (reverse reverb, below)
-        P.sig2(f"in_{side}", "+~", f"in_{side}2", f"wet_{side}", x0 + 400, 1220)
+        P.sig2(f"in_{side}3", "+~", f"in_{side}2", f"stems_{side}", x0 + 400, 1218)   # (a stem pack, below)
+        P.sig2(f"in_{side}", "+~", f"in_{side}3", f"wet_{side}", x0 + 400, 1220)
     add_reverse_reverb(P)
+    add_stems(P)
 
     # --- spatial: ear delay (time difference between the ears), then pan, then output ---
     # Positive 'space_shift' delays the right ear, so the sound seems to come from the left
@@ -4133,6 +4205,8 @@ def build():
     P.group("reverb", r"^(c[lr]\d+_|c[lr]_acc\d|a[lr]\d_|rev_in$|rev_[lr]$|pk_rfb$|ln_rfb$|pk_rin$|ln_rin$)")
     add_switch(P, "reverb", ("reverb_on", "reverb_mix"), 300)
     P.group("revrev", r"^rr_(src0|src|wr|rd|sound)$")                     # reverse reverb
+    P.group("stems", r"^st(\d+_(ix|rl|rr|ln|ol|or)|_sum[lr]\d+|_mix_[lr])$")   # a stem pack's audio: on while one plays
+    add_switch(P, "stems", ("stem_on", "stems_level"), 300)
     add_switch(P, "revrev", ("reverb_on", "reverb_mix", "reverb_rev"), 300)
     P.group("pitch", r"^(rate_hz|ph1|ph2|ph2_off|delwrite_p|tap[12]_\w+|rd[12]|cos[12]|cos[12]_neg|win[12]|grain[12]|shifted)$")
     add_switch(P, "pitch", ("pitch_on", "pitch_mix"), 300)

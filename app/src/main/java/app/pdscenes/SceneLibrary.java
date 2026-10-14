@@ -184,7 +184,7 @@ final class SceneLibrary {
         return describe(target);
     }
 
-    private static void unzip(InputStream in, File dest) throws IOException {
+    static void unzip(InputStream in, File dest) throws IOException {
         if (!dest.mkdirs()) {
             throw new IOException("Cannot create " + dest);
         }

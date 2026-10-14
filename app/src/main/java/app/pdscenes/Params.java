@@ -195,6 +195,9 @@ final class Params {
             // ---- Mix (Samuel, Oct 13): a level for every part, 0 = taken out. The x trims sit inside their group's
             // level (Beat level, Pad level, Notes and chimes level, Room notes): 1 = as before. Saved in presets
             // (older presets leave them as they are), never randomized.
+            // A stem pack's loops (your own tracks), as a whole. 0.8 leaves room for the found sounds on top.
+            new Param("stems_level", "Stems level (a stem pack, see Stem packs)", 0f, 1.5f, 0.8f, "", Param.Curve.LINEAR)
+                    .inSection("mix").noRandom(),
             new Param("mix_kick", "Kick", 0f, 1.5f, 1f, "x", Param.Curve.LINEAR)
                     .inSection("mix").noRandom(),   // synth and found kicks
             new Param("beat_snare", "Snare level", 0f, 1f, 0.6f, "", Param.Curve.LINEAR)

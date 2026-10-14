@@ -221,6 +221,7 @@ public class AudioService extends Service {
                     calmChimesSent = chimes;
                     PdBase.sendFloat("calm_chimes", chimes);
                 }
+                tickPack(dt, nowS);
                 int scale = Math.round(ParamStore.get("music_scale"));
                 if (noteRegister.tick(dt, PhoneContext.brightness(), PhoneContext.inPocket(), PhoneContext.climb(),
                         SCALE_SIZES[Math.max(0, Math.min(SCALE_SIZES.length - 1, scale))],
@@ -736,7 +737,17 @@ public class AudioService extends Service {
                     scene != null ? scene.name : SCENE_FILE), e);
         }
 
+        // a stem pack (the built-in sound only): its tempo, key and beat take over on the way to Pd, then its loops load
+        PackLibrary.Entry packEntry = scene == null ? PackLibrary.selected(this) : null;
+        if (packEntry != null) {
+            PackPlayer.start(packEntry.pack);
+        } else {
+            PackPlayer.stop();
+        }
         ParamStore.sendAllToPd();
+        if (packEntry != null) {
+            loadPack(packEntry);
+        }
         sceneRunning = scene != null;
         if (scene != null) {
             sendSceneLevels(this);
@@ -782,6 +793,76 @@ public class AudioService extends Service {
         Log.i(TAG, "Audio started, asked for " + sampleRate + " Hz, got " + actualRate + " Hz");
         logEvent(scene == null ? "Audio started (built-in effects)" : "Audio started (scene)");
     }
+
+    private StemArrangement arrangement;
+    private float[] stemLevels;
+    private static volatile String packNow;
+
+    /** The stem pack playing and its roles now ("Neon Drive: pad, bass"), or null. */
+    static String packNow() {
+        return packNow;
+    }
+
+    /** Loads a pack's loops into the patch's stem slots; they start together at the next downbeat. */
+    private void loadPack(PackLibrary.Entry e) {
+        StemPack p = e.pack;
+        for (int i = 0; i < p.stems.size(); i++) {
+            StemPack.Stem s = p.stems.get(i);
+            PdBase.sendList("stem_file", (float) i, PackLibrary.playable(e.dir, s).getAbsolutePath());
+            PdBase.sendList("stem_bars", (float) i, (float) s.bars);
+            PdBase.sendList("stem_lvl", (float) i, 0f);
+        }
+        PdBase.sendFloat("stem_on", 1f);
+        PdBase.sendBang("stem_start");
+        arrangement = new StemArrangement(p);
+        stemLevels = new float[p.stems.size()];
+        java.util.Arrays.fill(stemLevels, -1f);
+        packNow = p.title;
+        logEvent("Stem pack: " + p.title + " (" + p.bpm + " BPM, " + p.keyName() + ", " + p.stems.size() + " stems)");
+    }
+
+    /** Each tick: which stems play now (the patch takes a change at the next downbeat). */
+    private void tickPack(double dt, double nowS) {
+        StemPack p = PackPlayer.pack();
+        if (arrangement == null || p == null) {
+            return;
+        }
+        StemArrangement.Situation s = new StemArrangement.Situation();
+        s.walking = StepDetector.walking(nowS);
+        s.pace = StepDetector.pace();
+        s.lively = Worlds.roomLively();
+        s.loud = Worlds.roomLoud();
+        s.night = minuteOfDay >= WorldSelector.NIGHT_START_MINUTE && minuteOfDay < WorldSelector.NIGHT_END_MINUTE;
+        s.pocket = PhoneContext.inPocket();
+        s.realm = Worlds.currentWorld();
+        float[] lv = arrangement.tick(dt, s);
+        float drums = 0;
+        StringBuilder roles = new StringBuilder();
+        for (int i = 0; i < lv.length; i++) {
+            if (lv[i] != stemLevels[i]) {
+                stemLevels[i] = lv[i];
+                PdBase.sendList("stem_lvl", (float) i, lv[i]);
+            }
+            StemPack.Stem st = p.stems.get(i);
+            if (lv[i] > 0) {
+                if ("drums".equals(st.role)) {
+                    drums = 1;
+                }
+                if (roles.indexOf(st.role) < 0) {
+                    roles.append(roles.length() == 0 ? "" : ", ").append(st.role);
+                }
+            }
+        }
+        packNow = p.title + (roles.length() > 0 ? ": " + roles : "");
+        Param beat = Params.byId("beat_level");
+        if (beat != null && drums != lastPackDrums) {
+            lastPackDrums = drums;
+            PackPlayer.setDrums(drums);   // the app's own beat steps back while the pack's drums play
+            PdBase.sendFloat("beat_level", Modulation.output(beat, ParamStore.get("beat_level")));
+        }
+    }
+
+    private float lastPackDrums = -1;
 
     /** The rate Pd really runs at; 0 if the library can't say (PdBase.audioRuntimeInfo is newer than rc6). */
     private static int queryActualRate() {
@@ -862,6 +943,10 @@ public class AudioService extends Service {
         running = false;
         outputLost = false;
         SceneGraphics.SCENE.clear();
+        PackPlayer.stop();
+        arrangement = null;
+        packNow = null;
+        lastPackDrums = -1;
         handler.removeCallbacks(afterHeadphonesLost);
         getSystemService(AudioManager.class).unregisterAudioDeviceCallback(outputWatcher);
         getSystemService(AudioManager.class).unregisterAudioPlaybackCallback(playbackWatcher);
