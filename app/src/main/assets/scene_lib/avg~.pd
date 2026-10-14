@@ -1,0 +1,15 @@
+#N canvas 0 50 450 240 10;
+#X text 20 10 [avg~]: the average size of a signal \, as a number about every 10 ms - a PdScenes stand-in for zexy's avg~.;
+#X obj 20 60 inlet~;
+#X obj 20 90 abs~;
+#X obj 20 120 lop~ 50;
+#X obj 120 60 loadbang;
+#X obj 120 90 metro 10;
+#X obj 20 150 snapshot~;
+#X obj 20 180 outlet;
+#X connect 1 0 2 0;
+#X connect 2 0 3 0;
+#X connect 3 0 6 0;
+#X connect 4 0 5 0;
+#X connect 5 0 6 0;
+#X connect 6 0 7 0;

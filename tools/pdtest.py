@@ -67,15 +67,28 @@ class Engine:
         L.libpd_is_float.argtypes = [ctypes.c_void_p]
         L.libpd_get_float.argtypes = [ctypes.c_void_p]
         L.libpd_get_float.restype = ctypes.c_float
+        L.libpd_is_symbol.argtypes = [ctypes.c_void_p]
+        L.libpd_get_symbol.argtypes = [ctypes.c_void_p]
+        L.libpd_get_symbol.restype = ctypes.c_char_p
+        L.libpd_next_atom.argtypes = [ctypes.c_void_p]
+        L.libpd_next_atom.restype = ctypes.c_void_p
         def on_list(src, argc, argv):
             if argc == 1 and L.libpd_is_float(argv):
                 self.heard.setdefault(src.decode(), []).append(L.libpd_get_float(argv))
+            # every list whole, too, in self.lists (floats and symbols)
+            atoms, a = [], argv
+            for _ in range(argc):
+                atoms.append(L.libpd_get_float(a) if L.libpd_is_float(a) else
+                             (L.libpd_get_symbol(a).decode() if L.libpd_is_symbol(a) else None))
+                a = L.libpd_next_atom(a)
+            self.lists.setdefault(src.decode(), []).append(atoms)
         self._list_hook = LIST(on_list)
         L.libpd_set_listhook.argtypes = [LIST]
         L.libpd_set_listhook(self._list_hook)
         L.libpd_bind.argtypes = [ctypes.c_char_p]
         L.libpd_bind.restype = ctypes.c_void_p
         self._bound = []
+        self.lists = {}
         for name in names:
             self._bound.append(L.libpd_bind(name.encode()))
             self.heard[name] = []

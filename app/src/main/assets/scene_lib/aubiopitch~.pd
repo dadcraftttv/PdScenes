@@ -1,0 +1,16 @@
+#N canvas 0 50 520 280 10;
+#X text 20 10 [aubiopitch~]: the pitch heard \, as a MIDI note \, about 20 times a second (nothing while unpitched) - a PdScenes stand-in for the aubio external \, built on sigmund~.;
+#X obj 20 60 inlet~;
+#X obj 20 100 sigmund~ -hop 2048 -npts 2048 pitch env;
+#X obj 20 140 moses 1;
+#X obj 120 140 f;
+#X obj 200 140 > 50;
+#X obj 120 170 spigot;
+#X obj 120 200 outlet;
+#X connect 1 0 2 0;
+#X connect 2 0 3 0;
+#X connect 2 1 5 0;
+#X connect 3 1 4 0;
+#X connect 4 0 6 0;
+#X connect 5 0 6 1;
+#X connect 6 0 7 0;

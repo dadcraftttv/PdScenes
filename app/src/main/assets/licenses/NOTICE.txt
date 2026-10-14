@@ -16,7 +16,7 @@ inside the app under *About and licenses*.
   and Vocoder by the RjDj team), from rjdj/rjlib examplescenes
     Licence: GPLv3 (each scene carries its LICENSE.txt)
     Where: assets/builtin_scenes/
-- Helper abstractions closebang, rj_compass, rj_loc, rj_text, rj_time, rjdj and rj_image, from PdParty by Dan Wilcox
+- Helper abstractions closebang, rj_compass, rj_loc, rj_time and rjdj, from PdParty by Dan Wilcox
   (Copyright 2011-2023)
     Licence: Simplified BSD (pdparty-LICENSE.txt)
     Where: assets/scene_lib/

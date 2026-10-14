@@ -95,6 +95,8 @@ public class AudioService extends Service {
     private static final int[] kitCaught = new int[3];
     /** The last judged slice's levels (dBFS: all, lows, highs), logged with its catch. */
     private static final String FS_LEVELS = "fs_levels";
+    /** A scene's [rj_image] and [rj_text] objects report here (scene_lib), drawn by ScenePad. */
+    private static final String SCENE_GFX = "rj_gfx";
     /** Overload counts from the patch, once a second (diagnostics): the mic as it arrives, after Input gain, output. */
     private static final String CLIP_IN = "diag_clip_in", CLIP_GAIN = "diag_clip_gain", CLIP_OUT = "diag_clip_out";
     private static final ClipWatch clips = new ClipWatch();
@@ -600,6 +602,10 @@ public class AudioService extends Service {
 
             @Override
             public void receiveList(String source, Object... args) {
+                if (SCENE_GFX.equals(source)) {   // a scene's on-screen image or text (rj_image, rj_text)
+                    SceneGraphics.SCENE.apply(args);
+                    return;
+                }
                 if (FS_LEVELS.equals(source) && args.length == 3) {
                     float all = ((Number) args[0]).floatValue() - 100;   // (Pd's dB: 100 = full scale)
                     float lo = ((Number) args[1]).floatValue() - 100;
@@ -629,6 +635,8 @@ public class AudioService extends Service {
         PdBase.subscribe(FS_CAUGHT);
         PdBase.subscribe(FS_LEVELS);
         PdBase.subscribe(FPAD_CAUGHT);
+        PdBase.subscribe(SCENE_GFX);
+        SceneGraphics.SCENE.clear();   // a new patch starts with nothing on screen
         PdBase.subscribe(CLIP_IN);
         PdBase.subscribe(CLIP_GAIN);
         PdBase.subscribe(CLIP_OUT);
@@ -853,6 +861,7 @@ public class AudioService extends Service {
         }
         running = false;
         outputLost = false;
+        SceneGraphics.SCENE.clear();
         handler.removeCallbacks(afterHeadphonesLost);
         getSystemService(AudioManager.class).unregisterAudioDeviceCallback(outputWatcher);
         getSystemService(AudioManager.class).unregisterAudioPlaybackCallback(playbackWatcher);

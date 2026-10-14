@@ -26,6 +26,7 @@ There are two ways to use it:
 - A small dot shows which sliders a mover is moving.
 - **Welcome pages** on a new install, and **a quiet start**: a new install has everything off (the echo too), so you hear only the room until you turn things on.
 - **Calm builds** (Music, off at first): standing still somewhere calm, the music slowly grows a layer at a time, then eases back.
+- **Scenes show their pictures and words** on the touch pad, and a few more imported scenes load completely.
 - **Reverse reverb** (Reverb section, and in the Ghost realm): sounds come back as rising swells, landing on the beat while the Rhythm plays.
 - **Mix** (Music tab): a level for every part of the music and rhythm, saved with your presets, so you can turn any part down or out.
 - **Intensity** in the bottom card: calmer to the left, busier to the right, your own settings in the middle.
@@ -368,7 +369,7 @@ Please tell me whether Realms change too early, too late, or not at all, and wha
 
 ## The Scenes tab
 
-A scene is a ready-made experience from the original RjDj. While a scene is playing it replaces the built-in effects, so the Sound, Music and Realms tabs are paused. Press **Choose scene** to pick one, and **Choose scene > Built-in effects** to go back. **Import zip** and **Import folder** add scenes you already have. With a scene chosen, its touch pad shows the scene's picture, and fingers on it are sent to the scene.
+A scene is a ready-made experience from the original RjDj. While a scene is playing it replaces the built-in effects, so the Sound, Music and Realms tabs are paused. Press **Choose scene** to pick one, and **Choose scene > Built-in effects** to go back. **Import zip** and **Import folder** add scenes you already have. With a scene chosen, its touch pad shows the scene's picture, and fingers on it are sent to the scene. Scenes that show their own pictures and words on screen (for example Smile, Moogarina or Showtime, if you have them) now draw them on the pad: buttons lighting up, note names, labels.
 
 The app includes four official example scenes made by the RjDj team (used under their open-source license):
 
@@ -426,6 +427,7 @@ Thank you for trying this. Anything you notice is useful, even "it felt weird." 
 - **Crashes or freezes:** what you were doing just before.
 - **Movers:** do the tilt, shake, spin, compass, light, pocket and stairs movements feel right? Does a sensor seem to be missing on your phone?
 - **Intensity:** try both ends while you walk. Is the left end calm without going dead, and the right end busy without turning into a mess? Is the middle the sound you set up?
+- **Scenes with pictures:** if you have scenes that draw on screen (Smile, Moogarina, MoonBootSynthPad, Showtime, TouchVocoder, Atsuke), do their pictures and words appear in the right places and change as you play?
 - **Calm builds:** switch it on and stand somewhere calm for five minutes or so. Does the build feel gradual and natural? Is the top too much or too little? Does it get out of the way quickly when you start walking?
 - **Handling:** tap, grip and rub the phone while it plays. Are those sounds quieter, and do they stay out of the beat and the chimes (Diagnostics counts the skipped ones)? Walk holding the phone: does the found-sound beat still pick up the sounds around you? Clap and knock nearby with the phone still: are those still caught?
 - **Pocket:** with the phone in a pocket, both mic end up and mic end down, how much cloth noise do you hear? Can you still hear the world around you? Which Pocket hush and Mic-down protection settings worked for you?

@@ -18,6 +18,9 @@ inside themselves and player-provided abstractions one or two folders up.
 - Sensor/event receivers (sent into Pd by name): `#accelerate`, `#touch`, `#gyro`, `#compass`, `#loc`,
   `#time`, `#magnet`, `#transport`, `#volume`, `#micvolume`, `#closebang`.
 - Optional: `rj_image` / `rj_text` (on-screen image and text from the scene), `rj_compass`, `rj_loc`, `rj_time`.
+  PdScenes: `rj_image file` / `rj_text words` send `rj_gfx <$0> <command> ...` (at load `image <file>` / `text
+  <words>`, then visible, move x y = centre on the 320 grid, alpha, rotate, scale, size, text); images start hidden,
+  texts shown. Scenes hide things by moving them to 500 500.
 - Sample rate: RjDj scenes assume 22050 Hz (PdParty `RJ_SAMPLERATE`); check before relying on timing.
 - iPhone-only assumptions: portrait orientation, accelerometer axes. These need mapping on Android.
 

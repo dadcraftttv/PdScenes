@@ -1,3 +1,15 @@
-#N canvas 77 42 629 362 10;
-#X obj 13 12 inlet;
-#X text 31 57 dummy [rj_image];
+#N canvas 77 42 520 300 10;
+#X text 20 10 [rj_image file.png]: shows an image from the scene folder on the scene pad (a 320 x 320 grid) - PdScenes. Messages: visible 0/1 \, move x y (its centre) \, alpha 0-1 \, scale sx sy \, rotate degrees. It starts hidden.;
+#X obj 20 80 inlet;
+#X obj 160 80 loadbang;
+#X obj 160 110 symbol \$1;
+#X obj 160 140 list prepend image;
+#X obj 20 180 list prepend \$0;
+#X obj 20 210 list trim;
+#X obj 20 240 s rj_gfx;
+#X connect 1 0 5 0;
+#X connect 2 0 3 0;
+#X connect 3 0 4 0;
+#X connect 4 0 5 0;
+#X connect 5 0 6 0;
+#X connect 6 0 7 0;

@@ -21,9 +21,17 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
 - `app/src/main/assets/builtin_scenes/` — the four official RjDj example scenes (GPLv3), copied to the scenes folder on first start by
   `SceneLibrary.installBuiltIns`. Their `rj/` folders keep only files that differ from `scene_lib/rj`. Reset everything restores deleted ones.
   `scene_lib/rj/s_fplaytable.pd` carries a fix for current Pd (`[list split]` output order); keep it when refreshing rjlib.
-- Player-side helpers for scenes live in `scene_lib/`: `closebang`, `rj_time`, `rj_compass`, `rj_loc`, `rj_text`, `rjdj` (from PdParty, BSD) and the `rj_image` in `scene_lib/rj`.
+- Player-side helpers for scenes live in `scene_lib/`: `closebang`, `rj_time`, `rj_compass`, `rj_loc`, `rjdj` (from PdParty, BSD), our own `rj_text` and `scene_lib/rj/rj_image`,
+  and stand-ins for externals some imported scenes use: `declip`, `avg~`, `aubiopitch~` (sigmund~, MIDI out) and a silent `keys`.
   `SceneEvents` answers their `#pdparty` requests (time); compass is streamed all the time; there is no location permission, so `rj_loc` stays quiet;
-  `rj_text`/`rj_image` messages are accepted but nothing is drawn on screen yet.
+  **Scene graphics** (roadmap item 9, Oct 14; `SceneGraphics.java` test G, `tools/test_scene_graphics.py`): `rj_image`/`rj_text`
+  send `rj_gfx <$0> <command> ...` (`[pdcontrol]` args for the text's words); AudioService subscribes before opening a
+  scene (the load-time `image`/`text` arrive then) and clears on open/stop; ScenePad draws visible items over the cover
+  on the 320 grid (images at their file size, one pixel = one grid step, centred; white text with a shadow), checking
+  `version()` 30x a second. Six of Samuel's 55 scenes use them (Atsuke, Moogarina, MoonBootSynthPad, Showtime, Smile,
+  TouchVocoder). Left unfixable: Gem objects (Atsuke, desktop only), objects the authors disabled with a leading "-",
+  and abstractions missing from the scenes themselves (s-loader, 808_state, tr808-bd~). `pdtest.Engine.lists` keeps
+  whole lists heard (floats and symbols).
 - `app/src/main/res/values/strings.xml` — escape apostrophes as `\'` (an unescaped one broke the aapt build once).
 
 ## Dependencies

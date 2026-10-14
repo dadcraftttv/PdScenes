@@ -1,0 +1,5 @@
+#N canvas 0 50 450 200 10;
+#X text 20 10 [keys]: a computer-keyboard object a scene may use on a desktop. A phone has no keyboard \, so this PdScenes stand-in stays silent.;
+#X obj 20 80 outlet;
+#X obj 80 80 outlet;
+#X obj 140 80 outlet;

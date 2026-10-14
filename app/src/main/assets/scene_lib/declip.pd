@@ -1,0 +1,9 @@
+#N canvas 0 50 450 220 10;
+#X text 20 10 [declip]: a number becomes a click-free signal (a 5 ms glide) - a PdScenes stand-in for the external some scenes use.;
+#X obj 20 60 inlet;
+#X obj 20 90 pack f 5;
+#X obj 20 120 line~;
+#X obj 20 150 outlet~;
+#X connect 1 0 2 0;
+#X connect 2 0 3 0;
+#X connect 3 0 4 0;

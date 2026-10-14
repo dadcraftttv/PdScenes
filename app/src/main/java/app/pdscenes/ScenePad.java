@@ -41,6 +41,23 @@ final class ScenePad extends View {
     private final RectF imageRect = new RectF();
     private final Path clip = new Path();
     private Bitmap image;
+    private File sceneDir;
+    /** The scene's own pictures (rj_image), loaded once each; their size in the file, for the 320 grid. */
+    private final java.util.Map<String, Bitmap> pictures = new java.util.HashMap<>();
+    private final java.util.Map<String, int[]> pictureSize = new java.util.HashMap<>();
+    private final Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private int drawnVersion = -1;
+    /** Redraws when the scene changed what it shows (checked 30 times a second while on screen). */
+    private final Runnable gfxWatch = new Runnable() {
+        @Override
+        public void run() {
+            int v = SceneGraphics.SCENE.version();
+            if (v != drawnVersion) {
+                invalidate();
+            }
+            postDelayed(this, 33);
+        }
+    };
     private Listener listener;
     /** Android pointer id for each finger number - 1; -1 when that number is free. */
     private final int[] fingerPointer = new int[MAX_FINGERS];
@@ -60,8 +77,87 @@ final class ScenePad extends View {
     /** Shows this scene's image (image.jpg, image.png or thumb.jpg), or a plain pad if it has none. */
     void setScene(SceneLibrary.Scene scene) {
         image = scene == null ? null : loadImage(scene.dir);
+        sceneDir = scene == null ? null : scene.dir;
+        pictures.clear();
+        pictureSize.clear();
         requestLayout();
         invalidate();
+    }
+
+    @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        post(gfxWatch);
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        removeCallbacks(gfxWatch);
+        super.onDetachedFromWindow();
+    }
+
+    /**
+     * The scene's own images and texts (rj_image, rj_text) over its cover, on the same 320 x 320 grid as touches:
+     * each centred on its position, an image at its file's size (one pixel = one grid step), turned and faded as
+     * the scene says.
+     */
+    private void drawSceneGraphics(Canvas canvas) {
+        drawnVersion = SceneGraphics.SCENE.version();
+        float gx = imageRect.width() / GRID, gy = imageRect.height() / GRID;
+        for (SceneGraphics.Item it : SceneGraphics.SCENE.snapshot()) {
+            if (!it.showing()) {
+                continue;
+            }
+            float cx = imageRect.left + it.x * gx, cy = imageRect.top + it.y * gy;
+            canvas.save();
+            canvas.rotate(it.rotate, cx, cy);
+            if (it.image) {
+                Bitmap b = picture(it.file);
+                if (b != null) {
+                    int[] size = pictureSize.get(it.file);
+                    float w = size[0] * gx * it.scaleX, h = size[1] * gy * it.scaleY;
+                    paint.setAlpha(Math.round(255 * it.alpha));
+                    canvas.drawBitmap(b, null, new RectF(cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2), paint);
+                    paint.setAlpha(255);
+                }
+            } else if (!it.text.isEmpty()) {
+                textPaint.setTextAlign(Paint.Align.CENTER);
+                textPaint.setTextSize(it.size * gx);
+                textPaint.setColor(0xFFFFFFFF);
+                textPaint.setAlpha(Math.round(255 * it.alpha));
+                textPaint.setShadowLayer(3f, 0f, 1f, 0xCC000000);
+                Paint.FontMetrics fm = textPaint.getFontMetrics();
+                canvas.drawText(it.text, cx, cy - (fm.ascent + fm.descent) / 2, textPaint);
+            }
+            canvas.restore();
+        }
+    }
+
+    /** A picture from the scene's folder (or its rj folder), loaded once; null if it can't be read. */
+    private Bitmap picture(String name) {
+        if (pictures.containsKey(name)) {
+            return pictures.get(name);
+        }
+        Bitmap b = null;
+        if (sceneDir != null && name != null) {
+            for (File f : new File[]{new File(sceneDir, name), new File(new File(sceneDir, "rj"), name)}) {
+                if (!f.isFile()) {
+                    continue;
+                }
+                BitmapFactory.Options bounds = new BitmapFactory.Options();
+                bounds.inJustDecodeBounds = true;
+                BitmapFactory.decodeFile(f.getPath(), bounds);
+                BitmapFactory.Options opts = new BitmapFactory.Options();
+                opts.inSampleSize = sampleSize(Math.max(bounds.outWidth, bounds.outHeight));
+                b = BitmapFactory.decodeFile(f.getPath(), opts);
+                if (b != null) {
+                    pictureSize.put(name, new int[]{bounds.outWidth, bounds.outHeight});
+                    break;
+                }
+            }
+        }
+        pictures.put(name, b);
+        return b;
     }
 
     private static Bitmap loadImage(File dir) {
@@ -121,6 +217,7 @@ final class ScenePad extends View {
             paint.setColor(0xFF2E2E36);
             canvas.drawRect(imageRect, paint);
         }
+        drawSceneGraphics(canvas);
         canvas.restore();
         paint.setStyle(Paint.Style.STROKE);
         paint.setStrokeWidth(2f);
