@@ -119,6 +119,10 @@ final class Params {
             // it lasts. Their sounds never start chimes or glitches and are never caught for the found sounds, at any setting.
             new Param("handling_hush", "Handling hush (mic quieter while the phone is tapped or rubbed)", 0f, 1f, 0.5f, "",
                     Param.Curve.LINEAR).inSection("main").noRandom().noPreset().resetWhenAbsent(),
+            // Cloth rubbing on the mic (a bag, a jacket), recognised by its sound: mic down by up to 24 dB at 1 while it
+            // lasts, and its sounds start nothing and are never caught. 0 = off (nothing detected).
+            new Param("rustle_guard", "Rustle filter (mic quieter while cloth rubs on it)", 0f, 1f, 0.5f, "",
+                    Param.Curve.LINEAR).inSection("main").noRandom().noPreset().resetWhenAbsent(),
             new Param("dry", "Dry level (direct sound)", 0f, 1.5f, 1f, "", Param.Curve.LINEAR)
                     .inSection("main").rand(0.3f, 1.2f),
 

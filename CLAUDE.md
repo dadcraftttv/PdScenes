@@ -187,6 +187,16 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
 - **Send feedback** (Setup, About; Oct 14): a mailto email to dadcraftstudios@gmail.com, subject with the version,
   body with a prompt, phone/Android/app version, what's playing, and (box ticked by default, explained) the last 200
   event-log lines in the body (no attachment, no FileProvider). 0.9.0-rc2 = versionCode 10.
+- **Rustle detector** (Oct 14, Samuel: "everywhere"; `add_rustle`, `rustle_guard` main, noPreset, default 0.5; 0 =
+  off): every 25 ms rustle if the mic's zero crossings (sign of `hip~ 100` x 1e9, `rzero~ 1`, |.|/2, `lop~ 4`) exceed
+  `RUSTLE_ZCR` 2500/s AND at least `RUSTLE_BURSTS` 3 level jumps of `RUSTLE_JUMP` 6 dB over the ~0.2 s average in the
+  last ~0.5 s (a single start/stop of a sound triggered everything before this) AND the 5 ms level swings > 3 dB AND
+  it sits 8 dB over a floor (down at once, up 1 dB/s, 9 dB/s while 15 dB under: it started at 0 once) and above
+  -65 dBFS; on after 4 ticks, off after 20. `value rust` joins the app's handling in `hnd_calc`: duck =
+  max(happ x hhush, rust x rhush) x 24 dB, hlev (the gates) = max of the two, and a catch near rustle is dropped
+  (`fs_jv`). Synthetic tests: rustle yes; fan, sung note, claps, chord, speech no. `RUSTLE_DEBUG=1` sends ru_zcr/
+  ru_dev/ru_above/ru_slow (the burst count). Reports `rustle_on`: Now line "rustle", Diagnostics count, event log.
+  Untuned on the phone.
 - **Mic-down protection** (`pocket_guard`, main, noPreset, default 0.6; 0 = no change): Samuel found mic-end-down pockets
   rustly but mic-up pockets fine. `PhoneContext.micDown()` (gravity along +y averaged ~1 s, hysteresis 0.5/0.3) and
   AudioService sends `pocket_down` = pocket && micDown. The patch adds guard*12 dB more cut and crossfades in a 2x `hip~ 300`.

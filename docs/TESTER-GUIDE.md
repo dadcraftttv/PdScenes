@@ -17,6 +17,7 @@ There are two ways to use it:
 
 **Oct 13-14:**
 
+- **Rustle filter** (Input & output): cloth rubbing on the mic is recognised by its sound and turned down.
 - **Call and response** (Music): sing, hum or whistle a short phrase, pause, and the app answers it with chimes, a third away, in key.
 - **Send feedback** (Setup, About): writes an email to Dad with your phone and app details and, if you like, the app's event log.
 - **Stem packs** (Music tab): your own loops, playing with the built-in sound and arranged by where you are and how you move.
@@ -110,6 +111,7 @@ This section controls the sound going in, before any effect touches it.
 - **Compressor threshold, ratio, make-up gain:** evens out loud and quiet sounds so nothing jumps out. Threshold at 0 turns it off. It starts switched on, set to balance things gently, and Input gain starts fairly high so quiet details are picked up. Change either if you like. Ratio is how firmly it squeezes the loud parts, and make-up gain is how much volume you give back afterward.
 - **Pocket hush:** while the phone is in a pocket, the microphone is turned down so cloth rustle doesn't swamp the sound, and rustle doesn't set off chimes. Your drums and the music play as normal. Higher hushes more. At 0 nothing changes. If you can't hear the world from your pocket, lower it. If the rustle is too loud, raise it.
 - **Handling hush:** when you tap, grip, rub or fiddle with the phone, its microphone hears that loudly. The app feels it through the phone's motion and turns the mic down while it lasts (higher hushes more; at 0 nothing changes). Whatever this is set to, those taps and scrapes never set off chimes or glitches and are never caught as found sounds. Walking with the phone in your hand doesn't count as handling, and neither do claps or knocks around you, because the phone itself doesn't move with them.
+- **Rustle filter:** catches cloth rubbing on the microphone (a bag, a jacket, a sleeve) by its sound, even when the phone itself isn't being moved: hiss-like scraping in bursts, clearly louder than the room. While it lasts, the mic is turned down (higher turns it down more) and those sounds never set off chimes or glitches or get caught as found sounds. Voices, music, claps and steady noise like a fan are left alone. At 0 it's off.
 - **Mic-down protection:** extra help only when the phone is in your pocket with the microphone end (the bottom edge) going in first, where it rubs against more fabric. It filters out the low thump of cloth and turns the mic down a little more. Mic end up is left alone. At 0 nothing changes.
 - **Dry level:** how much of your original, untouched sound you hear alongside the effects. Lower it to hear mostly effects. It only changes your microphone's sound: the music keeps its own levels, and the echo keeps repeating your sound even with Dry all the way down.
 
@@ -419,7 +421,7 @@ On the Setup tab is a **Reset everything to defaults** button. It asks you to co
 
 If you ever uninstall the app, everything in it is erased, including your saved presets. To keep your favorites, use Presets > Export on each one first and Import them again afterward.
 
-A preset file holds the effect sliders, their movers, the Music and Rhythm levels, Chime character, and the Dry level. It does not hold: Input gain, noise gate and compressor (and their shape); Pocket hush, Mic-down protection and Handling hush; Intensity; Smoothing and Nudge strength; whether Music is switched on, its key and scale, Pad register, the home-chord drift and "Light, pocket and stairs move the notes" switches, Calm builds, and the Synth / Found sounds choices; the Rhythm's tempo settings and "Beat follows" and "Beat plays"; the Realm change sound; locks; the Realm choices; the stem pack choice; your audio device choices; imported scenes and packs; or the appearance look. Set those again by hand after reinstalling.
+A preset file holds the effect sliders, their movers, the Music and Rhythm levels, Chime character, and the Dry level. It does not hold: Input gain, noise gate and compressor (and their shape); Pocket hush, Mic-down protection, Handling hush and the Rustle filter; Intensity; Smoothing and Nudge strength; whether Music is switched on, its key and scale, Pad register, the home-chord drift and "Light, pocket and stairs move the notes" switches, Calm builds, and the Synth / Found sounds choices; the Rhythm's tempo settings and "Beat follows" and "Beat plays"; the Realm change sound; locks; the Realm choices; the stem pack choice; your audio device choices; imported scenes and packs; or the appearance look. Set those again by hand after reinstalling.
 
 ## The Setup tab
 
@@ -445,6 +447,7 @@ Thank you for trying this. Anything you notice is useful, even "it felt weird." 
 - **Battery and heat:** does your phone get warm, or does the battery drain fast?
 - **Anything confusing** on screen, such as a label or button you didn't understand. Is the card at the bottom easy to reach while walking, are the tabs easy to tap, and does the Now: line make sense? Is everything on the tab you expected?
 - **Crashes or freezes:** what you were doing just before.
+- **Rustle filter:** rub the mic with your sleeve or carry the phone in a bag. Is the scraping turned down? Does it ever mistake something else (talking, music, a tap running) for rustle? The Now line says "rustle" while it acts.
 - **Call and response:** does the answer come at a natural moment after you stop singing, and does it sound like your phrase?
 - **Movers:** do the tilt, shake, spin, compass, light, pocket and stairs movements feel right? Does a sensor seem to be missing on your phone?
 - **Intensity:** try both ends while you walk. Is the left end calm without going dead, and the right end busy without turning into a mess? Is the middle the sound you set up?

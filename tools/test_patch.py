@@ -51,7 +51,7 @@ def fresh(**over):
                 phaser_on=1, phaser_mix=0, phaser_rate=0.4, phaser_depth=0.7, phaser_fb=0.4,
                 beat_on=1, beat_level=0, beat_hats=0.5, beat_snare=0.6, beat_pitch=55,
                 music_on=0, music_key=0, music_scale=0, music_pad=0.33, music_arp=0.4,
-                music_tone=0.5, music_react=0.8, music_res=0.8, music_harm=0, echo_scatter=0, beat_follow=0, music_pad_reg=2, pocket_hush=0.5, pocket_guard=0.6, melody_src=0, harm_src=0, pad_src=0, bass_src=0, chime_char=0, res_src=0, music_answer=0)
+                music_tone=0.5, music_react=0.8, music_res=0.8, music_harm=0, echo_scatter=0, beat_follow=0, music_pad_reg=2, pocket_hush=0.5, pocket_guard=0.6, melody_src=0, harm_src=0, pad_src=0, bass_src=0, chime_char=0, res_src=0, music_answer=0, rustle_guard=0)
     base.update(over)
     for k, v in base.items():
         e.send(k, v)
@@ -77,7 +77,7 @@ check(not bad, "patch loads with no Pd errors" + (": %s" % bad if bad else ""))
 
 jp = java_params()
 patch_text = open(PATCH).read()
-receivers = set(re.findall(r"#X obj \d+ \d+ r (\w+);", patch_text)) - {"step", "scale_n", "pad_glide", "mic_level", "pad_slot", "pool_n", "pool_x", "pocket", "pocket_down", "duck", "step_strength", "step_hit", "beat_sure", "groove", "gc_mode", "gc_try", "density_on", "motif", "drift_now", "drift_set", "drift_n", "music_register", "music_warm", "pulse", "tick16", "clock_walking", "gc_mode", "fs_need", "harm_organ", "fpad_need", "harm_run", "fpad_kick", "fpad_caught", "rh_swing_set", "fs_flourish_set", "rn_ring", "rnf_found", "realm_cue", "handling", "jolt", "msync", "tempo", "calm_chimes", "stem_on", "stem_file", "stem_bars", "stem_lvl", "stem_start", "heard_deg", "heard_off"} - {r for r in re.findall(r"#X obj \d+ \d+ r (sw_\w+);", open(PATCH).read())}   # events and internal links, not settings
+receivers = set(re.findall(r"#X obj \d+ \d+ r (\w+);", patch_text)) - {"step", "scale_n", "pad_glide", "mic_level", "pad_slot", "pool_n", "pool_x", "pocket", "pocket_down", "duck", "step_strength", "step_hit", "beat_sure", "groove", "gc_mode", "gc_try", "density_on", "motif", "drift_now", "drift_set", "drift_n", "music_register", "music_warm", "pulse", "tick16", "clock_walking", "gc_mode", "fs_need", "harm_organ", "fpad_need", "harm_run", "fpad_kick", "fpad_caught", "rh_swing_set", "fs_flourish_set", "rn_ring", "rnf_found", "realm_cue", "handling", "jolt", "msync", "tempo", "calm_chimes", "stem_on", "stem_file", "stem_bars", "stem_lvl", "stem_start", "heard_deg", "heard_off", "rustle_on"} - {r for r in re.findall(r"#X obj \d+ \d+ r (sw_\w+);", open(PATCH).read())}   # events and internal links, not settings
 pd_ids = {i for i, _, nopd in jp if not nopd}
 check(len(jp) >= 10, "parsed %d params from Params.java" % len(jp))
 check(pd_ids == receivers, "Params.java ids == patch receivers (java-only %s, patch-only %s)"
@@ -2226,6 +2226,49 @@ def heard(answer):
     e.listen("heard_deg", "harm_deg"); e.run(hum(164.81, 1.0)); return [int(v) for v in e.heard["heard_deg"]], e.heard["harm_deg"]
 h1, h0 = heard(1), heard(0)
 check(h1[0] == [2] and not h0[0], "call and response: a sung E3 is heard as step 2 in C major (%s); at 0 (and Harmony 0) nothing is tracked (%s)" % (h1[0], h0[0]))
+
+# rustle: cloth rubbing on the mic (noisy, in bursts, above the room) is recognised and turned down; a fan, a voice,
+# claps, a chord and speech are not rustle
+_rr = np.random.default_rng(7)
+def _band(n, lo, hi):
+    S = np.fft.rfft(_rr.standard_normal(n)); f = np.fft.rfftfreq(n, 1 / SR); S[(f < lo) | (f > hi)] = 0
+    x = np.fft.irfft(S, n); return x / np.std(x)
+def _quiet(secs): return _rr.standard_normal(int(secs * SR)) * 0.0005
+def _rustle(secs, amp=0.05):
+    n = int(secs * SR); x = _band(n, 400, 9000); env = np.zeros(n); i = 0
+    while i < n:
+        L = int(_rr.uniform(0.04, 0.2) * SR); g = int(_rr.uniform(0.01, 0.12) * SR); m = min(L, n - i)
+        env[i:i + m] = _rr.uniform(0.3, 1.0) * np.hanning(2 * m)[:m] ** 0.3; i += L + g
+    return x * env * amp
+def _voice(secs, f=196, amp=0.1):
+    t = np.arange(int(secs * SR)) / SR; ph = 2 * np.pi * np.cumsum(f * (1 + 0.01 * np.sin(2 * np.pi * 5 * t))) / SR
+    return amp * (np.sin(ph) + 0.5 * np.sin(2 * ph) + 0.3 * np.sin(3 * ph)) * np.minimum(1, t * 10)
+def _speech(secs, amp=0.08):
+    n = int(secs * SR); x = np.zeros(n); i = 0
+    while i < n - SR // 2:
+        L = int(_rr.uniform(0.12, 0.25) * SR); v = _voice(L / SR, _rr.uniform(110, 160), amp)[:L]; x[i:i + len(v)] += v * np.hanning(len(v)); i += L
+        if _rr.random() < 0.3:
+            k = int(0.1 * SR); x[i:i + k] += _band(k, 4000, 9000) * amp * 0.3 * np.hanning(k); i += k
+        i += int(_rr.uniform(0.05, 0.15) * SR)
+    return x
+def _claps(secs, gap=0.8, amp=0.4):
+    n = int(secs * SR); x = np.zeros(n); k = int(0.12 * SR)
+    for i in range(int(0.3 * SR), n - k, int(gap * SR)): x[i:i + k] += _band(k, 800, 3500) * np.exp(-np.arange(k) / (0.02 * SR)) * amp
+    return x
+_rustle_cases = {"rustle": _rustle, "fan": lambda s: _band(int(s * SR), 200, 6000) * 0.03, "voice": _voice, "claps": _claps,
+                 "chord": lambda s: 0.05 * sum(np.sin(2 * np.pi * f * np.arange(int(s * SR)) / SR) for f in (261.6, 329.6, 392, 523.3)),
+                 "speech": _speech}
+def rustle_run(make, guard=0.5):
+    e = fresh(gain=2.5, dry=1, wet=0, rustle_guard=guard); e.listen("rustle_on")
+    x = np.concatenate([_quiet(3), make(6) + _quiet(6), _quiet(2)]).astype(np.float32)
+    return e.heard["rustle_on"], e.run(x)[:, 0]
+found = {k: rustle_run(f)[0][:1] == [1.0] for k, f in _rustle_cases.items()}
+check(found["rustle"] and not any(v for k, v in found.items() if k != "rustle"),
+      "rustle: recognised in bursty cloth-like noise, not in a fan, a voice, claps, a chord or speech %s" % found)
+on, ys = rustle_run(_rustle, 0.5); _, y0 = rustle_run(_rustle, 0)
+seg = slice(int(5 * SR), int(8 * SR))
+check(rms(ys[seg]) < 0.5 * rms(y0[seg]) and not rustle_run(_rustle, 0)[0],
+      "rustle: the mic is turned down while it lasts (%.4f vs %.4f with the Rustle filter at 0, which also detects nothing)" % (rms(ys[seg]), rms(y0[seg])))
 
 # Mix: each part's level at 0 takes that part out, and only that part
 def mix_part(trim, value, x, steps=0.0, **over):
