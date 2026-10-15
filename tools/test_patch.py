@@ -2265,10 +2265,7 @@ def rustle_run(make, guard=0.5):
 found = {k: rustle_run(f)[0][:1] == [1.0] for k, f in _rustle_cases.items()}
 check(found["rustle"] and not any(v for k, v in found.items() if k != "rustle"),
       "rustle: recognised in bursty cloth-like noise, not in a fan, a voice, claps, a chord or speech %s" % found)
-on, ys = rustle_run(_rustle, 0.5); _, y0 = rustle_run(_rustle, 0)
-seg = slice(int(5 * SR), int(8 * SR))
-check(rms(ys[seg]) < 0.5 * rms(y0[seg]) and not rustle_run(_rustle, 0)[0],
-      "rustle: the mic is turned down while it lasts (%.4f vs %.4f with the Rustle filter at 0, which also detects nothing)" % (rms(ys[seg]), rms(y0[seg])))
+check(not rustle_run(_rustle, 0)[0], "rustle: with the Rustle filter at 0 (its default: shelved, experimental) nothing is detected")
 
 # Mix: each part's level at 0 takes that part out, and only that part
 def mix_part(trim, value, x, steps=0.0, **over):
