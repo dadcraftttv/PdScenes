@@ -409,6 +409,16 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   Found on the way and fixed (Samuel: "fix the chime density first"): `mu_p_len` (the still pattern's "8th / 250"
   scaling when synced) was written into its cold inlet, so synced chimes came ~17-25% more often at 150 BPM (fewer
   under 120); Pd test "still pattern:" (free vs synced at 150 and 90 BPM within 0.85-1.1). Feel untested. Level 3 (phrase logic) is a later note.
+  **Melody phrases** (Oct 15, level 3; `mel_phrase` Music toggle, default off, noPreset, needs Melody rhythm;
+  `add_phrases`; Pd test "melody phrases:"): bars count A A' B A (`mph_bar` 0-3, -1 while off, set at tick 0 before
+  the cell pick); A' and the last A reuse A's cell (`ph_row`). Before each cell note the phrase stage sets
+  `mphdeg`/`mphon` (cleared with mlen): A and B make a note one step from the last (two `PH_STEP2_PCT` 30% of the
+  time), within CHIME_SPAN of the register middle (walking: scale_n + mchord + 3, the arpeggio's; standing: the
+  brightness note), snapped to the nearest chord tone on ticks 0 and 8; A stores it in `ph_a[tick]`; A' and the
+  last A replay ph_a, A''s last onset (`mel_lo`) goes to the chord root nearest A's last note. `mu_pick_ph` and
+  `mu_arp_ph` take mphdeg while mphon (sound-triggered chimes and motifs never set it). Standing, only the chimes
+  whose chance comes up play, so a phrase is heard in part. Reports `ph_note <phase> <tick> <step> <mchord> <n>`.
+  Feel untested.
   **Density memory** (roadmap 8, no slider): `value mdens` = notes played lately (a chime +1, an arpeggio note +0.3
   so the walking bed doesn't silence chimes on the beat), fading over 8 s. Sudden-sound and still-pattern chimes play
   with chance 1/(1+(mdens/10)^2); the arpeggio rests up to 30% more past 16. Busy test room: 1.45 -> 1.0 notes/s.

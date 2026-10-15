@@ -187,7 +187,12 @@ final class Params {
             new Param("mel_rhythm", "Melody rhythm", 0f, 3f, 0f, "", Param.Curve.LINEAR)
                     .choices("Off (as before)", "Straight (quarters, halves, 8ths)", "Dotted (dotted and syncopated)", "Mixed")
                     .inSection("music").noPreset().resetWhenAbsent(),
-            new Param("chime_char","Chime character (ring to your sound)", 0f, 1f, 0.5f, "", Param.Curve.LINEAR)
+            // Melody phrases (Oct 15, with Melody rhythm on): four-bar phrases, A A' B A. The melody moves mostly by
+            // step, lands on chord tones on beats 1 and 3, repeats its first bar (the repeat ending on the chord's root),
+            // goes somewhere new, then comes back to the first bar.
+            new Param("mel_phrase", "Melody phrases (repeat and answer, needs Melody rhythm)", 0f, 1f, 0f, "",
+                    Param.Curve.LINEAR).inSection("music").toggle().noPreset().resetWhenAbsent(),
+            new Param("chime_char", "Chime character (ring to your sound)", 0f, 1f, 0.5f, "", Param.Curve.LINEAR)
                     .inSection("music").rand(0f, 1f).resetWhenAbsent(),
             new Param("music_tone", "Tone (dark to bright)", 0f, 1f, 0.5f, "", Param.Curve.LINEAR)
                     .inSection("music").rand(0.2f, 0.9f).resetWhenAbsent(),

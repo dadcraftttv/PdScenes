@@ -2280,6 +2280,34 @@ check(grid_ok and all(m["ring_ok"] and m["fits"] for m in (ms, md, mw)) and ms["
       % (1000 * max(max(m["offs"]) for m in (ms, md, mw)), sorted(ms["lens"]), sorted(md["lens"]), len(ms["offs"]),
          len(ms["notes"]), len(mw["offs"]), len(mw["notes"])))
 
+# Melody phrases: A A' B A, made-up bars moving by step with chord tones on beats 1 and 3, A' ending on the root
+e = fresh(dry=0, wet=0, music_on=1, music_arp=1, music_pad=0, music_res=0, music_harm=0, music_answer=0,
+          melody_src=0, mel_rhythm=3, mel_phrase=1, beat_level=0)
+e.listen("chime_deg", "ph_note"); e.send("calm_chimes", 25)          # (standing: every cell note plays)
+e.run(np.zeros(60 * SR, np.float32))
+bars = []                                                            # (the first phrase is cut: the harness runs
+for ph, tk, d, ch, n in e.lists.get("ph_note", []):
+    if not bars or bars[-1][0] != ph:
+        bars.append((int(ph), []))
+    bars[-1][1].append((int(tk), int(d), int(ch), int(n)))
+mod = lambda d, ch, n: (d - ch) % n
+bars = bars[4:]                                                      #  a little audio before it listens)
+order_ok = [p for p, _ in bars[:8]] == [0, 1, 2, 3, 0, 1, 2, 3]
+rep_ok, ans_ok, gen_ok, steps = True, True, True, []
+for i in range(0, len(bars) - 3, 4):
+    A, A2, B, A3 = (bars[i + k][1] for k in range(4))
+    rep_ok &= [(t, d) for t, d, _, _ in A3] == [(t, d) for t, d, _, _ in A]
+    ans_ok &= [t for t, *_ in A2] == [t for t, *_ in A] and [d for _, d, _, _ in A2[:-1]] == [d for _, d, _, _ in A[:-1]] \
+        and mod(A2[-1][1], A2[-1][2], A2[-1][3]) == 0 and abs(A2[-1][1] - A[-1][1]) <= 3
+    for bar in (A, B):
+        gen_ok &= all(mod(d, ch, n) in (0, 2, 4) for t, d, ch, n in bar if t % 8 == 0)
+seq = [d for _, bar in bars for _, d, _, _ in bar]
+steps = [abs(b - a) for (p, bar) in bars if p in (0, 2) for (_, a, _, _), (_, b, _, _) in zip(bar, bar[1:])]
+played = [int(v) for v in e.heard["chime_deg"]][-len(seq):]
+check(len(bars) >= 12 and order_ok and rep_ok and ans_ok and gen_ok and max(steps) <= 3 and played == seq,
+      "melody phrases: %d bars in order A A' B A; the last A repeats A, A' answers it ending on the root, chord tones on "
+      "beats 1 and 3, steps of at most %d inside a bar; every note played as chosen" % (len(bars), max(steps)))
+
 # stem packs: a loop plays at its file's own speed (any sample rate), locked to the tempo clock's bars, fading in over a bar
 import wave, tempfile
 def stem_run(rate, bars=1, lock=True):

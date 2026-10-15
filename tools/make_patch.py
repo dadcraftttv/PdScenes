@@ -37,7 +37,7 @@ DEFAULTS = [
     ("music_on", 0), ("music_key", 0), ("music_scale", 0), ("music_pad", 0.33), ("music_arp", 0.4),
     ("music_tone", 0.5), ("music_react", 0.8), ("music_res", 0.8), ("music_harm", 0.6), ("beat_follow", 1), ("beat_when", 1), ("rhythm_src", 1), ("melody_src", 1), ("harm_src", 1), ("pad_src", 1), ("bass_src", 0), ("tempo_mode", 0), ("tempo_bpm", 100), ("chime_char", 0.5), ("res_src", 1), ("cue_sound", 1), ("beat_glitch", 0.4), ("gate_attack", 5), ("gate_hold", 0), ("gate_release", 80), ("comp_attack", 40),
     ("comp_release", 40), ("music_drift", 1), ("echo_scatter", 0.5), ("gc_amount", 0), ("gc_level", 0.7), ("gc_pct_stutter", 35), ("gc_pct_reverse", 25),
-    ("gc_pct_shuffle", 20), ("gc_pct_stretch", 20), ("music_pad_reg", 2), ("pocket_hush", 0.5), ("pocket_guard", 0.6), ("handling_hush", 0.5), ("intensity", 0.5), ("mix_kick", 1), ("mix_bass", 1), ("mix_chimes", 1), ("mix_walk", 1), ("mix_ring", 1), ("mix_bells", 1), ("reverb_rev", 0), ("stems_level", 0.8), ("music_answer", 0.5), ("beat_break", 0), ("mel_rhythm", 0),
+    ("gc_pct_shuffle", 20), ("gc_pct_stretch", 20), ("music_pad_reg", 2), ("pocket_hush", 0.5), ("pocket_guard", 0.6), ("handling_hush", 0.5), ("intensity", 0.5), ("mix_kick", 1), ("mix_bass", 1), ("mix_chimes", 1), ("mix_walk", 1), ("mix_ring", 1), ("mix_bells", 1), ("reverb_rev", 0), ("stems_level", 0.8), ("music_answer", 0.5), ("beat_break", 0), ("mel_rhythm", 0), ("mel_phrase", 0),
 ]
 
 # Scales as semitone steps above the key note. The patch snaps every note it plays to these.
@@ -123,6 +123,10 @@ MEL_CELLS_DOTTED = (
     (3, 3, 2, 3, 3, 2),             # 3 + 3 + 2 in 16ths, twice
 )
 MEL_RING = (1.0, 200, 250, 3000)    # a note's ring (ms) = its length x this + this, kept within these
+# Melody phrases (mel_phrase, Music, with Melody rhythm on; Oct 15): four bars A A' B A. A is made up (stepwise, chord
+# tones on beats 1 and 3), A' repeats it but ends on the chord's root, B is new, then A comes back; A's rhythm cell
+# comes back with it.
+PH_STEP2_PCT = 30                   # a made-up note moves one scale step, or two this often (in 100)
 CHIME_OVERTONE = (0.12, 0.45)    # each chime's 2nd-harmonic level (3rd is a third of it): mellow to bright
 BASS_FOLLOW_PCT = 40    # chance (in 100) that a chord change moves the bass to the chord's root; else the key's root
 BASS_DIP_MS = 600       # a bass note change fades out over this...
@@ -1793,11 +1797,13 @@ def add_melody_rhythm(P, x, ex):
     y = 1400; mx = x + 1700
     P.obj("mr_cells", f"table mel_cells {16 * len(allrows)}", mx, y)
     P.obj("mr_cn", f"table mel_cn {len(allrows)}", mx + 150, y)
+    P.obj("mr_lo", f"table mel_lo {len(allrows)}", mx + 150, y + 15)        # each cell's last onset (tick)
     P.obj("mr_po", "table mel_po 6", mx + 300, y)
     P.obj("mr_lb", "loadbang", mx, y - 30)
     P.msg("mr_init", f"{BS}; mel_cells 0 {' '.join(str(v) for r in allrows for v in r)}"
                      f" {BS}; mel_cn 0 {' '.join(str(sum(1 for v in r if v > 0)) for r in allrows)}"
-                     f" {BS}; mel_po 0 {' '.join(str(v) for v in offs + ns)}", mx, y - 15)
+                     f" {BS}; mel_po 0 {' '.join(str(v) for v in offs + ns)}"
+                     f" {BS}; mel_lo 0 {' '.join(str(max(i for i, v in enumerate(r) if v > 0)) for r in allrows)}", mx, y - 15)
     P.c("mr_lb", "mr_init")
     # the setting: 0 opens the old paths (and puts the still pattern's roll length back), 1-3 closes them
     P.obj("mr_r", "r mel_rhythm", mx + 450, y - 30); P.obj("mr_v", "value mrhy", mx + 450, y - 15)
@@ -1810,31 +1816,44 @@ def add_melody_rhythm(P, x, ex):
     P.obj("mr_lv", "value mlen", mx + 600, y)                            # (declared; 0 = no cell note)
     # each 16th: a new bar picks its cell (right outlet first), then the tick's onset
     P.obj("mr_tick", "r tick16", mx, y + 40); P.obj("mr_tt", "t f f", mx, y + 55); P.c("mr_tick", "mr_tt")
-    P.obj("mr_bar", "sel 0", mx + 150, y + 70); P.c("mr_tt", "mr_bar", 1, 0)
+    P.obj("mr_bar0", "sel 0", mx + 150, y + 70); P.c("mr_tt", "mr_bar0", 1, 0)
+    # (phrases: the bar's place in A A' B A first, -1 while off, so switching on starts at A)
+    P.obj("mr_bar", "t b b", mx + 150, y + 75); P.c("mr_bar0", "mr_bar")
+    ex("phr_cnt", "if(mphr>0&&mrhy>0,(mph_bar+1)%4,-1)", mx + 300, y + 75); P.c("mr_bar", "phr_cnt", 1, 0)
+    P.obj("phr_cnt_v", "value mph_bar", mx + 300, y + 90); P.c("phr_cnt", "phr_cnt_v")
+    P.msg("phr_init", "-1", mx + 380, y + 90); P.c("mr_lb", "phr_init"); P.c("phr_init", "phr_cnt_v")
+    P.obj("phr_r", "r mel_phrase", mx + 450, y + 60); P.obj("phr_rv", "value mphr", mx + 450, y + 75); P.c("phr_r", "phr_rv")
     pool = "min(max(mrhy,1),3)-1"
     near = f"min(max(int(rh_drive*(mel_po[{pool}+3]-1)+0.5)+random(0,3)-1,0),mel_po[{pool}+3]-1)"
     ex("mr_pick", f"mel_po[{pool}]+{near}", mx + 150, y + 85); P.c("mr_bar", "mr_pick")
     # (never the same cell twice in a row: a repeat moves one along, within the pool)
     ex("mr_pick2", f"if($f1==mel_row,if($f1-mel_po[{pool}]<mel_po[{pool}+3]-1,$f1+1,$f1-1),$f1)", mx + 150, y + 100)
     P.c("mr_pick", "mr_pick2")
-    P.obj("mr_row_t", "t f f", mx + 150, y + 115); P.c("mr_pick2", "mr_row_t")
+    # (phrases: A' and the last A take A's cell again; A keeps its own)
+    ex("phr_rowx", "if(mph_bar==1||mph_bar==3,ph_row,$f1)", mx + 150, y + 105); P.c("mr_pick2", "phr_rowx")
+    P.obj("mr_row_t", "t f f", mx + 150, y + 115); P.c("phr_rowx", "mr_row_t")
+    ex("phr_keep", "if(mph_bar==0,$f1,ph_row)", mx + 300, y + 115); P.c("phr_rowx", "phr_keep")
+    P.obj("phr_row_v", "value ph_row", mx + 300, y + 130); P.c("phr_keep", "phr_row_v")
     P.obj("mr_row", "value mel_row", mx + 150, y + 130); P.c("mr_row_t", "mr_row", 1, 0)
     P.obj("mr_row_s", "s mel_cell", mx + 230, y + 130); P.c("mr_row_t", "mr_row_s", 0, 0)
     ex("mr_len", "if(mrhy>0,mel_cells[mel_row*16+$f1],0) ; $f1".replace(" ; ", " " + BS + "; "), mx, y + 150)
     P.c("mr_tt", "mr_len", 0, 0)
     P.obj("mr_tk", "f", mx + 100, y + 165); P.c("mr_len", "mr_tk", 1, 1)
+    P.obj("mr_tkv", "value mtick", mx + 140, y + 165); P.c("mr_len", "mr_tkv", 1, 0)
     P.obj("mr_has", "moses 0.5", mx, y + 165); P.c("mr_len", "mr_has", 0, 0)
     P.obj("mr_lt", "t f f", mx, y + 180); P.c("mr_has", "mr_lt", 1, 0)
     ex("mr_ring", f"min(max($f1*tc_P/4*{MEL_RING[0]}+{MEL_RING[1]},{MEL_RING[2]}),{MEL_RING[3]})", mx, y + 195)
     P.c("mr_lt", "mr_ring", 0, 0)
     P.obj("mr_rep", "pack f f f", mx + 100, y + 210)                     # (tick, length, ring) for the tests
     P.c("mr_lt", "mr_rep", 1, 1)
-    P.obj("mr_go", "t b b f", mx, y + 225); P.c("mr_ring", "mr_go"); P.c("mr_go", "mr_rep", 2, 2)
+    P.obj("mr_go", "t b b b f", mx, y + 225); P.c("mr_ring", "mr_go"); P.c("mr_go", "mr_rep", 3, 2)
     P.obj("mr_rep_s", "s mel_note", mx + 100, y + 240)
-    P.obj("mr_set", "value mlen", mx + 60, y + 240); P.c("mr_go", "mr_set", 2, 0)   # first: this note's ring
+    P.obj("mr_set", "value mlen", mx + 60, y + 240); P.c("mr_go", "mr_set", 3, 0)   # first: this note's ring
     P.obj("mr_route", "t b", mx, y + 240); P.c("mr_go", "mr_route", 1, 0)
     P.msg("mr_clr", "0", mx + 160, y + 255); P.obj("mr_clr_v", "value mlen", mx + 160, y + 270)
     P.c("mr_go", "mr_clr", 0, 0); P.c("mr_clr", "mr_clr_v")                     # last: back to random rings
+    P.obj("phr_off_v", "value mphon", mx + 220, y + 270); P.c("mr_clr", "phr_off_v")
+    add_phrases(P, ex, "mr_go", 2, mx + 700, y + 150)
     # walking -> the arpeggio's next note; standing -> the still pattern's roll (its chance scaled to the cell)
     P.obj("mr_wk", "value mwalk", mx, y + 255); P.c("mr_route", "mr_wk")
     P.obj("mr_wsel", "sel 0", mx, y + 270); P.c("mr_wk", "mr_wsel")
@@ -1844,6 +1863,45 @@ def add_melody_rhythm(P, x, ex):
     P.c("mr_st", "mr_plen", 1, 0); P.c("mr_plen", "mu_p", 0, 2)
     P.c("mr_st", "mu_still_gate", 0, 0)
     P.c("mr_wsel", "mu_arp_gate", 1, 0)
+
+
+def add_phrases(P, ex, src, outlet, px, py):
+    """Melody phrases: before a cell note plays, its scale step is chosen here (mphdeg, mphon 1 while it plays):
+    made up in A and B (one step, sometimes two, from the last note, kept within CHIME_SPAN of the register's middle:
+    the arpeggio's walking, the brightness note's standing; on beats 1 and 3 moved to the nearest chord tone),
+    replayed from A's notes (ph_a) in A' and the last A, A' ending on the chord's root. Reports ph_note
+    <phase> <tick> <step> <chord root> <scale size> (tests)."""
+    S = CHIME_SPAN
+    m = lambda v: f"((({v})-mchord+scale_n*20)%scale_n)"
+    root = lambda v: "".join(f"if({m(f'{v}+{d}')}==0,{v}+{d}," for d in (0, -1, 1, -2, 2, -3)) + f"{v}+3" + ")" * 6
+    P.obj("mph_a", "table ph_a 17", px + 300, py)                          # A's notes by tick (16: a spare slot)
+    P.obj("mph_vd", "value mphdeg", px + 300, py + 15); P.obj("mph_vl", "value mph_last", px + 300, py + 30)
+    P.obj("mph_go", "t b", px, py); P.c(src, "mph_go", outlet, 0)
+    P.obj("mph_on", "value mphr", px, py + 15); P.c("mph_go", "mph_on")
+    P.obj("mph_sel", "sel 1", px, py + 30); P.c("mph_on", "mph_sel")
+    ex("mph_d", f"if(random(0,100)<{PH_STEP2_PCT},2,1)*if(random(0,2),1,-1)", px, py + 45); P.c("mph_sel", "mph_d")
+    C = "if(mwalk,scale_n+mchord+3,int(mbright*2*scale_n+0.5)+scale_n)"
+    L = f"min(max(mph_last,{C}-{S}),{C}+{S})"
+    ex("mph_cand", f"if(abs({L}+$f1-({C}))>{S},{L}-$f1,{L}+$f1)", px, py + 60); P.c("mph_d", "mph_cand")
+    ct = lambda v: f"({m(v)}==0||{m(v)}==2||{m(v)}==4)"
+    ex("mph_snap", f"if(mtick%8==0,if({ct('$f1')},$f1,if({ct('$f1-1')},$f1-1,$f1+1)),$f1)", px, py + 75)
+    P.c("mph_cand", "mph_snap")
+    ex("mph_fin", f"if(mph_bar==3||(mph_bar==1&&mtick!=mel_lo[mel_row]),ph_a[mtick],if(mph_bar==1,{root('ph_a[mtick]')},$f1))",
+       px, py + 90)
+    P.c("mph_snap", "mph_fin")
+    P.obj("mph_t", "t f f f f", px, py + 105); P.c("mph_fin", "mph_t")
+    ex("mph_wi", "if(mph_bar==0,mtick,16)+$f1*0", px + 150, py + 120); P.obj("mph_wr", "tabwrite ph_a", px + 100, py + 135)
+    P.c("mph_t", "mph_wi", 3, 0); P.c("mph_wi", "mph_wr", 0, 1); P.c("mph_t", "mph_wr", 2, 0)
+    P.c("mph_t", "mph_vl", 1, 0)
+    P.obj("mph_o", "t b f", px, py + 120); P.c("mph_t", "mph_o", 0, 0)
+    P.obj("mph_vd2", "value mphdeg", px + 60, py + 135); P.c("mph_o", "mph_vd2", 1, 0)
+    P.msg("mph_one", "1", px, py + 135); P.obj("mph_onv", "value mphon", px, py + 150); P.c("mph_o", "mph_one", 0, 0); P.c("mph_one", "mph_onv")
+    ex("mph_rep", "mph_bar ; mtick ; $f1 ; mchord ; scale_n".replace(" ; ", " " + BS + "; "), px + 150, py + 150)
+    P.c("mph_o", "mph_rep", 1, 0)
+    P.obj("mph_pk", "pack f f f f f", px + 150, py + 165); P.obj("mph_s", "s ph_note", px + 150, py + 180)
+    for k in range(5):
+        P.c("mph_rep", "mph_pk", k, k)
+    P.c("mph_pk", "mph_s")
 
 
 def add_music(P):
@@ -2103,7 +2161,9 @@ def add_music(P):
     P.c("mu_rd_last", "mu_pick", 0, 3)
     P.obj("mu_pick_t", "t f f", cx, cy + 130)
     P.obj("mu_wr_last", "value clast", cx + 60, cy + 160)
-    P.c("mu_pick", "mu_pick_t"); P.c("mu_pick_t", "mu_wr_last", 1, 0)
+    ex("mu_pick_ph", "if(mphon,mphdeg,$f1)", cx, cy + 115)                  # (a Melody phrase brings its own note)
+    P.obj("mu_ph_v", "value mphon", cx + 100, cy + 115)
+    P.c("mu_pick", "mu_pick_ph"); P.c("mu_pick_ph", "mu_pick_t"); P.c("mu_pick_t", "mu_wr_last", 1, 0)
     P.obj("mu_reg_add", "+ 0", cx + 200, cy + 50)                       # register from the sensors (the app)
     P.obj("mu_reg_r", "r music_register", cx + 260, cy + 30); P.c("mu_reg_r", "mu_reg_add", 0, 1)
     P.c("mu_reg_add", degree_in)
@@ -2285,7 +2345,7 @@ def add_music(P):
     P.obj("mu_rest_t", "t b b", x + 1300, 680)
     P.c("mu_arp_t", "mu_rest_t", 3, 0); P.c("mu_rest_t", "mu_rest_dn", 1, 0); P.c("mu_rest_dn", "mu_rest_play", 0, 2)
     P.c("mu_rest_t", "mu_rest_rnd", 0, 0); P.c("mu_rest_rnd", "mu_rest_play"); P.c("mu_rest_play", "mu_rest_gate", 0, 1)
-    P.c("mu_arp_deg", "mu_rest_gate")
+    ex("mu_arp_ph", "if(mphon,mphdeg,$f1)", x + 1180, 878); P.c("mu_arp_deg", "mu_arp_ph"); P.c("mu_arp_ph", "mu_rest_gate")
     P.c("mu_rest_gate", "mu_reg_add"); P.c("mu_rest_gate", "mu_note_s")
     for src, dst in getattr(P, "_late_dn", []):
         P.c(src, dst)
