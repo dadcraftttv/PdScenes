@@ -406,8 +406,9 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   note (the per-pulse trigger is closed: `mu_mr_arp`), standing the still pattern rolls (its own 250 ms / 8th
   rolls closed: `mu_mr_stf`/`mu_mr_sts`) with `mu_p` inlet 2 = bar / onsets, so the density holds. Sound-triggered
   chimes, motif replays, groove, density memory unchanged. Reports `mel_cell`, `mel_note <tick> <len> <ring>`.
-  Found on the way: `mu_p_len` (the still pattern's "8th / 250" scaling when synced) is written cold and never
-  banged, so that scaling never applied (left as is). Feel untested. Level 3 (phrase logic) is a later note.
+  Found on the way and fixed (Samuel: "fix the chime density first"): `mu_p_len` (the still pattern's "8th / 250"
+  scaling when synced) was written into its cold inlet, so synced chimes came ~17-25% more often at 150 BPM (fewer
+  under 120); Pd test "still pattern:" (free vs synced at 150 and 90 BPM within 0.85-1.1). Feel untested. Level 3 (phrase logic) is a later note.
   **Density memory** (roadmap 8, no slider): `value mdens` = notes played lately (a chime +1, an arpeggio note +0.3
   so the walking bed doesn't silence chimes on the beat), fading over 8 s. Sudden-sound and still-pattern chimes play
   with chance 1/(1+(mdens/10)^2); the arpeggio rests up to 30% more past 16. Busy test room: 1.45 -> 1.0 notes/s.

@@ -1386,13 +1386,13 @@
 #X connect 336 0 337 0;
 #X connect 337 2 338 0;
 #X connect 338 0 339 0;
-#X connect 339 0 243 1;
+#X connect 339 0 243 0;
 #X connect 337 1 224 0;
 #X connect 337 0 340 0;
 #X connect 340 0 231 0;
 #X connect 330 0 341 0;
 #X connect 341 0 342 0;
-#X connect 342 0 243 1;
+#X connect 342 0 243 0;
 #X connect 333 1 343 0;
 #X connect 344 0 345 0;
 #X connect 345 1 346 0;

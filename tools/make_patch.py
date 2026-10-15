@@ -2202,7 +2202,9 @@ def add_music(P):
     P.obj("mu_p_t", "t b b", x + 900, 680)
     P.c("mu_still_t", "mu_p_t", 1, 0); P.c("mu_p_t", "mu_p_dn", 1, 0); P.c("mu_p_dn", "mu_p", 0, 1)
     P.c("mu_p_t", "mu_rd_p", 0, 0); P.c("mu_rd_p", "mu_p"); P.c("mu_p", "mu_chance", 0, 1)
-    P.obj("mu_p_len", "f 250", x + 1060, 690); P.c("mu_p_len", "mu_p", 0, 2)  # ms between rolls (set by "sync")
+    # ms between rolls (set by "sync"; written into the hot inlet: until Oct 15 it went into the cold one, never
+    # reached mu_p, and synced rolls on the 8ths came ~20-25% more often than the free ones)
+    P.obj("mu_p_len", "f 250", x + 1060, 690); P.c("mu_p_len", "mu_p", 0, 2)
     P.msg("mu_p_len0", "250", x + 1060, 670); P.c("mu_load", "mu_p_len0"); P.c("mu_p_len0", "mu_p", 0, 2)
     P.c("mu_roll", "mu_chance")
     P.obj("mu_chance_sel", "sel 1", x + 800, 780)
@@ -2377,12 +2379,12 @@ def add_music(P):
     P.c("mu_sy_tk", "mu_sy_mod", 0, 0); P.c("mu_sy_mod", "mu_sy_ev"); P.c("mu_sy_ev", "mu_sy_8")
     P.obj("mu_sy_8t", "t b b b", x + 500, sy + 100); P.c("mu_sy_8", "mu_sy_8t")
     P.obj("mu_sy_P", "value tc_P", x + 600, sy + 120); P.obj("mu_sy_half", "/ 2", x + 600, sy + 140)
-    P.c("mu_sy_8t", "mu_sy_P", 2, 0); P.c("mu_sy_P", "mu_sy_half"); P.c("mu_sy_half", "mu_p_len", 0, 1)
+    P.c("mu_sy_8t", "mu_sy_P", 2, 0); P.c("mu_sy_P", "mu_sy_half"); P.c("mu_sy_half", "mu_p_len", 0, 0)
     P.c("mu_sy_8t", "mu_q_store", 1, 0)                                    # a waiting chime plays
     P.obj("mu_mr_sts", "spigot 1", x + 560, sy + 110)
     P.c("mu_sy_8t", "mu_mr_sts", 0, 0); P.c("mu_mr_sts", "mu_still_gate")  # the still pattern rolls
     P.obj("mu_sy_250_sel", "sel 1", x + 700, sy + 120); P.msg("mu_sy_250", "250", x + 700, sy + 140)
-    P.c("mu_sy_not", "mu_sy_250_sel"); P.c("mu_sy_250_sel", "mu_sy_250"); P.c("mu_sy_250", "mu_p_len", 0, 1)  # (free again)
+    P.c("mu_sy_not", "mu_sy_250_sel"); P.c("mu_sy_250_sel", "mu_sy_250"); P.c("mu_sy_250", "mu_p_len", 0, 0)  # (free again)
     # motif notes: played at once if the last 16th was under half a 16th ago, else held until the next one
     P.obj("mu_tk_tm", "timer", x + 800, sy + 40); P.c("mu_sy_tk", "mu_tk_tm", 1, 0)
     P.obj("mu_mo_r", "r motif", x + 800, sy); P.obj("mu_mo_in", "t l b", x + 800, sy + 20)

@@ -2236,6 +2236,16 @@ def calm_chimes(c):
 cq0, cq1 = calm_chimes(0), calm_chimes(1)
 check(cq0 == 0 and 2 <= cq1 <= 12, "calm build: a quiet room stays quiet (%d chimes in 30 s), at the build's peak a few soft chimes come (%d)" % (cq0, cq1))
 
+# the still pattern synced to the beat rolls on the 8ths with its chance scaled to the 8th, so it keeps its density
+def still_density(synced, bpm):
+    e = fresh(dry=0, wet=0, music_on=1, music_arp=1, music_pad=0, music_res=0, music_harm=0, music_answer=0, melody_src=0,
+              beat_level=1 if synced else 0, beat_follow=1, tempo_mode=1, tempo_bpm=bpm, rhythm_src=0)
+    e.listen("chime_note"); e.send("calm_chimes", 10); e.run(np.zeros(200 * SR, np.float32))
+    return len(e.heard["chime_note"])
+sd_free = still_density(False, 150); sd150, sd90 = still_density(True, 150) / sd_free, still_density(True, 90) / sd_free
+check(sd_free > 200 and 0.85 < sd150 < 1.1 and 0.85 < sd90 < 1.1,
+      "still pattern: synced to the beat it chimes as often as free (%.2f at 150 BPM, %.2f at 90; %d free in 200 s)" % (sd150, sd90, sd_free))
+
 # Melody rhythm: one-bar cells on the clock's 16ths; each note's ring follows its length (MEL_RING: x1 + 200 ms)
 def mel_rhythm_run(mode, walk, secs=24):
     e = fresh(dry=0, wet=0, music_on=1, music_arp=1, music_pad=0, music_res=0, music_harm=0, music_answer=0,
