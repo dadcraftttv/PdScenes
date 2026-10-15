@@ -397,6 +397,17 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   detection now run while Harmony is up OR a found pad/bass wants takes (`harm_run`; the voice harmony still only
   while Harmony > 0). The event log says "Kept a held note for the found pad (A3)". The found bass has faint grain
   sidebands (~16 dB down) when pulled far down; untested on the phone.
+  **Melody rhythm** (Oct 15, from Samuel's other chat, levels 1+2; `mel_rhythm` Music, Off (as before, default) /
+  Straight / Dotted / Mixed, noPreset; `add_melody_rhythm`; Pd test "melody rhythm:"): one-bar cells
+  (`MEL_CELLS_STRAIGHT`/`_DOTTED`, note lengths in 16ths, negative = rest; Mixed = both sorted by onsets) on the
+  clock's tick16 (always running). Each bar picks one near `rh_drive` (+-1, never the same twice). On an onset:
+  `mlen` = the ring (len x 16th x 1 + 200 ms, 250-3000; `mu_tim_dec` uses it instead of the random 0.9-2.6 s, and
+  the found voices read the same cdec), then walking (`mwalk`, from mu_q_walk/stop) the arpeggio plays its next
+  note (the per-pulse trigger is closed: `mu_mr_arp`), standing the still pattern rolls (its own 250 ms / 8th
+  rolls closed: `mu_mr_stf`/`mu_mr_sts`) with `mu_p` inlet 2 = bar / onsets, so the density holds. Sound-triggered
+  chimes, motif replays, groove, density memory unchanged. Reports `mel_cell`, `mel_note <tick> <len> <ring>`.
+  Found on the way: `mu_p_len` (the still pattern's "8th / 250" scaling when synced) is written cold and never
+  banged, so that scaling never applied (left as is). Feel untested. Level 3 (phrase logic) is a later note.
   **Density memory** (roadmap 8, no slider): `value mdens` = notes played lately (a chime +1, an arpeggio note +0.3
   so the walking bed doesn't silence chimes on the beat), fading over 8 s. Sudden-sound and still-pattern chimes play
   with chance 1/(1+(mdens/10)^2); the arpeggio rests up to 30% more past 16. Busy test room: 1.45 -> 1.0 notes/s.

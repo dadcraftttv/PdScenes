@@ -182,7 +182,12 @@ final class Params {
             new Param("melody_src", "Melody sounds", 0f, 2f, 1f, "", Param.Curve.LINEAR)
                     .choices("Synth chimes", "Found sounds (tuned from what the mic hears)", "Both")
                     .inSection("music").noPreset().resetWhenAbsent(),
-            new Param("chime_char", "Chime character (ring to your sound)", 0f, 1f, 0.5f, "", Param.Curve.LINEAR)
+            // Melody rhythm (Oct 15): the walking notes and the standing-still chimes follow one-bar rhythm patterns
+            // (whole to 8th notes, or dotted and syncopated ones), each note ringing as long as it lasts. Off = as before.
+            new Param("mel_rhythm", "Melody rhythm", 0f, 3f, 0f, "", Param.Curve.LINEAR)
+                    .choices("Off (as before)", "Straight (quarters, halves, 8ths)", "Dotted (dotted and syncopated)", "Mixed")
+                    .inSection("music").noPreset().resetWhenAbsent(),
+            new Param("chime_char","Chime character (ring to your sound)", 0f, 1f, 0.5f, "", Param.Curve.LINEAR)
                     .inSection("music").rand(0f, 1f).resetWhenAbsent(),
             new Param("music_tone", "Tone (dark to bright)", 0f, 1f, 0.5f, "", Param.Curve.LINEAR)
                     .inSection("music").rand(0.2f, 0.9f).resetWhenAbsent(),

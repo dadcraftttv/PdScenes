@@ -2236,6 +2236,40 @@ def calm_chimes(c):
 cq0, cq1 = calm_chimes(0), calm_chimes(1)
 check(cq0 == 0 and 2 <= cq1 <= 12, "calm build: a quiet room stays quiet (%d chimes in 30 s), at the build's peak a few soft chimes come (%d)" % (cq0, cq1))
 
+# Melody rhythm: one-bar cells on the clock's 16ths; each note's ring follows its length (MEL_RING: x1 + 200 ms)
+def mel_rhythm_run(mode, walk, secs=24):
+    e = fresh(dry=0, wet=0, music_on=1, music_arp=1, music_pad=0, music_res=0, music_harm=0, music_answer=0,
+              melody_src=0, mel_rhythm=mode, beat_level=0)
+    e.listen("tick16", "chime_deg", "mel_note")
+    if not walk:
+        e.send("calm_chimes", 25)                                     # (standing: every roll of the still pattern plays)
+    t, last, nxt, offs, ticks = 0.0, None, 0.5, [], []
+    seen = {"tick16": 0, "chime_deg": 0}
+    for _ in range(int(secs * SR) // 64):
+        if walk and t >= nxt:
+            e.send("step", 0.5); nxt += 0.5
+        e.run(np.zeros(64, np.float32)); t += 64 / SR
+        for v in e.heard["tick16"][seen["tick16"]:]:
+            last = (int(v), t); ticks.append(t)
+        seen["tick16"] = len(e.heard["tick16"])
+        for v in e.heard["chime_deg"][seen["chime_deg"]:]:
+            if t > 1:
+                offs.append(t - last[1])
+        seen["chime_deg"] = len(e.heard["chime_deg"])
+    notes = [l for l in e.lists.get("mel_note", [])]
+    six = float(np.median(np.diff(ticks[len(ticks) // 2:])) * 1000)   # a 16th now (ms)
+    ring_ok = all(abs(r - min(max(n * six + 200, 250), 3000)) < 15 for _, n, r in notes)
+    fits = all(b[0] - a[0] >= a[1] for a, b in zip(notes, notes[1:]) if b[0] > a[0])   # (same bar: the next onset waits)
+    return dict(notes=notes, offs=offs, ring_ok=ring_ok, fits=fits, lens={int(n) for _, n, _ in notes})
+ms, md, mw = mel_rhythm_run(1, False), mel_rhythm_run(2, False), mel_rhythm_run(3, True)
+grid_ok = all(max(m["offs"]) < 0.003 for m in (ms, md, mw))
+check(grid_ok and all(m["ring_ok"] and m["fits"] for m in (ms, md, mw)) and ms["lens"] <= {2, 4, 8, 16}
+      and md["lens"] & {3, 6, 12} and len(ms["offs"]) >= len(ms["notes"]) - 2 and len(mw["offs"]) >= 0.7 * len(mw["notes"]) > 10,
+      "melody rhythm: notes on the 16ths (latest %.1f ms after a tick), each ringing as long as its note; straight lengths %s, "
+      "dotted %s; standing %d chimes for %d cell notes, walking %d arpeggio notes for %d"
+      % (1000 * max(max(m["offs"]) for m in (ms, md, mw)), sorted(ms["lens"]), sorted(md["lens"]), len(ms["offs"]),
+         len(ms["notes"]), len(mw["offs"]), len(mw["notes"])))
+
 # stem packs: a loop plays at its file's own speed (any sample rate), locked to the tempo clock's bars, fading in over a bar
 import wave, tempfile
 def stem_run(rate, bars=1, lock=True):

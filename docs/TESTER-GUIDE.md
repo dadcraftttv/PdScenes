@@ -17,6 +17,7 @@ There are two ways to use it:
 
 **Oct 15 (in the next test build):**
 
+- **Melody rhythm** (Music): the walking notes and the standing-still chimes can follow real rhythms (quarters, halves, 8ths, or dotted and syncopated ones), each note ringing as long as it lasts. Off at first.
 - **Breakbeat** (Rhythm): turn it up for drums with off-beat kicks, ghost snares, now and then a chopped bar, a quick snare roll or a longer fill. At 0 the beat is as before.
 
 **Oct 13-14:**
@@ -289,6 +290,7 @@ This adds a soft, drifting musical layer that reacts to the world around you, in
 - **Pad sounds:** **Found sounds** (the default), **Synth** or **Both**. With Found sounds, when you hum, sing or whistle a steady note (or a steady hum from a machine or a bird), the app keeps a short snippet of it, and from the next chord change the pad's chord is sung by that sound, stretched out and pitched to each chord note. It sounds like a choir of you holding the harmony. Until the first held note it plays the synth pad.
 - **Bass sound:** **Synth** (the default) or **Found sounds**, which plays the bass with that same held-note snippet, pitched down. It is subtle.
 - **Notes and chimes level:** how loud the melody notes are (the chimes and the walking notes). Turn it to 0 to hear only the pad.
+- **Melody rhythm:** **Off** (the start: as before), **Straight**, **Dotted** or **Mixed**. Switched on, the melody follows one-bar rhythms in time with the beat: Straight uses whole, half, quarter and 8th notes; Dotted uses dotted and syncopated ones (like a dotted quarter then an 8th, or a 3-3-2 pattern); Mixed uses both. Each bar picks a rhythm that suits how fast you walk (or how lively the room is, standing still), and each note rings as long as it lasts: a half note rings long, an 8th is short. While you walk the walking notes follow it; standing still, the chimes that come now and then land on it. Chimes set off by a sound around you are not affected.
 - **Melody sounds:** **Found sounds** (the default), **Synth chimes** or **Both**. With Found sounds, the chimes and walking notes play the sounds caught for the beat, tuned to each note. Until the first catch they play synth chimes.
 - **Chime character (ring to your sound):** how the found melody sounds. Toward "ring", each note is a tuned, bell-like ring set off by your sound. Toward "your sound", each note is mostly your clap, knock or snap itself played at that pitch, short and punchy. It starts in the middle.
 - **Room notes:** how loud the room's own notes are.
@@ -463,7 +465,7 @@ Thank you for trying this. Anything you notice is useful, even "it felt weird." 
 - **Found sounds:** do the drums, chimes and room notes sound like the sounds around you? Is the beat too predictable, or too random? Where on the Chime character slider do you like the chimes? Does anything loud or harsh come back from the kit (a boom, a squeal)?
 - **Harmony:** does your voice copy sound like you and stay in tune? Does it sound natural when you sing low and when you sing high? Does it leave ordinary talking alone?
 - **Found pad:** after you hum a steady note, does the pad sound like your voice holding the chord?
-- **Rhythm:** does the beat stay steady while you walk and follow a change of pace? With Tempo set to Set, does it settle on your tempo, and does walking pull it the right amount? Do the occasional sparse bars and the drifting swing feel musical? With Breakbeat up, do the chops, rolls and fills feel like a breakbeat, and is the top of the slider too much or not enough? Does the beat still land on your steps as you walk?
+- **Rhythm:** does the beat stay steady while you walk and follow a change of pace? With Tempo set to Set, does it settle on your tempo, and does walking pull it the right amount? Do the occasional sparse bars and the drifting swing feel musical? With Melody rhythm on, do the walking notes and chimes feel like they have a rhythm, and do long and short notes sound right? With Breakbeat up, do the chops, rolls and fills feel like a breakbeat, and is the top of the slider too much or not enough? Does the beat still land on your steps as you walk?
 - **Realms:** do they change at the right moments? Do the "What it changes" switches leave the groups you untick alone? Is the warp sound pleasant, and noticeable without being annoying?
 - **Glitch:** with Glitch cloud amount up, do sudden sounds come back in a fun way, and do they feel like they are all around you? Which glitch matrix mix did you like best? Do the echoes bouncing around (Echo scatter) feel good or dizzying?
 - **Headphones and mic:** did the app refuse to start, stop when you unplugged, or pick the wrong mic? Did it go quiet during a call and come back after, and did it dip when another app played music?

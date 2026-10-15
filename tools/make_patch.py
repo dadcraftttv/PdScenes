@@ -37,7 +37,7 @@ DEFAULTS = [
     ("music_on", 0), ("music_key", 0), ("music_scale", 0), ("music_pad", 0.33), ("music_arp", 0.4),
     ("music_tone", 0.5), ("music_react", 0.8), ("music_res", 0.8), ("music_harm", 0.6), ("beat_follow", 1), ("beat_when", 1), ("rhythm_src", 1), ("melody_src", 1), ("harm_src", 1), ("pad_src", 1), ("bass_src", 0), ("tempo_mode", 0), ("tempo_bpm", 100), ("chime_char", 0.5), ("res_src", 1), ("cue_sound", 1), ("beat_glitch", 0.4), ("gate_attack", 5), ("gate_hold", 0), ("gate_release", 80), ("comp_attack", 40),
     ("comp_release", 40), ("music_drift", 1), ("echo_scatter", 0.5), ("gc_amount", 0), ("gc_level", 0.7), ("gc_pct_stutter", 35), ("gc_pct_reverse", 25),
-    ("gc_pct_shuffle", 20), ("gc_pct_stretch", 20), ("music_pad_reg", 2), ("pocket_hush", 0.5), ("pocket_guard", 0.6), ("handling_hush", 0.5), ("intensity", 0.5), ("mix_kick", 1), ("mix_bass", 1), ("mix_chimes", 1), ("mix_walk", 1), ("mix_ring", 1), ("mix_bells", 1), ("reverb_rev", 0), ("stems_level", 0.8), ("music_answer", 0.5), ("beat_break", 0),
+    ("gc_pct_shuffle", 20), ("gc_pct_stretch", 20), ("music_pad_reg", 2), ("pocket_hush", 0.5), ("pocket_guard", 0.6), ("handling_hush", 0.5), ("intensity", 0.5), ("mix_kick", 1), ("mix_bass", 1), ("mix_chimes", 1), ("mix_walk", 1), ("mix_ring", 1), ("mix_bells", 1), ("reverb_rev", 0), ("stems_level", 0.8), ("music_answer", 0.5), ("beat_break", 0), ("mel_rhythm", 0),
 ]
 
 # Scales as semitone steps above the key note. The patch snaps every note it plays to these.
@@ -101,6 +101,28 @@ DENSITY_ARP_MAX = 30         # ...up to this much
 DENSITY_ARP_WEIGHT = 0.3     # an arpeggio note counts this much (the steady bed must not silence the chimes on the beat)
 CHIME_SPAN = 4               # chime melodies wander this many scale steps either side of the brightness note
 CHIME_DECAY_MS = (900, 2600)     # each chime's fade, picked at random
+# Melody rhythm (mel_rhythm, Music: 0 off = as before, 1 straight, 2 dotted, 3 mixed; Oct 15): one-bar rhythm cells
+# on the clock's 16ths for the walking arpeggio and the standing-still chimes. A cell is note lengths in 16ths (a
+# negative number is a rest), adding up to a bar; each pool runs calm -> busy and every bar picks one near the drive.
+MEL_CELLS_STRAIGHT = (
+    (16,),                          # a whole note
+    (8, 8),                         # two halves
+    (4, 4, 8),                      # quarter, quarter, half
+    (4, 4, 4, 4),                   # quarters
+    (2, 2, 2, 2, 8),                # four 8ths and a half
+    (2, 2, 4, 2, 2, 4),             # 8ths and quarters
+    (2, 2, 2, 2, 2, 2, 2, 2),       # 8ths
+)
+MEL_CELLS_DOTTED = (
+    (12, 4),                        # dotted half, quarter
+    (6, 2, 8),                      # dotted quarter, 8th, half
+    (-2, 6, 8),                     # a late start: an 8th's rest, dotted quarter, half
+    (6, 6, 4),                      # 3 + 3 + 2 (tresillo)
+    (2, 4, 2, 8),                   # syncopated: 8th, quarter, 8th, half
+    (3, 1, 3, 1, 4, 4),             # dotted 8th + 16th, twice, then quarters
+    (3, 3, 2, 3, 3, 2),             # 3 + 3 + 2 in 16ths, twice
+)
+MEL_RING = (1.0, 200, 250, 3000)    # a note's ring (ms) = its length x this + this, kept within these
 CHIME_OVERTONE = (0.12, 0.45)    # each chime's 2nd-harmonic level (3rd is a third of it): mellow to bright
 BASS_FOLLOW_PCT = 40    # chance (in 100) that a chord change moves the bass to the chord's root; else the key's root
 BASS_DIP_MS = 600       # a bass note change fades out over this...
@@ -1745,6 +1767,85 @@ def add_beat(P):
     return "beat_out"
 
 
+def add_melody_rhythm(P, x, ex):
+    """Melody rhythm (mel_rhythm 1 straight, 2 dotted, 3 mixed; 0 = as before): each bar (tick 0) picks a one-bar
+    cell near the drive (rh_drive: pace walking, the room's liveliness standing; never the same twice) from the
+    chosen pool. On each of its onsets (the clock's 16ths) the note's ring is set from its length (mlen, MEL_RING),
+    then, walking, the arpeggio plays its next note (instead of one per beat), or, standing, the still pattern rolls
+    its chance (scaled by the cell's onsets per bar, so the density stays as it was). Reports mel_cell <row> and
+    mel_note <tick> <length in 16ths> <ring ms> for the tests."""
+    def rows(cells):
+        out = []
+        for c in cells:
+            assert sum(abs(v) for v in c) == 16, c
+            r = [0] * 16; t = 0
+            for v in c:
+                if v > 0:
+                    r[t] = v
+                t += abs(v)
+            out.append(r)
+        return out
+    mixed = sorted(MEL_CELLS_STRAIGHT + MEL_CELLS_DOTTED, key=lambda c: sum(1 for v in c if v > 0))
+    pools = [rows(MEL_CELLS_STRAIGHT), rows(MEL_CELLS_DOTTED), rows(mixed)]
+    allrows = [r for p in pools for r in p]
+    offs = [0, len(pools[0]), len(pools[0]) + len(pools[1])]
+    ns = [len(p) for p in pools]
+    y = 1400; mx = x + 1700
+    P.obj("mr_cells", f"table mel_cells {16 * len(allrows)}", mx, y)
+    P.obj("mr_cn", f"table mel_cn {len(allrows)}", mx + 150, y)
+    P.obj("mr_po", "table mel_po 6", mx + 300, y)
+    P.obj("mr_lb", "loadbang", mx, y - 30)
+    P.msg("mr_init", f"{BS}; mel_cells 0 {' '.join(str(v) for r in allrows for v in r)}"
+                     f" {BS}; mel_cn 0 {' '.join(str(sum(1 for v in r if v > 0)) for r in allrows)}"
+                     f" {BS}; mel_po 0 {' '.join(str(v) for v in offs + ns)}", mx, y - 15)
+    P.c("mr_lb", "mr_init")
+    # the setting: 0 opens the old paths (and puts the still pattern's roll length back), 1-3 closes them
+    P.obj("mr_r", "r mel_rhythm", mx + 450, y - 30); P.obj("mr_v", "value mrhy", mx + 450, y - 15)
+    P.obj("mr_t", "t f f", mx + 450, y); P.c("mr_r", "mr_t"); P.c("mr_t", "mr_v", 1, 0)
+    P.obj("mr_off", "== 0", mx + 450, y + 15); P.c("mr_t", "mr_off", 0, 0)
+    for g in ("mu_mr_arp", "mu_mr_stf", "mu_mr_sts"):
+        P.c("mr_off", g, 0, 1)
+    P.obj("mr_off_sel", "sel 1", mx + 520, y + 30); P.c("mr_off", "mr_off_sel")
+    P.msg("mr_p250", "250", mx + 520, y + 45); P.c("mr_off_sel", "mr_p250"); P.c("mr_p250", "mu_p", 0, 2)
+    P.obj("mr_lv", "value mlen", mx + 600, y)                            # (declared; 0 = no cell note)
+    # each 16th: a new bar picks its cell (right outlet first), then the tick's onset
+    P.obj("mr_tick", "r tick16", mx, y + 40); P.obj("mr_tt", "t f f", mx, y + 55); P.c("mr_tick", "mr_tt")
+    P.obj("mr_bar", "sel 0", mx + 150, y + 70); P.c("mr_tt", "mr_bar", 1, 0)
+    pool = "min(max(mrhy,1),3)-1"
+    near = f"min(max(int(rh_drive*(mel_po[{pool}+3]-1)+0.5)+random(0,3)-1,0),mel_po[{pool}+3]-1)"
+    ex("mr_pick", f"mel_po[{pool}]+{near}", mx + 150, y + 85); P.c("mr_bar", "mr_pick")
+    # (never the same cell twice in a row: a repeat moves one along, within the pool)
+    ex("mr_pick2", f"if($f1==mel_row,if($f1-mel_po[{pool}]<mel_po[{pool}+3]-1,$f1+1,$f1-1),$f1)", mx + 150, y + 100)
+    P.c("mr_pick", "mr_pick2")
+    P.obj("mr_row_t", "t f f", mx + 150, y + 115); P.c("mr_pick2", "mr_row_t")
+    P.obj("mr_row", "value mel_row", mx + 150, y + 130); P.c("mr_row_t", "mr_row", 1, 0)
+    P.obj("mr_row_s", "s mel_cell", mx + 230, y + 130); P.c("mr_row_t", "mr_row_s", 0, 0)
+    ex("mr_len", "if(mrhy>0,mel_cells[mel_row*16+$f1],0) ; $f1".replace(" ; ", " " + BS + "; "), mx, y + 150)
+    P.c("mr_tt", "mr_len", 0, 0)
+    P.obj("mr_tk", "f", mx + 100, y + 165); P.c("mr_len", "mr_tk", 1, 1)
+    P.obj("mr_has", "moses 0.5", mx, y + 165); P.c("mr_len", "mr_has", 0, 0)
+    P.obj("mr_lt", "t f f", mx, y + 180); P.c("mr_has", "mr_lt", 1, 0)
+    ex("mr_ring", f"min(max($f1*tc_P/4*{MEL_RING[0]}+{MEL_RING[1]},{MEL_RING[2]}),{MEL_RING[3]})", mx, y + 195)
+    P.c("mr_lt", "mr_ring", 0, 0)
+    P.obj("mr_rep", "pack f f f", mx + 100, y + 210)                     # (tick, length, ring) for the tests
+    P.c("mr_lt", "mr_rep", 1, 1)
+    P.obj("mr_go", "t b b f", mx, y + 225); P.c("mr_ring", "mr_go"); P.c("mr_go", "mr_rep", 2, 2)
+    P.obj("mr_rep_s", "s mel_note", mx + 100, y + 240)
+    P.obj("mr_set", "value mlen", mx + 60, y + 240); P.c("mr_go", "mr_set", 2, 0)   # first: this note's ring
+    P.obj("mr_route", "t b", mx, y + 240); P.c("mr_go", "mr_route", 1, 0)
+    P.msg("mr_clr", "0", mx + 160, y + 255); P.obj("mr_clr_v", "value mlen", mx + 160, y + 270)
+    P.c("mr_go", "mr_clr", 0, 0); P.c("mr_clr", "mr_clr_v")                     # last: back to random rings
+    # walking -> the arpeggio's next note; standing -> the still pattern's roll (its chance scaled to the cell)
+    P.obj("mr_wk", "value mwalk", mx, y + 255); P.c("mr_route", "mr_wk")
+    P.obj("mr_wsel", "sel 0", mx, y + 270); P.c("mr_wk", "mr_wsel")
+    P.c("mr_route", "mr_tk"); P.c("mr_tk", "mr_rep", 0, 0); P.c("mr_rep", "mr_rep_s")
+    P.obj("mr_st", "t b b", mx, y + 285); P.c("mr_wsel", "mr_st", 0, 0)
+    ex("mr_plen", "4*tc_P/max(mel_cn[mel_row],1)+$f1*0", mx + 60, y + 300)
+    P.c("mr_st", "mr_plen", 1, 0); P.c("mr_plen", "mu_p", 0, 2)
+    P.c("mr_st", "mu_still_gate", 0, 0)
+    P.c("mr_wsel", "mu_arp_gate", 1, 0)
+
+
 def add_music(P):
     """A reactive synth that plays only notes of the chosen key and scale. It listens to the mic:
     loudness sets how busy and loud it is, the brightness of the sound (zero-crossing rate) sets the
@@ -1889,7 +1990,9 @@ def add_music(P):
     P.obj("mu_tim_t", "t b b b", cx + 200, cy + 290)
     P.c("mu_note_t", "mu_tim_t", 0, 0)
     P.obj("mu_tim_rd", "random 1000", cx + 330, cy + 310)
-    ex("mu_tim_dec", f"{CHIME_DECAY_MS[0]}+{CHIME_DECAY_MS[1] - CHIME_DECAY_MS[0]}*$f1/1000", cx + 330, cy + 340)
+    # (a note from a Melody rhythm cell brings its own ring, mlen ms; any other chime a random one)
+    P.obj("mu_tim_ml", "value mlen", cx + 400, cy + 325)
+    ex("mu_tim_dec", f"if(mlen>0,mlen,{CHIME_DECAY_MS[0]}+{CHIME_DECAY_MS[1] - CHIME_DECAY_MS[0]}*$f1/1000)", cx + 330, cy + 340)
     P.obj("mu_tim_wd", "value cdec", cx + 330, cy + 370)
     P.c("mu_tim_t", "mu_tim_rd", 2, 0); P.c("mu_tim_rd", "mu_tim_dec"); P.c("mu_tim_dec", "mu_tim_wd")
     P.obj("mu_tim_rb", "random 1000", cx + 450, cy + 310)
@@ -2083,7 +2186,9 @@ def add_music(P):
     P.obj("mu_still_free", "spigot 1", x + 800, 615)                       # (synced: the clock's 8ths instead)
     P.obj("mu_still_gate", "spigot 1", x + 800, 630)
     P.obj("mu_still_on", "spigot", x + 800, 660)
-    P.c("mu_still_tick", "mu_still_free"); P.c("mu_still_free", "mu_still_gate"); P.c("mu_still_gate", "mu_still_on")
+    P.obj("mu_mr_stf", "spigot 1", x + 860, 615)                          # (Melody rhythm: the cells roll it instead)
+    P.c("mu_still_tick", "mu_still_free"); P.c("mu_still_free", "mu_mr_stf"); P.c("mu_mr_stf", "mu_still_gate")
+    P.c("mu_still_gate", "mu_still_on")
     P.obj("mu_still_t", "t b b", x + 800, 690)
     P.c("mu_still_on", "mu_still_t")
     P.obj("mu_roll", "random 1000", x + 800, 720)
@@ -2127,7 +2232,8 @@ def add_music(P):
     P.obj("mu_arp_pv", "value apvel", x + 1000, 700); ex("mu_arp_trim", "$f1*mixw", x + 1000, 715)
     P.obj("mu_arp_cv", "value cvel", x + 1000, 730); P.c("mu_arp_pv", "mu_arp_trim"); P.c("mu_arp_trim", "mu_arp_cv")
     P.obj("mu_arp_gate", "spigot", x + 1100, 660)
-    P.c("mu_step_t", "mu_arp_gate", 0, 0)
+    P.obj("mu_mr_arp", "spigot 1", x + 1050, 645)                         # (Melody rhythm: the cells play it instead)
+    P.c("mu_step_t", "mu_mr_arp", 0, 0); P.c("mu_mr_arp", "mu_arp_gate", 0, 0)
     P.obj("mu_arp_t", "t b b b b", x + 1100, 690)
     P.c("mu_arp_gate", "mu_arp_t")
     P.obj("mu_v_chord", "value mchord", x + 1100, 720)
@@ -2194,6 +2300,7 @@ def add_music(P):
     P.obj("mu_q_w", "f", x + 230, 645)
     P.c("mu_walk_t", "mu_q_walk", 1, 0); P.c("mu_walk_del", "mu_q_stop")
     P.c("mu_q_walk", "mu_q_w"); P.c("mu_q_stop", "mu_q_w")
+    P.obj("mu_q_wv", "value mwalk", x + 280, 645); P.c("mu_q_walk", "mu_q_wv"); P.c("mu_q_stop", "mu_q_wv")
     ex("mu_q_wait", "$f1||$f2", x + 230, 665)                          # walking, or synced to the beat
     P.c("mu_q_w", "mu_q_wait", 0, 0)
     P.obj("mu_q_wait_t", "t f f", x + 230, 675); P.c("mu_q_wait", "mu_q_wait_t")
@@ -2272,7 +2379,8 @@ def add_music(P):
     P.obj("mu_sy_P", "value tc_P", x + 600, sy + 120); P.obj("mu_sy_half", "/ 2", x + 600, sy + 140)
     P.c("mu_sy_8t", "mu_sy_P", 2, 0); P.c("mu_sy_P", "mu_sy_half"); P.c("mu_sy_half", "mu_p_len", 0, 1)
     P.c("mu_sy_8t", "mu_q_store", 1, 0)                                    # a waiting chime plays
-    P.c("mu_sy_8t", "mu_still_gate", 0, 0)                                 # the still pattern rolls
+    P.obj("mu_mr_sts", "spigot 1", x + 560, sy + 110)
+    P.c("mu_sy_8t", "mu_mr_sts", 0, 0); P.c("mu_mr_sts", "mu_still_gate")  # the still pattern rolls
     P.obj("mu_sy_250_sel", "sel 1", x + 700, sy + 120); P.msg("mu_sy_250", "250", x + 700, sy + 140)
     P.c("mu_sy_not", "mu_sy_250_sel"); P.c("mu_sy_250_sel", "mu_sy_250"); P.c("mu_sy_250", "mu_p_len", 0, 1)  # (free again)
     # motif notes: played at once if the last 16th was under half a 16th ago, else held until the next one
@@ -2294,6 +2402,7 @@ def add_music(P):
     # Gates follow the on/off switch.
     for g in ("mu_ons_gate_on", "mu_still_on", "mu_arp_gate"):
         P.c("mu_r_on", g, 0, 1)
+    add_melody_rhythm(P, x, ex)
 
     # ---- pad: four soft voices (root, third, fifth, octave) that glide to a new chord now and then ----
     px = x + 1500
