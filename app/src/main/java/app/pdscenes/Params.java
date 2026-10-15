@@ -143,6 +143,11 @@ final class Params {
                     Param.Curve.LINEAR).inSection("beat").rand(0f, 0.7f).resetWhenAbsent(),
             new Param("beat_pitch", "Kick drum pitch", 40f, 120f, 55f, " Hz", Param.Curve.LOG)
                     .inSection("beat").rand(45f, 90f).decimals(0).resetWhenAbsent(),
+            // Breakbeat (Oct 15): 0 = the patterns as before. Higher, the bars lean on syncopated kicks and snares with
+            // ghost notes, and now and then a bar is chopped (its 16ths reordered, the downbeat kept), gets a short
+            // roll or a long fill. The tempo and the hats stay with your pace. Synth and found kits alike.
+            new Param("beat_break", "Breakbeat (chopped, syncopated drums)", 0f, 1f, 0f, "", Param.Curve.LINEAR)
+                    .inSection("beat").rand(0f, 0.6f).resetWhenAbsent(),
 
             // ---- Music ---- (a reactive synth: notes snapped to a key and scale, added after the first presets)
             new Param("music_on", "Music enabled", 0f, 1f, 0f, "", Param.Curve.LINEAR)

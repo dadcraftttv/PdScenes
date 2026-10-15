@@ -1868,6 +1868,40 @@ check(len(brk) >= 2 and ok_kind and all(g >= 9 for g in gaps) and busy >= nbars 
       "arrangement: now and then a sparse bar (%d in %d bars, kinds %s, at bars %s), each as thin as its kind, then the groove"
       % (len(brk), nbars, [kinds[b] for b in brk], brk))
 
+# breakbeat (beat_break): syncopated pools, chopped bars, rolls and long fills; every hit on the 16th grid (a roll's
+# in-between hits a 32nd after a tick), nothing of it at 0
+def breakbeat_run(bb, steps=200, interval=0.4):
+    e = fresh(dry=0, wet=0, beat_level=1, beat_follow=1, beat_when=1, rhythm_src=0, beat_break=bb)
+    e.listen("tick16", "drum_kick", "drum_snare", "drum_hat", "rh_bb_bar")
+    t, last, bar, bars, offs = 0.0, None, -1, {}, []
+    seen = {k: 0 for k in ("tick16", "drum_kick", "drum_snare", "drum_hat")}
+    for st in range(steps):
+        e.send("step", interval)
+        for _ in range(int(interval * SR) // 64):
+            e.send("rh_swing_set", 0); e.run(np.zeros(64, np.float32)); t += 64 / SR    # (straight 16ths)
+            for v in e.heard["tick16"][seen["tick16"]:]:
+                bar += int(v) == 0; last = (int(v), t)
+            seen["tick16"] = len(e.heard["tick16"])
+            for k in ("drum_kick", "drum_snare", "drum_hat"):
+                for v in e.heard[k][seen[k]:]:
+                    if last and bar >= 0 and v > 0:
+                        bars.setdefault(bar, []).append((k[5], last[0], v)); offs.append((k[5], t - last[1]))
+                seen[k] = len(e.heard[k])
+    sig = [tuple(sorted((r, tk) for r, tk, v in bars.get(b, []) if r in "ks" and v >= 0.5)) for b in range(8, bar)]
+    kicks = [tk for b in range(8, bar) for r, tk, v in bars.get(b, []) if r == "k" and v >= 0.5]
+    bl = e.lists.get("rh_bb_bar", [])
+    return dict(distinct=len(set(sig)), bars=len(sig), off=float(np.mean([tk % 4 != 0 for tk in kicks])), offs=offs,
+                chops=sum(1 for l in bl if l[1] > 0), rolls=sum(1 for l in bl if l[0] > 0), fills=sum(1 for l in bl if l[2] > 0))
+b0, b1 = breakbeat_run(0), breakbeat_run(1)
+grid = lambda offs: all(dt < 0.003 or (r == "s" and abs(dt - 0.4 / 8) < 0.003) for r, dt in offs)
+rolled = sum(1 for r, dt in b1["offs"] if dt > 0.003)
+check(b0["chops"] == b0["rolls"] == b0["fills"] == 0 and all(dt < 0.003 for _, dt in b0["offs"]) and grid(b1["offs"])
+      and b1["chops"] >= 3 and b1["rolls"] >= 3 and b1["fills"] >= 3 and rolled >= 4
+      and b1["distinct"] >= b0["distinct"] + 5 and b1["off"] >= b0["off"] + 0.15,
+      "breakbeat: at 0 nothing changes; at 1 more varied bars (%d vs %d distinct of %d), kicks off the beat %.0f%% vs %.0f%%, "
+      "%d chopped bars, %d rolls (%d 32nds), %d long fills, every hit on the 16th grid"
+      % (b1["distinct"], b0["distinct"], b0["bars"], 100 * b1["off"], 100 * b0["off"], b1["chops"], b1["rolls"], rolled, b1["fills"]))
+
 # the learned groove (C4): claps on one off-beat spot teach the snare that spot; a few quiet bars later it's gone
 def learned_spots(clap_bars, bars, spot=6):
     """Standing still at the default 100 BPM (a 16th = 150 ms). Syncs on the clock's own ticks, then claps 20 ms after

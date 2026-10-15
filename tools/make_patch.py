@@ -37,7 +37,7 @@ DEFAULTS = [
     ("music_on", 0), ("music_key", 0), ("music_scale", 0), ("music_pad", 0.33), ("music_arp", 0.4),
     ("music_tone", 0.5), ("music_react", 0.8), ("music_res", 0.8), ("music_harm", 0.6), ("beat_follow", 1), ("beat_when", 1), ("rhythm_src", 1), ("melody_src", 1), ("harm_src", 1), ("pad_src", 1), ("bass_src", 0), ("tempo_mode", 0), ("tempo_bpm", 100), ("chime_char", 0.5), ("res_src", 1), ("cue_sound", 1), ("beat_glitch", 0.4), ("gate_attack", 5), ("gate_hold", 0), ("gate_release", 80), ("comp_attack", 40),
     ("comp_release", 40), ("music_drift", 1), ("echo_scatter", 0.5), ("gc_amount", 0), ("gc_level", 0.7), ("gc_pct_stutter", 35), ("gc_pct_reverse", 25),
-    ("gc_pct_shuffle", 20), ("gc_pct_stretch", 20), ("music_pad_reg", 2), ("pocket_hush", 0.5), ("pocket_guard", 0.6), ("handling_hush", 0.5), ("intensity", 0.5), ("mix_kick", 1), ("mix_bass", 1), ("mix_chimes", 1), ("mix_walk", 1), ("mix_ring", 1), ("mix_bells", 1), ("reverb_rev", 0), ("stems_level", 0.8), ("music_answer", 0.5),
+    ("gc_pct_shuffle", 20), ("gc_pct_stretch", 20), ("music_pad_reg", 2), ("pocket_hush", 0.5), ("pocket_guard", 0.6), ("handling_hush", 0.5), ("intensity", 0.5), ("mix_kick", 1), ("mix_bass", 1), ("mix_chimes", 1), ("mix_walk", 1), ("mix_ring", 1), ("mix_bells", 1), ("reverb_rev", 0), ("stems_level", 0.8), ("music_answer", 0.5), ("beat_break", 0),
 ]
 
 # Scales as semitone steps above the key note. The patch snaps every note it plays to these.
@@ -246,6 +246,38 @@ BREAK_CHANCE = 0.2                 # ...then this chance each bar (not on a fill
 SWING_CHOICES = (0, 0.08, 0.14, 0.2, 0.26)   # swing: off-beat 16ths this share of a 16th late, a new pick every...
 SWING_EVERY_BARS = 8               # ...this many bars (Samuel: "a little too predictable"), glided toward...
 SWING_GLIDE = 0.4                  # ...by this much each bar
+# Breakbeat (beat_break, Rhythm, 0 = exactly as before; Oct 15): as the slider rises the bars lean on these kick and
+# snare pools (off-beat kicks, snares on the "and", ghost notes; calm -> busy like the others, picked by the same drive)...
+BREAK_KICK_PATS = [
+    (1, 0, 0, 0, 0, 0, 0, 0, 0, 0, .8, 0, 0, 0, 0, 0),
+    (1, 0, .7, 0, 0, 0, 0, 0, 0, 0, .85, 0, 0, 0, 0, 0),
+    (1, 0, .7, 0, 0, 0, 0, 0, 0, 0, .85, .6, 0, 0, 0, 0),
+    (1, 0, 0, 0, 0, 0, .6, 0, 0, .7, 0, 0, 0, 0, .6, 0),
+    (1, 0, .75, 0, 0, 0, 0, .55, 0, .7, .8, 0, 0, 0, 0, .5),
+]
+BREAK_SNARE_PATS = [
+    (0, 0, 0, 0, .9, 0, 0, .25, 0, 0, 0, 0, .9, 0, 0, 0),
+    (0, 0, 0, 0, .9, 0, 0, .3, 0, .3, 0, 0, .9, 0, 0, 0),
+    (0, 0, 0, 0, .9, 0, 0, .3, 0, 0, 0, 0, .9, 0, .7, 0),
+    (0, 0, 0, 0, .9, 0, 0, .3, 0, .3, 0, .25, .9, 0, 0, .75),
+    (0, .2, 0, 0, .95, 0, 0, .35, 0, .35, 0, .25, .95, 0, .3, .6),
+]
+BB_POOL = 0.8                      # ...each pick taking them with this chance x the slider (the top stays mixed)
+CHOP_MAPS = [                      # a chopped bar: tick t plays the pattern's step map[t] (the downbeat always stays)
+    tuple(range(16)),
+    (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 8, 9, 8, 9, 14, 15),        # a stutter
+    (0, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4, 5, 6, 7),    # halves swapped
+    (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 4, 5, 6, 7),        # the last beat repeats the second
+    (0, 1, 2, 3, 0, 1, 2, 3, 8, 9, 10, 11, 12, 13, 14, 15),    # the second beat repeats the first
+    (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 12, 12, 12),    # the last step repeats
+]
+BB_CHOP = 0.25                     # chance per bar at the slider's top that a bar is chopped...
+BB_ROLL = 0.2                      # ...gets a short roll (3-4 snares 32nds apart, from one of ROLL_STARTS)...
+ROLL_STARTS = (5, 9, 13)
+ROLL_VELS = (.35, .45, .55, .7)
+BB_FILL = 0.1                      # ...or a long fill (FILL_LONG over the last two beats)...
+BB_FILL_LONGER = 0.4               # ...and a usual fill becomes long with this chance x the slider (each lasts 2 bars)
+FILL_LONG = (.3, .35, .4, .5, .55, .65, .8, .95)
 CLOCK_MIN_MS, CLOCK_MAX_MS = 375, 750   # beats are folded into 80-160 BPM
 CLOCK_DEFAULT_MS = 600       # 100 BPM before any walking
 CLOCK_PHASE_GAIN = 0.35      # each step moves the next beat this much of the way to it...
@@ -1316,14 +1348,19 @@ def add_rhythm(P, x):
     y = 600
     def ex(name, text, xx, yy):
         return P.obj(name, "expr " + text.replace(",", BS + ",").replace("$", BS + "$"), xx, yy)
-    for k, (nm, pats) in enumerate((("rh_kpat", KICK_PATS), ("rh_spat", SNARE_PATS), ("rh_hpat", HAT_PATS),
-                                     ("rh_fpat", (FILL_PAT,)))):
-        P.obj(nm, f"table {nm} {16 * len(pats)}", x + 1500, y + 20 * k)
+    nk = len(KICK_PATS)
+    assert len(BREAK_KICK_PATS) == len(BREAK_SNARE_PATS) == len(SNARE_PATS) == nk   # (break pool = index + nk)
+    tabs = (("rh_kpat", KICK_PATS + BREAK_KICK_PATS), ("rh_spat", SNARE_PATS + BREAK_SNARE_PATS), ("rh_hpat", HAT_PATS),
+            ("rh_fpat", (FILL_PAT,)), ("rh_flong", (FILL_LONG,)), ("rh_cmap", CHOP_MAPS), ("rh_rvel", (ROLL_VELS,)),
+            ("rh_rst", (ROLL_STARTS,)))
+    for k, (nm, pats) in enumerate(tabs):
+        P.obj(nm, f"table {nm} {len(pats) * len(pats[0])}", x + 1500, y + 20 * k)
     P.obj("rh_lb", "loadbang", x + 1500, y - 40)
     vals = lambda pats: " ".join(str(v) for pat in pats for v in pat)
-    P.msg("rh_tabs", f"{BS}; rh_kpat 0 {vals(KICK_PATS)} {BS}; rh_spat 0 {vals(SNARE_PATS)} {BS}; rh_hpat 0 {vals(HAT_PATS)}"
-                     f" {BS}; rh_fpat 0 {vals((FILL_PAT,))}", x + 1500, y - 20)
+    P.msg("rh_tabs", " ".join(f"{BS}; {nm} 0 {vals(pats)}" for nm, pats in tabs), x + 1500, y - 20)
     P.c("rh_lb", "rh_tabs")
+    P.obj("rh_r_bb", "r beat_break", x + 1400, y - 40); P.obj("rh_bb_v", "value rh_bbv", x + 1400, y - 20)
+    P.c("rh_r_bb", "rh_bb_v")
     # ---- walking? pace? the room? -> drive (0..1) and the drums' level ----
     P.obj("rh_r_walk", "r clock_walking", x + 1700, y)                   # the clock knows: a step within 1.25 intervals
     P.obj("rh_walk", "value rh_walking", x + 1700, y + 80)
@@ -1415,11 +1452,11 @@ def add_rhythm(P, x):
     P.obj("rh_hold", "spigot 1", x + 300, y + 70)
     # new bar: bar count, the patterns, the fill
     P.obj("rh_bar_t", "t b b b b b", x + 300, y + 80)
-    P.obj("rh_bar_st", "t b b b", x + 300, y + 65); P.c("rh_bar_sel", "rh_bar_st")
-    P.c("rh_bar_st", "rh_bar_cnt_t", 2, 0)
+    P.obj("rh_bar_st", "t b b b b", x + 300, y + 65); P.c("rh_bar_sel", "rh_bar_st")
+    P.c("rh_bar_st", "rh_bar_cnt_t", 3, 0)
     # arrangement moments: after the patterns are picked, maybe the next bar is a sparse one (rh_brk: 0 none, 1 hats
     # only, 2 no kick, 3 the downbeat kick and the hats), at least BREAK_MIN_BARS apart and never on a fill bar
-    P.obj("rh_brk_t", "t b b", x - 300, y + 130); P.c("rh_bar_st", "rh_brk_t", 0, 0)
+    P.obj("rh_brk_t", "t b b", x - 300, y + 130); P.c("rh_bar_st", "rh_brk_t", 1, 0)
     P.obj("rh_brk_r", "random 1000", x - 300, y + 145); P.obj("rh_brk_k", "random 3", x - 200, y + 145)
     ex("rh_brk_e", f"if(rh_bsince>={BREAK_MIN_BARS}&&$f1<{int(BREAK_CHANCE * 1000)}&&rh_fill==0,1+$f2,0)", x - 300, y + 160)
     P.c("rh_brk_t", "rh_brk_k", 1, 0); P.c("rh_brk_k", "rh_brk_e", 0, 1); P.c("rh_brk_t", "rh_brk_r", 0, 0); P.c("rh_brk_r", "rh_brk_e")
@@ -1432,8 +1469,32 @@ def add_rhythm(P, x):
     ex("rh_bs_e", "if($f1>0,0,rh_bsince+1)", x - 200, y + 190); P.c("rh_brk_o", "rh_bs_e", 1, 0)
     P.obj("rh_bs_v", "value rh_bsince", x - 200, y + 205); P.c("rh_bs_e", "rh_bs_v")
     P.obj("rh_brk_s", "s rh_break", x - 300, y + 205); P.c("rh_brk_o", "rh_brk_s", 0, 0)    # (for the tests)
+    # breakbeat (beat_break): after the sparse-bar choice, the next bar may get a long fill, a chop or a roll (never in
+    # a sparse bar, a roll never inside a fill); like rh_brk they take effect from tick 0
+    bx = x - 700
+    P.obj("rh_bb_t", "t b b b b", bx, y + 130); P.c("rh_bar_st", "rh_bb_t", 0, 0)
+    ex("rh_bfl_e", f"(rh_brk_next==0)*(random(0,1000)<rh_bbv*{int(BB_FILL * 1000)}||(rh_fill>0)*(random(0,1000)<rh_bbv*{int(BB_FILL_LONGER * 1000)}))",
+       bx + 150, y + 145)
+    P.obj("rh_bfl_nv", "value rh_bfl_next", bx + 150, y + 160); P.c("rh_bb_t", "rh_bfl_e", 3, 0); P.c("rh_bfl_e", "rh_bfl_nv")
+    ex("rh_chop_e", f"if(rh_brk_next==0&&random(0,1000)<rh_bbv*{int(BB_CHOP * 1000)},random(1,{len(CHOP_MAPS)}),0)", bx + 100, y + 175)
+    P.obj("rh_chop_nv", "value rh_chop_next", bx + 100, y + 190); P.c("rh_bb_t", "rh_chop_e", 2, 0); P.c("rh_chop_e", "rh_chop_nv")
+    ex("rh_rl_e", "random(3,5)", bx + 50, y + 205)
+    P.obj("rh_rl_nv", "value rh_rlen_next", bx + 50, y + 220); P.c("rh_bb_t", "rh_rl_e", 1, 0); P.c("rh_rl_e", "rh_rl_nv")
+    ex("rh_roll_e", f"if(rh_brk_next==0&&random(0,1000)<rh_bbv*{int(BB_ROLL * 1000)},rh_rst[random(0,{len(ROLL_STARTS)})],0)",
+       bx, y + 235)
+    ex("rh_roll_x", "if((rh_bfl_next>0&&$f1+1>=8)||(rh_fill>0&&$f1+1>=12),0,$f1)", bx, y + 250)
+    P.obj("rh_roll_nv", "value rh_roll_next", bx, y + 265)
+    P.c("rh_bb_t", "rh_roll_e", 0, 0); P.c("rh_roll_e", "rh_roll_x"); P.c("rh_roll_x", "rh_roll_nv")
+    P.obj("rh_bb_sp", "pack f f f", bx + 200, y + 265)                   # (for the tests: roll, chop, long fill;
+    P.obj("rh_bb_s", "s rh_bb_bar", bx + 200, y + 280)                   #  the roll comes last, into the hot inlet)
+    P.c("rh_roll_x", "rh_bb_sp", 0, 0); P.c("rh_chop_e", "rh_bb_sp", 0, 1); P.c("rh_bfl_e", "rh_bb_sp", 0, 2)
+    P.c("rh_bb_sp", "rh_bb_s")
+    P.obj("rh_bb_t0", "t b b b b", bx, y + 60); P.c("rh_brk_t0", "rh_bb_t0")
+    for k, nm in enumerate(("bfl", "chop", "rlen", "roll")):
+        P.obj(f"rh_{nm}_nx", f"value rh_{nm}_next", bx + 70 * k, y + 75); P.obj(f"rh_{nm}_now", f"value rh_{nm}", bx + 70 * k, y + 90)
+        P.c("rh_bb_t0", f"rh_{nm}_nx", 3 - k, 0); P.c(f"rh_{nm}_nx", f"rh_{nm}_now")
     # the learned groove fades every bar (48 spots x FS_HEARD_KEEP)
-    P.obj("rh_hd_fade", "t b", x + 600, y + 40); P.c("rh_bar_st", "rh_hd_fade", 1, 0)
+    P.obj("rh_hd_fade", "t b", x + 600, y + 40); P.c("rh_bar_st", "rh_hd_fade", 2, 0)
     P.msg("rh_hd_48", "48", x + 600, y + 55); P.obj("rh_hd_until", "until", x + 600, y + 70)
     P.obj("rh_hd_i", "f", x + 600, y + 85); P.obj("rh_hd_inc", "+ 1", x + 640, y + 85)
     P.msg("rh_hd_0", "0", x + 680, y + 55)
@@ -1466,11 +1527,17 @@ def add_rhythm(P, x):
     P.c("rh_bar_t", "rh_rps", 3, 0); P.c("rh_rps", "rh_pick", 0, 2)
     P.c("rh_bar_t", "rh_rph", 2, 0); P.c("rh_rph", "rh_pick", 0, 3)
     P.c("rh_bar_t", "rh_rf", 1, 0); P.c("rh_rf", "rh_pick", 0, 4)
+    ex("rh_bbf_e", f"random(0,1000)<rh_bbv*{int(BB_POOL * 1000)}", x + 740, y + 115)
+    P.obj("rh_bbf_v", "value rh_bbf", x + 740, y + 130); P.c("rh_bar_t", "rh_bbf_e", 1, 0); P.c("rh_bbf_e", "rh_bbf_v")
     P.c("rh_bar", "rh_pick", 0, 6)
     P.c("rh_bar_t", "rh_dr_rd", 0, 0); P.c("rh_dr_rd", "rh_pick", 0, 0)
     for k, nm in enumerate(("kp", "sp", "hp", "fill")):
         P.obj(f"rh_{nm}", f"value rh_{nm}", x + 300 + 70 * k, y + 170)
-        P.c("rh_pick", f"rh_{nm}", k, 0)
+        if nm in ("kp", "sp"):                                             # (the breakbeat pool sits after the usual one)
+            ex(f"rh_{nm}_bb", f"$f1+{nk}*rh_bbf", x + 300 + 70 * k, y + 160)
+            P.c("rh_pick", f"rh_{nm}_bb", k, 0); P.c(f"rh_{nm}_bb", f"rh_{nm}")
+        else:
+            P.c("rh_pick", f"rh_{nm}", k, 0)
     P.obj("rh_kp_last", "f", x + 300, y + 150); P.c("rh_pick", "rh_kp_last", 0, 0); P.c("rh_kp_last", "rh_pick", 0, 5)
     P.obj("rh_bar_s", "s rh_bar_patterns", x + 600, y + 170)              # (for the tests: which kick pattern)
     P.c("rh_pick", "rh_bar_s", 0, 0)
@@ -1481,11 +1548,17 @@ def add_rhythm(P, x):
     for k in range(3):
         P.obj(f"rh_r{k}", "random 1000", x + 300 + 60 * k, y + 220)
     # $f1 tick (hot), $f2 kp, $f3 sp, $f4 hp, $f5 fill, $f6 drive, $f7-$f9 randoms 0..999
-    kv = "rh_kpat[$f2*16+$f1]"
-    sv = "rh_spat[$f3*16+$f1]"
-    hv = "rh_hpat[$f4*16+$f1]"
+    st = "rh_cmap[rh_chop*16+$f1]"                                      # (a chopped bar reads its steps reordered)
+    kv = f"rh_kpat[$f2*16+{st}]"
+    sv = f"rh_spat[$f3*16+{st}]"
+    hv = f"rh_hpat[$f4*16+{st}]"
     kick = f"if({kv}>0,{kv}*($f7>=40),($f1%2==0)*($f1>0)*($f7<10+20*$f6)*0.55)"
     snare = f"if($f5&&$f1>=12,rh_fpat[$f1-12]*(0.75+0.25*$f8/1000),if({sv}>0,{sv},($f8<8+17*$f6)*0.22))"
+    # breakbeat: a long fill over the last two beats; a roll's hits on the 16ths (its in-between 32nds come below)
+    snare = f"if(rh_bfl>0&&$f1>=8,rh_flong[$f1-8]*(0.75+0.25*$f8/1000),{snare})"
+    in_roll = "(rh_roll>0&&$f1>=rh_roll&&$f1<rh_roll+2)"
+    snare = f"max({snare},if({in_roll},rh_rvel[min(max(($f1-rh_roll)*2,0),2)],0))"
+    roll2 = "if(rh_roll>0&&($f1==rh_roll||($f1==rh_roll+1&&rh_rlen>=4)),rh_rvel[min(max(($f1-rh_roll)*2+1,1),3)],0)"
     hat = f"if({hv}>=2,{hv}-2,{hv})*($f9>=30)"
     # the learned groove (C4): a spot where a sound was caught lately plays that role too, as loud as it's remembered
     learn = lambda k: f"(rh_heard[{16 * k}+$f1]>={FS_HEARD_MIN})*rh_heard[{16 * k}+$f1]*0.9"
@@ -1493,8 +1566,15 @@ def add_rhythm(P, x):
     # an arrangement moment (rh_brk) thins this bar out
     kick = f"({kick})*if(rh_brk==1||rh_brk==2,0,if(rh_brk==3,$f1==0,1))"
     snare = f"({snare})*if(rh_brk==1||rh_brk==3,0,1)"
+    roll2 = f"({roll2})*if(rh_brk==1||rh_brk==3,0,1)"
     hat = f"max({hat},{learn(2)}) ; if({hv}>=2,240,30+60*$f6)"
-    ex("rh_hits", f"{kick} ; {snare} ; {hat}".replace(" ; ", " " + BS + "; "), x, y + 260)
+    ex("rh_hits", f"{kick} ; {snare} ; {hat} ; {roll2}".replace(" ; ", " " + BS + "; "), x, y + 260)
+    # a roll's in-between hits: a 32nd after the tick (tc_P = the beat in ms)
+    ex("rh_r2_dl", "$f1 " + BS + "; tc_P/8", x + 100, y + 275)
+    P.obj("rh_r2_pk", "pack f f", x + 100, y + 285); P.c("rh_hits", "rh_r2_dl", 4, 0)
+    P.c("rh_r2_dl", "rh_r2_pk", 1, 1); P.c("rh_r2_dl", "rh_r2_pk", 0, 0)
+    P.obj("rh_r2_pipe", "pipe 0", x + 100, y + 295); P.c("rh_r2_pk", "rh_r2_pipe")
+    P.obj("rh_r2_ok", "moses 0.001", x + 100, y + 310); P.c("rh_r2_pipe", "rh_r2_ok")
     P.c("rh_t", "rh_r2", 2, 0); P.c("rh_r2", "rh_hits", 0, 8)
     P.c("rh_t", "rh_r1", 3, 0); P.c("rh_r1", "rh_hits", 0, 7)
     P.c("rh_t", "rh_r0", 4, 0); P.c("rh_r0", "rh_hits", 0, 6)
@@ -1541,6 +1621,7 @@ def add_rhythm(P, x):
     for k, lane in enumerate(("kick", "snare", "hat")):
         P.obj(f"rh_s_{lane}", f"s drum_{lane}", x + 400 + 70 * k, y + 330)
     P.c("rh_k_ok", "rh_s_kick", 1, 0); P.c("rh_s_ok", "rh_s_snare", 1, 0); P.c("rh_h_v", "rh_s_hat", 0, 0)
+    P.c("rh_r2_ok", "rh_s_snare", 1, 0); P.c("rh_r2_ok", "rh_sr_t", 1, 0)
 
 
 def add_beat(P):

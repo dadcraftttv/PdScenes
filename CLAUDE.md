@@ -237,6 +237,17 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   Only with `beat_follow` 1; "Your steps" keeps the old one-hit-per-step drums. The level moves only on real changes
   (a ramp restarted every 100 ms never arrived). Tests hear `drum_kick/snare/hat` and `rh_bar_patterns`.
   Next (C2/C3): found sounds from the mic become the kit; synth drums stay as the fallback.
+- **Breakbeat** (Oct 15, from Samuel's other chat; `beat_break` Rhythm 0..1, default 0, in presets; Pd test
+  "breakbeat:"): at 0 nothing changes. Each pick takes `BREAK_KICK_PATS`/`BREAK_SNARE_PATS` (stored after the usual
+  pools in `rh_kpat`/`rh_spat`, index + 5) with chance `BB_POOL` (0.8) x the slider. Per bar (decided at tick 15 into
+  `rh_*_next`, applied at tick 0 like `rh_brk`; never in a sparse bar): a chop (`BB_CHOP` 0.25 x slider: tick t
+  reads the patterns' step `CHOP_MAPS[c][t]`, downbeat kept, all three lanes), a roll (`BB_ROLL` 0.2: 3-4 snares a
+  32nd apart from tick 5, 9 or 13; the in-between hits are `rh_hits` outlet 4 through a `[pipe]` of tc_P/8; never
+  inside a fill) and a long fill (`BB_FILL` 0.1, or a usual fill made long with chance `BB_FILL_LONGER` 0.4 x slider: `FILL_LONG` from
+  tick 8). Chimes, learned groove and glitch loops keep the straight tick; hats and tempo stay with the pace (the
+  other chat's open choice: pace stays in charge). `rh_bb_bar` reports roll, chop, long fill. Measured at 1 vs 0
+  (150 BPM, 42 bars): 29 vs 18 distinct loud kick+snare bars, kicks off the beat 77% vs 49%. expr `random()` is
+  used for these (no new [random] objects, so other tests' random sequences are unchanged). Feel untested.
 - **Found-sound kit** (roadmap 16 C2/C3, `add_found_kit`; Samuel: "the sounds around you become the rhythm"): on each
   sudden sound (the glitch cloud's detector, `gc_det_sel`, always running; never while in a pocket) a `FS_SLICE_S` (0.25 s) slice of the hushed
   mic from `FS_PREROLL_MS` (15 ms) earlier is recorded (`tabwrite~ fs_stage` from a 100 ms `fs_buf`) while env~ maxima

@@ -15,6 +15,10 @@ There are two ways to use it:
 
 ## What's new
 
+**Oct 15 (in the next test build):**
+
+- **Breakbeat** (Rhythm): turn it up for drums with off-beat kicks, ghost snares, now and then a chopped bar, a quick snare roll or a longer fill. At 0 the beat is as before.
+
 **Oct 13-14:**
 
 - **Call and response** (Music): sing, hum or whistle a short phrase, pause, and the app answers it with chimes, a third away, in key.
@@ -269,6 +273,7 @@ A beat that plays along with you. It used to be called "Walking beat", but it no
 - **Beat level (0 = off):** how loud the drums are. It starts at 0, so you hear nothing until you turn it up.
 - The kick, snare, hi-hat and glitch-loop levels are in the **Mix** section (below Music).
 - **Kick drum pitch:** how low or high the synth kick sounds.
+- **Breakbeat:** 0 (the start) leaves the beat as it was. Turn it up and the bars lean on breakbeat patterns: kicks off the beat, snares on the "and", quiet ghost snares. Now and then a bar is chopped (its pieces shuffled, the first beat kept), gets a quick snare roll, or ends in a longer fill. The higher it is, the more often. Your walking pace still sets the tempo and the hi-hats, and it works with synth and found drums alike. It is saved with presets.
 
 ### Music
 
@@ -458,7 +463,7 @@ Thank you for trying this. Anything you notice is useful, even "it felt weird." 
 - **Found sounds:** do the drums, chimes and room notes sound like the sounds around you? Is the beat too predictable, or too random? Where on the Chime character slider do you like the chimes? Does anything loud or harsh come back from the kit (a boom, a squeal)?
 - **Harmony:** does your voice copy sound like you and stay in tune? Does it sound natural when you sing low and when you sing high? Does it leave ordinary talking alone?
 - **Found pad:** after you hum a steady note, does the pad sound like your voice holding the chord?
-- **Rhythm:** does the beat stay steady while you walk and follow a change of pace? With Tempo set to Set, does it settle on your tempo, and does walking pull it the right amount? Do the occasional sparse bars and the drifting swing feel musical? Does the beat still land on your steps as you walk?
+- **Rhythm:** does the beat stay steady while you walk and follow a change of pace? With Tempo set to Set, does it settle on your tempo, and does walking pull it the right amount? Do the occasional sparse bars and the drifting swing feel musical? With Breakbeat up, do the chops, rolls and fills feel like a breakbeat, and is the top of the slider too much or not enough? Does the beat still land on your steps as you walk?
 - **Realms:** do they change at the right moments? Do the "What it changes" switches leave the groups you untick alone? Is the warp sound pleasant, and noticeable without being annoying?
 - **Glitch:** with Glitch cloud amount up, do sudden sounds come back in a fun way, and do they feel like they are all around you? Which glitch matrix mix did you like best? Do the echoes bouncing around (Echo scatter) feel good or dizzying?
 - **Headphones and mic:** did the app refuse to start, stop when you unplugged, or pick the wrong mic? Did it go quiet during a call and come back after, and did it dip when another app played music?
