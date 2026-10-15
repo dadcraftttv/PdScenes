@@ -144,6 +144,9 @@ final class PackLibrary {
             throw new IOException(e.getMessage());
         }
         Result r = new Result();
+        double[] secsAll = new double[pack.stems.size()];
+        int[] chansAll = new int[pack.stems.size()];
+        int idx = 0;
         for (StemPack.Stem s : pack.stems) {
             File f = new File(root, s.file);
             if (!f.isFile()) {
@@ -154,6 +157,8 @@ final class PackLibrary {
                 decode(f, wav);
             }
             double secs = wavSeconds(wav);
+            secsAll[idx] = secs;
+            chansAll[idx++] = wavChannels(wav);
             double want = pack.loopSeconds(s);
             if (secs <= 0) {
                 throw new IOException(s.file + " can't be read as audio");
@@ -162,6 +167,10 @@ final class PackLibrary {
                 r.warnings.add(String.format(Locale.US, "%s is %.2f s long, but %d bars at %s BPM is %.2f s",
                         s.file, secs, s.bars, trim(pack.bpm), want));
             }
+        }
+        String tooLong = StemPack.tooLong(secsAll, chansAll);
+        if (tooLong != null) {
+            throw new IOException(tooLong);
         }
         File target = new File(packsDir, name);
         SceneLibrary.deleteRecursively(target);
@@ -186,12 +195,24 @@ final class PackLibrary {
 
     /** Length in seconds of a PCM WAV (from its header), or -1. */
     static double wavSeconds(File f) {
+        double[] info = wavInfo(f);
+        return info == null ? -1 : info[0];
+    }
+
+    /** Channels of a PCM WAV, or 2 if it can't be read (counted as stereo, the larger). */
+    static int wavChannels(File f) {
+        double[] info = wavInfo(f);
+        return info == null ? 2 : (int) info[1];
+    }
+
+    /** {seconds, channels} of a PCM WAV from its header, or null. */
+    private static double[] wavInfo(File f) {
         try (RandomAccessFile raf = new RandomAccessFile(f, "r")) {
             byte[] head = new byte[12];
             raf.readFully(head);
             if (!new String(head, 0, 4, StandardCharsets.US_ASCII).equals("RIFF")
                     || !new String(head, 8, 4, StandardCharsets.US_ASCII).equals("WAVE")) {
-                return -1;
+                return null;
             }
             int rate = 0, channels = 0, bits = 0;
             long data = -1;
@@ -216,15 +237,17 @@ final class PackLibrary {
                 }
             }
             if (rate <= 0 || channels <= 0 || bits <= 0 || data < 0) {
-                return -1;
+                return null;
             }
-            return data / (double) (channels * (bits / 8)) / rate;
+            return new double[]{data / (double) (channels * (bits / 8)) / rate, channels};
         } catch (IOException | RuntimeException e) {
-            return -1;
+            return null;
         }
     }
 
-    /** Decodes any audio file the phone can play into a 16-bit PCM WAV. */
+    private static final long DECODE_LIMIT_S = 60;
+
+    /** Decodes any audio file the phone can play into a 16-bit PCM WAV (giving up after DECODE_LIMIT_S). */
     static void decode(File in, File out) throws IOException {
         MediaExtractor ex = new MediaExtractor();
         MediaCodec codec = null;
@@ -254,7 +277,12 @@ final class PackLibrary {
             long dataBytes = 0;
             MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
             boolean inputDone = false, outputDone = false;
+            long started = System.nanoTime();
             while (!outputDone) {
+                // a broken file can leave a decoder waiting forever: give up after DECODE_LIMIT_S
+                if (System.nanoTime() - started > DECODE_LIMIT_S * 1_000_000_000L) {
+                    throw new IOException("decoding took longer than " + DECODE_LIMIT_S + " seconds, the file may be damaged");
+                }
                 if (!inputDone) {
                     int ib = codec.dequeueInputBuffer(10000);
                     if (ib >= 0) {

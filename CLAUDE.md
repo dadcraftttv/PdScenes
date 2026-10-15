@@ -172,7 +172,11 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   sample rate plays at its speed) on downbeats where bar % bars == 0 (`stem_start` -> next downbeat is bar 0), level
   taken at the downbeat and faded over a bar; stereo into in_l/in_r before the spatial stage, x `stems_level` (Mix,
   0.8). Arrangement: pad always, bass walking/lively/loud, drums walking, lead lively or brisk (pace >= 0.6), texture
-  night/pocket/Ghost; 8 s hold per role; sections every 4 loops of the longest stem. Untested on the phone (Samuel
+  night/pocket/Ghost; 8 s hold per role; sections every 4 loops of the longest stem. Import refuses a pack over
+  `StemPack.MAX_STEREO_S` (240 s of stereo, mono counts half, ~92 MB as Pd floats) and gives up decoding a file after
+  60 s (`DECODE_LIMIT_S`), from the Oct 14 hardening review. Health check that day (phone): audio thread 31-41% of a
+  core with Samuel's settings, 45-60% with everything on and Intensity full, no underruns while running; battery
+  ~0.5% per 30 min for the app in the background (12.6 mAh CPU of a 266 mAh, 6% drop). Untested on the phone (Samuel
   has no packs yet; the test pack was put on his phone and selected).
 - **Call and response** (roadmap 12, Oct 14; `CallResponse.java`, test L; `music_answer` Music 0..1 default 0.5, in
   presets): the Harmony tracker (now also run for it: `fpc_run` includes music_answer) sends `heard_deg <step>` at each

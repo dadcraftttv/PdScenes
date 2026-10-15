@@ -71,6 +71,27 @@ final class StemPack {
         this.sections = Collections.unmodifiableList(s);
     }
 
+    /**
+     * A pack is held in memory while it plays (about 0.4 MB per second of stereo at 48 kHz), so its loops together may
+     * hold at most MAX_STEREO_S seconds of stereo (a mono loop counts half): about 92 MB. Plenty for loops, but a pack
+     * of eight 32-bar stems at a slow tempo would need several times that and could crash a smaller phone.
+     */
+    static final double MAX_STEREO_S = 240;
+
+    /** Null if loops of these lengths (s) and channel counts fit in memory, else why not, in plain words. */
+    static String tooLong(double[] seconds, int[] channels) {
+        double total = 0;
+        for (int i = 0; i < seconds.length; i++) {
+            total += seconds[i] * Math.min(2, Math.max(1, channels[i])) / 2.0;
+        }
+        if (total <= MAX_STEREO_S) {
+            return null;
+        }
+        return String.format(Locale.US, "This pack is too long to hold in memory while it plays: its loops add up to "
+                + "%d:%02d of stereo audio, and the limit is %d:%02d. Shorten the loops (8 bars is usually plenty) or use "
+                + "fewer of them.", (int) total / 60, (int) total % 60, (int) MAX_STEREO_S / 60, (int) MAX_STEREO_S % 60);
+    }
+
     /** A loop's length in seconds. */
     double loopSeconds(Stem s) {
         return s.bars * 4 * 60.0 / bpm;

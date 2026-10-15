@@ -312,7 +312,7 @@ A stem pack is a set of loops from a song (pad, bass, drums, lead, texture) that
 - **Choose pack** picks the pack that plays (or None). **Import zip** and **Import folder** add one. **How to make a pack** explains the format. **Delete a pack** removes one from the phone.
 - While a pack plays, the tempo locks to the pack's tempo (walking changes which parts play, not the tempo), the chimes, pad and harmony follow the pack's key, and the app's own beat steps back while the pack's drums play. Your own settings come back when you choose None.
 - **Stems level** (in Mix) sets how loud the pack is.
-- Packs only play with the built-in sound, not with scenes.
+- Packs only play with the built-in sound, not with scenes. A pack can have up to 8 loops, together at most 4 minutes of stereo audio, because the whole pack is held in memory while it plays.
 
 ### Mix
 

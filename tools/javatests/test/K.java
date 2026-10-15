@@ -46,6 +46,10 @@ public class K {
     check(Math.abs(Modulation.output(bl,0.6f)-0.18f)<1e-5,"while its drums play the app's beat steps back to 30% ("+Modulation.output(bl,0.6f)+")");
     PackPlayer.stop();
     check(Modulation.output(mk,0f)==0f && Modulation.output(bl,0.6f)==0.6f && ParamStore.get("music_key")==0f,"stopped: everything as set again, nothing stored changed");
+    check(StemPack.tooLong(new double[]{60,60,60,60},new int[]{2,2,2,2})==null
+        && StemPack.tooLong(new double[]{60,60,60,120},new int[]{2,2,2,1})==null
+        && StemPack.tooLong(new double[]{128,128,128},new int[]{2,2,2}).contains("6:24"),
+        "a pack must fit in memory: 4 minutes of stereo (a mono loop counts half); more gets a plain-words reason");
     check(Params.byId("stems_level")!=null && Params.byId("stems_level").inPreset,"Stems level is in the Mix, saved with presets");
     if(fails==0) System.out.println("ALL PASSED");
   }
