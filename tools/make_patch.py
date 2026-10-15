@@ -37,7 +37,7 @@ DEFAULTS = [
     ("music_on", 0), ("music_key", 0), ("music_scale", 0), ("music_pad", 0.33), ("music_arp", 0.4),
     ("music_tone", 0.5), ("music_react", 0.8), ("music_res", 0.8), ("music_harm", 0.6), ("beat_follow", 1), ("beat_when", 1), ("rhythm_src", 1), ("melody_src", 1), ("harm_src", 1), ("pad_src", 1), ("bass_src", 0), ("tempo_mode", 0), ("tempo_bpm", 100), ("chime_char", 0.5), ("res_src", 1), ("cue_sound", 1), ("beat_glitch", 0.4), ("gate_attack", 5), ("gate_hold", 0), ("gate_release", 80), ("comp_attack", 40),
     ("comp_release", 40), ("music_drift", 1), ("echo_scatter", 0.5), ("gc_amount", 0), ("gc_level", 0.7), ("gc_pct_stutter", 35), ("gc_pct_reverse", 25),
-    ("gc_pct_shuffle", 20), ("gc_pct_stretch", 20), ("music_pad_reg", 2), ("pocket_hush", 0.5), ("pocket_guard", 0.6), ("handling_hush", 0.5), ("intensity", 0.5), ("mix_kick", 1), ("mix_bass", 1), ("mix_chimes", 1), ("mix_walk", 1), ("mix_ring", 1), ("mix_bells", 1), ("reverb_rev", 0), ("stems_level", 0.8), ("music_answer", 0.5), ("rustle_guard", 0),
+    ("gc_pct_shuffle", 20), ("gc_pct_stretch", 20), ("music_pad_reg", 2), ("pocket_hush", 0.5), ("pocket_guard", 0.6), ("handling_hush", 0.5), ("intensity", 0.5), ("mix_kick", 1), ("mix_bass", 1), ("mix_chimes", 1), ("mix_walk", 1), ("mix_ring", 1), ("mix_bells", 1), ("reverb_rev", 0), ("stems_level", 0.8), ("music_answer", 0.5),
 ]
 
 # Scales as semitone steps above the key note. The patch snaps every note it plays to these.
@@ -285,19 +285,6 @@ STEM_SLOTS = 8              # a stem pack plays up to this many loops at once
 STEM_GAIN = 1.0             # stems at Stems level 1 play as loud as the files (their own mix)
 CALM_CHIME_P = 40           # a calm build at its peak: a standing-still chime about every 6 s even in a quiet room
 INT_DRIVE = 0.6             # Intensity 0..1 moves the beat's drive by -0.3..+0.3 (calmer / busier patterns)
-RUSTLE_HIGHS_DB = 6.0       # rustle: the highs (above 4 kHz) within this many dB of the whole sound (speech and music
-                            # keep them 15-25 dB down; the zero-crossing test was useless: a quiet phone mic's own hiss
-                            # crosses zero 12-20 thousand times a second)...
-RUSTLE_JUMP = 6.0           # ...in bursts: the 5 ms level jumping this far over its average...
-RUSTLE_BURSTS = 3           # ...about this many times in the last half second...
-RUSTLE_BURST_KEEP = 0.9885  # (the burst count fades over ~0.5 s: per 5.8 ms reading)
-RUSTLE_MOD = 3.0            # ...its 5 ms level swings more than this (dB) around its ~0.2 s average (bursty)...
-RUSTLE_ABOVE = 8.0          # ...and sits this far above the room's floor...
-RUSTLE_MIN_DB = 35          # ...and above -65 dBFS
-RUSTLE_FLOOR_UP = 0.0053    # the floor rises 1 dB a second (falls at once)...
-RUSTLE_FLOOR_CATCHUP = 0.05 # ...or ~9 dB a second while far (15 dB) under the room (at the start)
-RUSTLE_ON_TICKS = 4         # all three for 0.1 s is rustle...
-RUSTLE_OFF_TICKS = 20       # ...until 0.5 s without
 HND_HUSH_DB = 24            # handling hush at 1 turns the mic down this much at full handling (the app's 0-1 level)
 HND_ATTACK_MS = 15          # ...going down this fast (a tap rings on for a while; its very start can't be caught)
 HND_RELEASE_MS = 300        # ...and back up over this
@@ -723,7 +710,7 @@ def add_found_kit(P, x):
     P.c("fs_on", "fs_go")
     P.msg("fs_closed", "0", x + 480, y + 120); P.c("fs_go", "fs_closed", 3, 0); P.c("fs_closed", "fs_on", 0, 1)
     # handling: a jolt just before it starts (hjolt) or while it records (fs_jv set by the jolt) drops the slice
-    P.obj("fs_jv_rd", "expr (hjolt>0)||(rust>0)", x + 600, y + 100); P.obj("fs_jv_wr", "value fs_jv", x + 600, y + 115)   # (or rustle)
+    P.obj("fs_jv_rd", "value hjolt", x + 600, y + 100); P.obj("fs_jv_wr", "value fs_jv", x + 600, y + 115)
     P.c("fs_go", "fs_jv_rd", 3, 0); P.c("fs_jv_rd", "fs_jv_wr")
     P.msg("fs_reset", "0", x + 540, y + 120)
     for nm in ("all", "lo", "hi"):
@@ -3195,18 +3182,15 @@ def add_handling(P, x=2200, y=300):
     """Handling noise (taps, grips, rubbing; the app's HandlingDetector): [handling 0..1( turns the mic down by up to
     handling_hush x HND_HUSH_DB (fast down, slower up), and [jolt( marks the next HND_JOLT_MS as handling for the
     gates (value hjolt). value hlev = the level. Returns the gain signal."""
-    # the app's handling level (happ) and the patch's own rustle detector (rust, add_rustle) together: the mic goes down
-    # by the larger of the two (each times its own slider), and value hlev (the gates) is the larger of the two
+    # the app's handling level (happ): the mic goes down by it times Handling hush, and value hlev feeds the gates
     P.obj("hnd_r", "r handling", x, y); P.obj("hnd_av", "value happ", x + 100, y + 15); P.c("hnd_r", "hnd_av")
     P.obj("hnd_hr", "r handling_hush", x + 200, y); P.obj("hnd_hv", "value hhush", x + 200, y + 15); P.c("hnd_hr", "hnd_hv")
-    P.obj("hnd_rr", "r rustle_guard", x + 300, y + 30); P.obj("hnd_rv", "value rhush", x + 300, y + 45); P.c("hnd_rr", "hnd_rv")
-    P.obj("hnd_go", "t b", x, y + 15); P.c("hnd_r", "hnd_go"); P.c("hnd_rr", "hnd_go")
-    P.obj("hnd_calc", ("expr pow(10, -max(happ*hhush, rust*rhush)*" + str(HND_HUSH_DB) + "/20) ; max(happ, rust*(rhush>0))")
+    P.obj("hnd_go", "t b", x, y + 15); P.c("hnd_r", "hnd_go")
+    P.obj("hnd_calc", ("expr pow(10, -happ*hhush*" + str(HND_HUSH_DB) + "/20) ; happ")
           .replace(",", BS + ",").replace(" ; ", " " + BS + "; "), x, y + 30)
     P.c("hnd_go", "hnd_calc")
     P.obj("hnd_v", "value hlev", x + 100, y + 45); P.c("hnd_calc", "hnd_v", 1, 0)
     P.obj("hnd_g", "f", x, y + 38); P.c("hnd_calc", "hnd_g", 0, 0)
-    add_rustle(P, "hnd_go", x, y + 500)
     P.obj("hnd_t", "t f f f", x, y + 45); P.c("hnd_g", "hnd_t")
     P.obj("hnd_tm", f"expr if($f1<$f2, {HND_ATTACK_MS}, {HND_RELEASE_MS})".replace("$", BS + "$").replace(",", BS + ","), x + 100, y + 60)
     P.obj("hnd_pk", "pack f 0", x, y + 75); P.obj("hnd_ln", "line~", x, y + 90)
@@ -3225,60 +3209,6 @@ def add_handling(P, x=2200, y=300):
     P.msg("hnd_j0", "0", x + 560, y + 45); P.obj("hnd_jv0", "value hjolt", x + 560, y + 60)
     P.c("hnd_jd", "hnd_j0"); P.c("hnd_j0", "hnd_jv0")
     return "hnd_ln"
-
-
-def add_rustle(P, then, x, y):
-    """Rustle detector (Samuel, Oct 14, "everywhere"; rustle_guard "Rustle filter", main): cloth rubbing on the mic
-    when the phone isn't jolted (a bag, a jacket). Rustle is bright (its highs above 4 kHz within RUSTLE_HIGHS_DB of
-    the whole sound; voices and music keep them far lower), bursty (the 5 ms level swings more than RUSTLE_MOD dB around its
-    ~0.2 s average; a fan or rain is even) and clearly above the room (RUSTLE_ABOVE dB over a floor that follows the
-    quietest moments). All three for RUSTLE_ON_TICKS ticks (25 ms each) is rustle, held until RUSTLE_OFF_TICKS ticks
-    without. Sets value rust (0/1), bangs `then` (the handling duck recomputes) and tells the app (rustle_on). With
-    the Rustle filter at 0 it changes nothing."""
-    ex = lambda n, t, xx, yy: P.obj(n, "expr " + t.replace(",", BS + ",").replace("$", BS + "$").replace(" ; ", " " + BS + "; "), xx, yy)
-    # the highs (above 4 kHz, two hip~ like the kit catcher) measured like the whole, every ~5 ms (value rhi)
-    P.obj("ru_hp1", "hip~ 4000", x, y); P.c("mic", "ru_hp1")
-    P.obj("ru_hp2", "hip~ 4000", x, y + 15); P.c("ru_hp1", "ru_hp2")
-    P.obj("ru_henv", "env~ 512 256", x, y + 30); P.c("ru_hp2", "ru_henv")
-    P.obj("ru_hw", "value rhi", x, y + 45); P.c("ru_henv", "ru_hw")
-    P.obj("ru_lb", "loadbang", x + 200, y)
-    P.msg("ru_fl0", "100", x + 280, y + 15); P.c("ru_lb", "ru_fl0"); P.obj("ru_flv0", "value rfloor", x + 280, y + 30); P.c("ru_fl0", "ru_flv0")
-    # the level every ~5 ms: its slow average, how far it swings around that, the room's floor (down at once, up slowly)
-    P.obj("ru_env", "env~ 512 256", x + 100, y); P.c("mic", "ru_env")
-    ex("ru_hrel", "rhrel*0.9+(rhi-$f1)*0.1", x + 160, y + 15); P.c("ru_ot", "ru_hrel", 1, 0)
-    P.obj("ru_whr", "value rhrel", x + 160, y + 30); P.c("ru_hrel", "ru_whr")
-    ex("ru_upd", f"rslow*0.97+$f1*0.03 ; rdev*0.95+abs($f1-rslow)*0.05 ; if($f1<1,rfloor,if(rfloor>=99,$f1,min($f1,rfloor+if(rfloor<rslow-15,{RUSTLE_FLOOR_CATCHUP},{RUSTLE_FLOOR_UP}))))", x + 100, y + 15)
-    P.obj("ru_wsl", "value rslow", x + 100, y + 30); P.obj("ru_wdv", "value rdev", x + 160, y + 30); P.obj("ru_wfl", "value rfloor", x + 220, y + 30)
-    P.c("ru_upd", "ru_wsl", 0, 0); P.c("ru_upd", "ru_wdv", 1, 0); P.c("ru_upd", "ru_wfl", 2, 0)
-    # bursts: each time the level jumps RUSTLE_JUMP dB over its average counts one; the count fades over ~0.5 s, so it
-    # reads about how many scrapes there were lately (rustle many, a sound starting or stopping one)
-    P.obj("ru_ot", "t f f", x + 300, y); P.c("ru_env", "ru_ot")
-    ex("ru_on", f"$f1>rslow+{RUSTLE_JUMP} ; ronset*{RUSTLE_BURST_KEEP}+(($f1>rslow+{RUSTLE_JUMP})&&(rup==0))", x + 300, y + 15)
-    P.c("ru_ot", "ru_on", 1, 0)
-    P.obj("ru_wup", "value rup", x + 300, y + 30); P.obj("ru_won", "value ronset", x + 360, y + 30)
-    P.c("ru_on", "ru_wup", 0, 0); P.c("ru_on", "ru_won", 1, 0)
-    P.c("ru_ot", "ru_upd", 0, 0)                                          # (the average moves after the jump is judged)
-    # every 25 ms: all three? count up to on, or down to off
-    P.obj("ru_tick", "metro 25", x, y + 110); P.c("ru_lb", "ru_tick")
-    ex("ru_cond", f"(rhrel>-{RUSTLE_HIGHS_DB})*(ronset>={RUSTLE_BURSTS})*(rdev>{RUSTLE_MOD})*(rslow>rfloor+{RUSTLE_ABOVE})*(rslow>{RUSTLE_MIN_DB})*(rhush>0)", x, y + 125)
-    P.c("ru_tick", "ru_cond")
-    P.obj("ru_ct", "t b f", x, y + 140); P.c("ru_cond", "ru_ct")
-    if os.environ.get("RUSTLE_DEBUG"):
-        ex("ru_dbg", "rhrel ; rdev ; rslow-rfloor ; ronset", x + 400, y + 125); P.c("ru_tick", "ru_dbg")
-        for k, nm in enumerate(("zcr", "dev", "above", "slow")):
-            P.obj(f"ru_dbg_{nm}", f"s ru_{nm}", x + 400 + 60 * k, y + 140); P.c("ru_dbg", f"ru_dbg_{nm}", k, 0)
-    ex("ru_cnt", "if($f1,rcon+1,0) ; if($f1,0,rcoff+1)", x + 60, y + 155); P.c("ru_ct", "ru_cnt", 1, 0)
-    P.obj("ru_wcon", "value rcon", x + 60, y + 170); P.obj("ru_wcoff", "value rcoff", x + 120, y + 170)
-    P.c("ru_cnt", "ru_wcon", 0, 0); P.c("ru_cnt", "ru_wcoff", 1, 0)
-    ex("ru_state", f"if(rcon>={RUSTLE_ON_TICKS},1,if(rcoff>={RUSTLE_OFF_TICKS},0,rust))", x, y + 190); P.c("ru_ct", "ru_state", 0, 0)
-    P.obj("ru_chg", "change", x, y + 205); P.c("ru_state", "ru_chg")
-    P.obj("ru_t", "t b f f", x, y + 220); P.c("ru_chg", "ru_t")
-    P.obj("ru_w", "value rust", x + 60, y + 235); P.c("ru_t", "ru_w", 2, 0)
-    P.obj("ru_s", "s rustle_on", x + 120, y + 235); P.c("ru_t", "ru_s", 1, 0)
-    P.c("ru_t", then, 0, 0)
-    # rustle starting during a found-sound catch spoils it, like a jolt
-    P.obj("ru_sel", "sel 1", x + 200, y + 235); P.c("ru_t", "ru_sel", 1, 0)
-    P.msg("ru_f1", "1", x + 200, y + 250); P.obj("ru_fv", "value fs_jv", x + 200, y + 265); P.c("ru_sel", "ru_f1"); P.c("ru_f1", "ru_fv")
 
 
 def add_reverse_reverb(P, x=2600, y=1300):

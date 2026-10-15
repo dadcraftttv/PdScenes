@@ -95,27 +95,6 @@ public class AudioService extends Service {
     private static final int[] kitCaught = new int[3];
     /** The last judged slice's levels (dBFS: all, lows, highs), logged with its catch. */
     private static final String FS_LEVELS = "fs_levels";
-    /** The patch's rustle detector (cloth on the mic): on/off, and when it came on (the diagnostics' last minute). */
-    private static final String RUSTLE_ON = "rustle_on";
-    private static volatile boolean rustleNow;
-    private static final java.util.ArrayDeque<Long> rustleTimes = new java.util.ArrayDeque<>();
-    private long lastRustleLog;
-
-    static boolean rustleNow() {
-        return rustleNow;
-    }
-
-    /** Times rustle was turned down in the last minute. */
-    static int rustleLastMinute() {
-        long cutoff = SystemClock.uptimeMillis() - 60000;
-        synchronized (rustleTimes) {
-            while (!rustleTimes.isEmpty() && rustleTimes.peekFirst() < cutoff) {
-                rustleTimes.removeFirst();
-            }
-            return rustleTimes.size();
-        }
-    }
-
     /** Call and response: the patch's pitch tracker reports each steady note (a scale step) and its end. */
     private static final String HEARD_DEG = "heard_deg", HEARD_OFF = "heard_off";
     private final CallResponse callResponse = new CallResponse(new java.util.Random());
@@ -627,21 +606,6 @@ public class AudioService extends Service {
                     }
                     return;
                 }
-                if (RUSTLE_ON.equals(source)) {
-                    boolean on = x > 0.5f;
-                    rustleNow = on;
-                    if (on) {
-                        synchronized (rustleTimes) {
-                            rustleTimes.addLast(SystemClock.uptimeMillis());
-                        }
-                        long now = SystemClock.uptimeMillis();
-                        if (now - lastRustleLog > 10000) {   // (a scraping walk can flip it often)
-                            lastRustleLog = now;
-                            logEvent("Rustle on the mic, turned down");
-                        }
-                    }
-                    return;
-                }
                 if (HEARD_DEG.equals(source)) {
                     callResponse.onNote(Math.round(x), SystemClock.elapsedRealtimeNanos() / 1e9);
                     return;
@@ -707,11 +671,6 @@ public class AudioService extends Service {
         PdBase.subscribe(FPAD_CAUGHT);
         PdBase.subscribe(SCENE_GFX);
         PdBase.subscribe(HEARD_DEG);
-        PdBase.subscribe(RUSTLE_ON);
-        rustleNow = false;
-        synchronized (rustleTimes) {
-            rustleTimes.clear();
-        }
         PdBase.subscribe(HEARD_OFF);
         callResponse.reset();
         SceneGraphics.SCENE.clear();   // a new patch starts with nothing on screen

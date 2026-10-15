@@ -187,15 +187,11 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
 - **Send feedback** (Setup, About; Oct 14): a mailto email to dadcraftstudios@gmail.com, subject with the version,
   body with a prompt, phone/Android/app version, what's playing, and (box ticked by default, explained) the last 200
   event-log lines in the body (no attachment, no FileProvider). 0.9.0-rc2 = versionCode 10.
-- **Rustle detector: SHELVED** (Oct 14, Samuel: "lets shelve it"; `add_rustle`, `rustle_guard` main, noPreset,
-  default 0 = off, labelled experimental). Every 25 ms: highs (2x `hip~ 4000`) within `RUSTLE_HIGHS_DB` 6 of the whole,
-  >= `RUSTLE_BURSTS` 3 level jumps of 6 dB in ~0.5 s, swings > 3 dB, 8 dB over a floor, > -65 dBFS; on 4 ticks, off
-  20. `rust` joins the handling duck/gates in `hnd_calc` and spoils catches (`fs_jv`). Why shelved: on Samuel's phone a
-  quiet room already reads 12-20k zero crossings/s (the first, zero-crossing test was useless) and highs only 5-7 dB
-  under the whole (mic hiss); sleeve rubbing read as a few loud thumps (+33 dB, highs -6..-13, 1 burst), talking and
-  music as 2-3 bursts a few dB over the room: no cheap feature separated them. Real rubbing had been caught as kicks/
-  snares with lows and highs both within 1-8 dB. Motion handling (fiddle) and pocket hush/guard stay the protection.
-  `RUSTLE_DEBUG=1` sends ru_zcr (=highs share)/ru_dev/ru_above/ru_slow (=bursts).
+- **Rustle detector: REMOVED** (Oct 14, Samuel: "take it out completely... hold on to it in our backpocket"). The full
+  version (`add_rustle`, `rustle_guard`, tests, Now line/Diagnostics) is in commit ea57dde. Why: on Samuel's phone a
+  quiet room already reads 12-20k zero crossings/s and highs only 5-7 dB under the whole (mic hiss); sleeve rubbing
+  read as a few loud thumps (+33 dB, highs -6..-13, 1 burst), talking and music as 2-3 bursts a few dB over the room:
+  no cheap feature separated them. Motion handling (fiddle) and pocket hush/guard are the protection.
 - **Mic-down protection** (`pocket_guard`, main, noPreset, default 0.6; 0 = no change): Samuel found mic-end-down pockets
   rustly but mic-up pockets fine. `PhoneContext.micDown()` (gravity along +y averaged ~1 s, hysteresis 0.5/0.3) and
   AudioService sends `pocket_down` = pocket && micDown. The patch adds guard*12 dB more cut and crossfades in a 2x `hip~ 300`.

@@ -657,9 +657,6 @@ public class MainActivity extends Activity {
         if (CalmBuild.level() > 0.02f) {
             why.add(getString(R.string.why_building));
         }
-        if (AudioService.rustleNow()) {
-            why.add(getString(R.string.why_rustle));
-        }
         if (HandlingDetector.level() > 0.3f) {
             why.add(getString(R.string.why_handling));
         }
@@ -2193,7 +2190,6 @@ public class MainActivity extends Activity {
             }
             lines.add(getString(R.string.diag_clip_gain, c.episodes(ClipWatch.GAIN)));
             lines.add(getString(R.string.diag_handling, AudioService.handlingSkipsLastMinute()));
-            lines.add(getString(R.string.diag_rustle, AudioService.rustleLastMinute()));
             lines.add(getString(R.string.diag_clip_out, outs));
             if (outs > 0) {
                 lines.add("  " + getString(R.string.diag_clip_out_help));
