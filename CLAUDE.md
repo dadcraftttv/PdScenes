@@ -62,6 +62,12 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   without them; `outputWatcher` switches or stops when they are unplugged. It first mutes (`computeAudio(false)`) and waits
   `DISCONNECT_SETTLE_MS` (600 ms): libpd's `OboeEngine::onErrorAfterClose` closes and reopens the streams on Oboe's thread with no lock,
   and stopping at the same moment crashed in `OboeEngine::closeStream`. Reported upstream as https://github.com/libpd/libpd/issues/427; drop the delay once a fixed pd-core release is used.
+  Upstream fix tested Oct 14 (branch `oboe-fix-test`, pd-core built locally into mavenLocal as 1.4.2-oboefix from
+  pd-for-android PR #198 6306ff8 + libpd PR #428 56c7021 cherry-picked onto libpd 3fc60ea = Pd 0.55.2, NDK 29): build A
+  (fix + 600 ms delay) and build B (fix, delay 0, `PdAudio.setAutoReopen(false)`) each 10 wired unplugs while playing
+  (Music + beat on) and 10 unplugs right after Stop on the Moto G: 40/40 clean, no crash, no sound on the speaker;
+  B stopped ~20 ms after the unplug. Bluetooth not tested. When a pd-core release has both PRs: set
+  `PdAudio.setAutoReopen(false)` before initAudio and DISCONNECT_SETTLE_MS to 0 (check Pd 0.56 + StreetBeatz first).
 - **Bluetooth mic = call mode** (mono, poor quality). Uses MODE_IN_COMMUNICATION and `setCommunicationDevice` matched by type + address
   (the mic and speaker are separate devices with separate ids; matching by id failed). LE Audio headsets can be better. The UI hints about it.
 - **Soft limiter** at the output (`clip~` base plus cubic-eased excess, never above 1.0). Hard clipping sounded fuzzy.
