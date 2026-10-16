@@ -247,7 +247,7 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   tick 8). Chimes, learned groove and glitch loops keep the straight tick; hats and tempo stay with the pace (the
   other chat's open choice: pace stays in charge). `rh_bb_bar` reports roll, chop, long fill. Measured at 1 vs 0
   (150 BPM, 42 bars): 29 vs 18 distinct loud kick+snare bars, kicks off the beat 77% vs 49%. expr `random()` is
-  used for these (no new [random] objects, so other tests' random sequences are unchanged). Feel untested.
+  used for these (no new [random] objects, so other tests' random sequences are unchanged). Samuel, Oct 16: "sound great".
 - **Found-sound kit** (roadmap 16 C2/C3, `add_found_kit`; Samuel: "the sounds around you become the rhythm"): on each
   sudden sound (the glitch cloud's detector, `gc_det_sel`, always running; never while in a pocket) a `FS_SLICE_S` (0.25 s) slice of the hushed
   mic from `FS_PREROLL_MS` (15 ms) earlier is recorded (`tabwrite~ fs_stage` from a 100 ms `fs_buf`) while env~ maxima
@@ -408,7 +408,7 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   chimes, motif replays, groove, density memory unchanged. Reports `mel_cell`, `mel_note <tick> <len> <ring>`.
   Found on the way and fixed (Samuel: "fix the chime density first"): `mu_p_len` (the still pattern's "8th / 250"
   scaling when synced) was written into its cold inlet, so synced chimes came ~17-25% more often at 150 BPM (fewer
-  under 120); Pd test "still pattern:" (free vs synced at 150 and 90 BPM within 0.85-1.1). Feel untested. Level 3 (phrase logic) is a later note.
+  under 120); Pd test "still pattern:" (free vs synced at 150 and 90 BPM within 0.85-1.1). Samuel, Oct 16: "sound great".
   **Melody phrases** (Oct 15, level 3; `mel_phrase` Music toggle, default off, noPreset, needs Melody rhythm;
   `add_phrases`; Pd test "melody phrases:"): bars count A A' B A (`mph_bar` 0-3, -1 while off, set at tick 0 before
   the cell pick); A' and the last A reuse A's cell (`ph_row`). Before each cell note the phrase stage sets
@@ -418,7 +418,7 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   last A replay ph_a, A''s last onset (`mel_lo`) goes to the chord root nearest A's last note. `mu_pick_ph` and
   `mu_arp_ph` take mphdeg while mphon (sound-triggered chimes and motifs never set it). Standing, only the chimes
   whose chance comes up play, so a phrase is heard in part. Reports `ph_note <phase> <tick> <step> <mchord> <n>`.
-  Feel untested.
+  Samuel, Oct 16: Breakbeat, Melody rhythm and Melody phrases all "sound great".
   **Density memory** (roadmap 8, no slider): `value mdens` = notes played lately (a chime +1, an arpeggio note +0.3
   so the walking bed doesn't silence chimes on the beat), fading over 8 s. Sudden-sound and still-pattern chimes play
   with chance 1/(1+(mdens/10)^2); the arpeggio rests up to 30% more past 16. Busy test room: 1.45 -> 1.0 notes/s.
