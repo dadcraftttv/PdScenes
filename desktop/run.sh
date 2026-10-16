@@ -4,7 +4,8 @@
 set -e
 H="$(cd "$(dirname "$0")" && pwd)"
 [ -x "$JAVA_HOME/bin/javac" ] || JAVA_HOME="$HOME/.jdks/jbr-21.0.11"; export JAVA_HOME PATH="$JAVA_HOME/bin:$PATH"; unset JAVA_TOOL_OPTIONS
-[ -f "$H/lib/libpdnative.so" ] && [ -f "$H/lib/flatlaf-3.4.1.jar" ] || "$H/fetch_libs.sh"
+[ -f "$H/lib/libpdnative.so" ] && [ -f "$H/lib/flatlaf-3.4.1.jar" ] \
+    && cmp -s "$H/lib/libpd-commit" "$H/../tools/.libpd/src/.pdscenes-commit" || "$H/fetch_libs.sh"
 CP="$H/lib/libpd.jar:$H/lib/jnajack-1.4.0.jar:$H/lib/jna-5.14.0.jar:$H/lib/json-20240303.jar:$H/lib/flatlaf-3.4.1.jar"
 A="$H/../app/src/main/java/app/pdscenes"
 # the phone app's own logic, unchanged, with desktop stand-ins (shim/) for the little Android it touches

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Gets what the desktop version needs into desktop/lib (not in git): libpd's Java connection, built from the same
-# libpd the tests use (tools/.libpd, see tools/build_libpd.sh), and four jars from Maven Central, checked by SHA-1.
+# libpd the tests and the phone use (our fork in tools/.libpd, see tools/build_libpd.sh), and four jars from Maven Central, checked by SHA-1.
 set -e
 H="$(cd "$(dirname "$0")" && pwd)"; L="$H/lib"; mkdir -p "$L"
 SRC="$H/../tools/.libpd/src"
@@ -8,6 +8,7 @@ SRC="$H/../tools/.libpd/src"
 [ -x "$JAVA_HOME/bin/javac" ] || JAVA_HOME="$HOME/.jdks/jbr-21.0.11"; export JAVA_HOME PATH="$JAVA_HOME/bin:$PATH"
 make -C "$SRC" javalib -j8 >/dev/null
 cp "$SRC/libs/libpd.jar" "$SRC/libs/libpdnative.so" "$L/"
+cp "$SRC/.pdscenes-commit" "$L/libpd-commit"   # run.sh rebuilds when tools/build_libpd.sh moves the pin
 get() {   # path on Maven Central, sha1
   local f="$L/$(basename "$1")"
   [ -f "$f" ] || curl -sSfL -o "$f" "https://repo1.maven.org/maven2/$1"

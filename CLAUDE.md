@@ -47,13 +47,14 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   only *added* with a `pds_` prefix (Pd prefers a built-in class over a scene's own abstraction of the same name), never
   change a standard object (scenes would change). When moving Pd (0.56 breaks StreetBeatz): rebase both branches,
   bump the version (`1.4.2-pdscenes.N` in the fork's build.gradle files and build_pdcore.sh), rebuild, test the scenes.
-  setAutoReopen(false) + DISCONNECT_SETTLE_MS 0 are in (Oct 16). Next: desktop/test libpd from the same fork
-  (`tools/build_libpd.sh` still uses upstream tag 0.15.0, also Pd 0.55.2).
+  setAutoReopen(false) + DISCONNECT_SETTLE_MS 0 are in (Oct 16). The tests and the desktop app use the same fork
+  (Oct 16): `tools/build_libpd.sh` pins dadcraftttv/libpd ebc0b83 (was upstream tag 0.15.0); `desktop/run.sh`
+  rebuilds desktop/lib when `lib/libpd-commit` differs from the pin. Moving Pd = move both pins together.
 
 ## Tests (run these after touching patch or Java logic)
 1. Desktop libpd is needed for the Pd tests: `tools/build_libpd.sh` builds it into `tools/.libpd/libpd.so` (needs git, make, gcc).
-   It is pinned to libpd 0.15.0 = Pd 0.55.2, the same Pd as the app's pd-core. Pd 0.56 breaks StreetBeatz.rj (`hip~` multichannel
-   error); move the pin only together with pd-core. numpy lives in `tools/.venv` (run the tests with `tools/.venv/bin/python`).
+   It is pinned to our libpd fork's commit ebc0b83 (Pd 0.55.2), the same libpd as the app's pd-core. Pd 0.56 breaks StreetBeatz.rj
+   (`hip~` multichannel error); move the pin only together with pd-core. numpy lives in `tools/.venv` (run the tests with `tools/.venv/bin/python`).
 2. `python3 tools/make_patch.py && tools/.venv/bin/python tools/test_patch.py tools/.libpd/libpd.so` — must end `ALL PASSED`.
    Also `tools/test_scene_loader.py`, `test_scene_sensors.py`, `test_rj_analysis.py`, `test_bundled_scenes.py`, `test_scene_helpers.py` (same libpd argument).
 3. Java logic tests (no Android): `tools/javatests/run.sh` (or one at a time: `tools/javatests/run.sh W`; D = diagnostics, H = handling, I = intensity, F = first run, B = calm build, G = scene graphics, K = stem packs). All must pass
