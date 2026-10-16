@@ -532,6 +532,15 @@ final class Params {
         return index;
     }
 
+    /**
+     * Whether a slider gets a lock box: every slider the dice or a Realm can move (a Realm plays a preset, so every
+     * slider kept in presets). Before, only the dice's sliders had one, so the Mix trims (kept out of the dice)
+     * couldn't be held while a Realm played (Samuel, Oct 16). Switches and menus have none.
+     */
+    static boolean lockable(Param p) {
+        return !p.toggle && p.choices == null && p.moverOf == null && (p.randomizable || p.inPreset);
+    }
+
     static Param byId(String id) {
         return BY_ID.get(id);
     }

@@ -17,6 +17,7 @@ There are two ways to use it:
 
 **Oct 15 (in the next test build):**
 
+- **Locks on the Mix levels:** the Kick, Bass, Chimes, Walking notes, Ring, Bells and Stems levels now have a Lock box too, so a Realm can't change them.
 - **Melody rhythm** (Music): the walking notes and the standing-still chimes can follow real rhythms (quarters, halves, 8ths, or dotted and syncopated ones), each note ringing as long as it lasts. Off at first.
 - **Melody phrases** (Music, with Melody rhythm on): the melody makes four-bar phrases: a line, the line again ending like an answer, something new, then the first line once more.
 - **Breakbeat** (Rhythm): turn it up for drums with off-beat kicks, ghost snares, now and then a chopped bar, a quick snare roll or a longer fill. At 0 the beat is as before.
@@ -417,7 +418,7 @@ A preset is a saved collection of slider settings, like a saved radio station. T
 - **Save** stores your current settings under a name you choose. Save sound, in the card at the bottom, does the same in one tap and names it after the time (like "Thu 10-31"). You can find it in Presets afterwards, or pick it for a Realm.
 - **Randomize** moves every slider to a random value within a safe range. While the sound is playing it glides there over about 6 seconds, so you hear the change happen. A slider you touch during the glide stays where you put it. It's good for finding new sounds by accident. **Undo** takes you back.
 - **Nudge** moves every slider only a little, so you drift to a nearby sound instead of jumping. How far it moves is set by Nudge strength in Behavior.
-- **Lock** (on a slider) protects it from Randomize and Nudge, so you can keep the sounds you like and shuffle the rest.
+- **Lock** (on a slider) protects it from Randomize, Nudge and the Realms, so you can keep the sounds you like and shuffle the rest. Loading a preset still sets it. Every slider a Realm can change has one, the Mix levels included.
 - **Export** asks you to name the preset, then saves it as a small file. Send that file to someone, or keep it as a backup. **Import** loads a file like that. The preset appears in your list under the name it was given. If you already have one with that name, the imported one gets a number added instead of replacing yours.
 
 The app also remembers your last settings when you close it.

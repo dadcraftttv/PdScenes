@@ -62,11 +62,11 @@ final class DesktopWindow {
     private static final Map<String, String> SHORT = Map.of("intensity", "Intensity (calmer - busier)");
     /**
      * Settings that only mean something on a phone: the pocket and handling hushes, notes following light and
-     * stairs, the beat following your steps or playing only while walking. Kept at their defaults here (the beat on
-     * its own clock, always playing) and out of sight; presets don't carry them.
+     * stairs, the beat following your steps or playing only while walking, and the stem packs' level (packs stay on
+     * the phone). Kept at their defaults here (the beat on its own clock, always playing) and out of sight.
      */
     static final java.util.Set<String> PHONE_ONLY = java.util.Set.of("pocket_hush", "pocket_guard", "handling_hush",
-            "music_follow", "beat_follow", "beat_when");
+            "music_follow", "beat_follow", "beat_when", "stems_level");
 
     private final JFrame frame = new JFrame("PdScenes");
     private JTabbedPane tabs;
@@ -89,6 +89,7 @@ final class DesktopWindow {
         final JLabel label;
         final JComponent control;
         final JLabel value;
+        JCheckBox lock;
 
         Row(Param p, JLabel label, JComponent control, JLabel value) {
             this.p = p;
@@ -116,6 +117,9 @@ final class DesktopWindow {
             }
             if (value != null) {
                 value.setText(p.format(v));
+            }
+            if (lock != null && lock.isSelected() != ParamStore.isLocked(p.id)) {
+                lock.setSelected(ParamStore.isLocked(p.id));   // (Reset everything clears the locks)
             }
             if (label != null) {
                 String text = SHORT.getOrDefault(p.id, p.label) + (Modulation.isMoving(p.id) ? " •" : "");   // (a dot while a mover pushes it)
@@ -440,6 +444,17 @@ final class DesktopWindow {
             body.add(value, g);
         }
         Row r = new Row(p, label, control, value);
+        if (Params.lockable(p)) {   // as on the phone: kept from the dice, Nudge and the Realms
+            JCheckBox lock = new JCheckBox("Lock", ParamStore.isLocked(p.id));
+            lock.setToolTipText("Keep this slider where it is: Randomize, Nudge and the Realms leave it alone");
+            lock.getAccessibleContext().setAccessibleName("Lock: " + p.label);
+            lock.addActionListener(e -> ParamStore.setLocked(p.id, lock.isSelected()));
+            g.gridx = 3;
+            g.weightx = 0;
+            g.fill = GridBagConstraints.NONE;
+            body.add(lock, g);
+            r.lock = lock;
+        }
         rows.add(r);
         r.refresh();
     }

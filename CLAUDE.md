@@ -594,6 +594,11 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   (a second start: notify-send and exit), log to desktop.log (one rotation), zenity on an error exit. Installed on
   Samuel's machine. The desktop stays in this repo (it compiles the phone's sources in place; split later with a
   shared library if it gets its own releases). Movers: not wanted for now (Samuel).
+- Locks (Oct 16, Samuel: "the Mix elements need locks so those elements can stay where they should be even when a
+  realm takes over"): `Params.lockable` = every slider the dice or a Realm can move (randomizable or inPreset, not
+  switches/menus/movers); the phone showed locks only on randomizable sliders, so the Mix trims had none; the
+  desktop had none at all. Both apps use lockable now. DesktopTest checks a locked Mix level through Randomize and
+  through a Realm whose preset sets it.
 - Not yet: a walking/pace stand-in, more cleanup.
 
 ## Open / next

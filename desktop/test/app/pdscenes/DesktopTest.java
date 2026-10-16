@@ -71,6 +71,34 @@ public final class DesktopTest {
         String stored = new String(Files.readAllBytes(new File(dir, "config/pdscenes_state.json").toPath()));
         check(stored.contains("reverb_mix"), "settings are written to ~/.config/pdscenes/pdscenes_state.json");
 
+        // locks: every slider a Realm or the dice can move has one (the Mix trims too), the user's own controls don't
+        check(Params.lockable(Params.byId("mix_kick")) && Params.lockable(Params.byId("stems_level"))
+                && Params.lockable(Params.byId("wet")) && !Params.lockable(Params.byId("intensity"))
+                && !Params.lockable(Params.byId("echo_on")) && !Params.lockable(Params.byId("gain")),
+                "lock boxes: Mix trims, Stems level and effect sliders have one; Intensity, switches and gain don't");
+        ParamStore.setLocked("mix_kick", true);
+        ParamStore.set("mix_kick", 0.4f);
+        ParamStore.randomize();
+        check(ParamStore.get("mix_kick") == 0.4f, "a locked Mix level stays put through Randomize");
+
+        // a Realm whose preset sets Mix levels: the locked ones keep theirs, the others follow the Realm
+        PresetManager.save(ctx, "Loud mix", Map.of("music_pad", 0.9f, "beat_hats", 0.9f, "mix_bass", 1.5f, "wet", 0.2f));
+        ParamStore.set("music_pad", 0.2f);
+        ParamStore.set("mix_bass", 0.5f);
+        ParamStore.set("beat_hats", 0.3f);
+        ParamStore.setLocked("music_pad", true);
+        ParamStore.setLocked("mix_bass", true);
+        Worlds.load(ctx);
+        Worlds.setPreset(WorldSelector.TRANQUIL, "Loud mix");
+        Worlds.setEnabled(true);
+        for (int i = 0; i < 300; i++) {   // 30 s of a quiet room
+            Worlds.tick(0.1, -60f, false, false, 12 * 60, Double.MAX_VALUE);
+        }
+        check(WorldSelector.TRANQUIL.equals(Worlds.currentWorld()) && ParamStore.get("music_pad") == 0.2f
+                && ParamStore.get("mix_bass") == 0.5f && Math.abs(ParamStore.get("beat_hats") - 0.9f) < 1e-4f,
+                "a Realm playing: locked Mix levels stay (pad " + ParamStore.get("music_pad") + ", bass trim "
+                        + ParamStore.get("mix_bass") + "), an unlocked one follows it (hats " + ParamStore.get("beat_hats") + ")");
+
         System.out.println(failed == 0 ? "ALL PASSED" : failed + " FAILED");
         System.exit(failed == 0 ? 0 : 1);
     }

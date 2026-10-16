@@ -1383,7 +1383,7 @@ public class MainActivity extends Activity {
         head.addView(label, new LinearLayout.LayoutParams(
                 0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
 
-        if (p.randomizable) {
+        if (Params.lockable(p)) {
             CheckBox lock = new CheckBox(this);
             lock.setText(R.string.lock);
             lock.setContentDescription(getString(R.string.lock) + ": " + p.label);
