@@ -42,7 +42,7 @@ final class DesktopEngine {
     static final class Setup {
         String mic;               // null = default input; "none" = no mic
         boolean game;
-        String gameOutput;        // null = the default output
+        String gameOutput;        // "app:<name>" = that app's own sound, else an output's monitor (null = the default)
         boolean listen;           // also play to the default output
         float micLevel = 1, gameLevel = 1;
     }
@@ -195,7 +195,9 @@ final class DesktopEngine {
             wanted.add(new Route("mic", "sources", "capture", s.mic, true));
         }
         if (s.game) {
-            wanted.add(new Route("game sound", "sinks", "monitor", s.gameOutput, true));
+            boolean app = s.gameOutput != null && s.gameOutput.startsWith(APP);
+            wanted.add(app ? new Route("game sound", "apps", "output", s.gameOutput.substring(APP.length()), true)
+                    : new Route("game sound", "sinks", "monitor", s.gameOutput, true));
         }
         if (s.listen) {
             wanted.add(new Route("headphones", "sinks", "playback", null, false));
@@ -220,7 +222,9 @@ final class DesktopEngine {
                     routes.add(now);
                     keepSafely(now);
                     if (!now.up && !now.refused) {
-                        say.accept("Couldn't find " + wantedWords(now) + " yet: it connects when it shows up.");
+                        say.accept(now.kind.equals("apps")
+                                ? now.pattern + " isn't playing sound right now: PdScenes connects to it when it does."
+                                : "Couldn't find " + wantedWords(now) + " yet: it connects when it shows up.");
                     }
                 }
             }
@@ -263,7 +267,8 @@ final class DesktopEngine {
             return;
         }
         boolean ours = r.what.equals("output");   // (only the output route may find our own sink)
-        String[] dev = ours ? findAny(r.kind, SINK) : find(r.kind, r.pattern != null ? r.pattern : defaultOf(r.kind));
+        String[] dev = r.kind.equals("apps") ? (apps().contains(r.pattern) ? new String[]{r.pattern, r.pattern} : null)
+                : ours ? findAny(r.kind, SINK) : find(r.kind, r.pattern != null ? r.pattern : defaultOf(r.kind));
         if (dev == null) {
             r.up = false;
             return;
@@ -388,6 +393,37 @@ final class DesktopEngine {
         float[] m = {(float) db(peakIn), (float) db(peakOut), xruns};
         peakIn = peakOut = 0;
         return m;
+    }
+
+    // ---- apps (a game's own sound, taken straight from it, like OBS's Application Audio Capture) ----
+
+    static final String APP = "app:";
+
+    /**
+     * Apps playing sound now, by the name their ports carry ("Chromium", a game). Left out: PdScenes itself, OBS
+     * (its monitoring can carry PdScenes's music: a loop), EasyEffects' filters and system helpers.
+     */
+    List<String> apps() {
+        List<String> out = new ArrayList<>();
+        if (client == null) {
+            return out;
+        }
+        try {
+            String[] ports = jack.getPorts(client, ":output_", JackPortType.AUDIO, EnumSet.of(JackPortFlags.JackPortIsOutput));
+            String me = client.getName();
+            for (String p : ports == null ? new String[0] : ports) {
+                int c = p.lastIndexOf(':');
+                String app = p.substring(0, c);
+                String low = app.toLowerCase(Locale.ROOT);
+                if (!app.equals(me) && !low.startsWith("pdscenes") && !low.contains("obs") && !low.startsWith("ee_")
+                        && !low.startsWith("speech-dispatcher") && !low.startsWith("midi") && !out.contains(app)) {
+                    out.add(app);
+                }
+            }
+        } catch (JackException ignored) {
+            // nothing listed
+        }
+        return out;
     }
 
     // ---- devices ----

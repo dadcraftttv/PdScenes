@@ -599,6 +599,12 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   switches/menus/movers); the phone showed locks only on randomizable sliders, so the Mix trims had none; the
   desktop had none at all. Both apps use lockable now. DesktopTest checks a locked Mix level through Randomize and
   through a Realm whose preset sets it.
+- Game sound from an app (Oct 16; Samuel agreed to "give the game its own output", built instead as app capture:
+  no pavucontrol step, no loopback delay): `Setup.gameOutput` "app:<name>" = a route of kind "apps" linking that
+  JACK client's `output_*` ports (any playing stream shows as "<name>:output_FL") to our game ports, reconnected
+  when the game restarts. `DesktopEngine.apps()` leaves out PdScenes, anything with "obs" (its monitoring carries
+  our music), EasyEffects' ee_ filters, speech-dispatcher, MIDI. A whole output's monitor can still be picked
+  (loop guard as before). Tested with a pw-cat tone into a throwaway sink: listed, linked, lost on quit, back.
 - Not yet: a walking/pace stand-in, more cleanup.
 
 ## Open / next

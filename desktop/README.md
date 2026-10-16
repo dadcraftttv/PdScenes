@@ -37,12 +37,19 @@ Add a source **Audio Output Capture** and pick the device **PdScenes** (it is th
 yourself, tick Setup's "Also play to my headphones", or set that OBS source's audio monitoring to "Monitor and
 Output" (Edit > Advanced Audio Properties), but not onto the output the game sound is taken from (see below).
 
+## Game sound
+
+Setup > **Also hear a game**: start the game, press **Look for devices again**, and pick it under **Taken from**
+("App: ..."). PdScenes then hears the game's own sound (like OBS's Application Audio Capture): only the game, not
+Discord or alerts, with no delay added to what you hear, and it reconnects when you restart the game. A **whole
+output** (everything heard on it) can be picked too, but that can loop (below).
+
 ## It never hears itself
 
 PdScenes plays only to its own output, and that output is never offered as an input. "Also play to my headphones"
 is refused while the game sound is taken from that same output (checked again whenever a device comes back).
-One loop it can't see: OBS's audio monitoring of PdScenes playing to the output the game sound is taken from. If
-you want game sound, give the game its own output (a virtual sink) and take the game sound from that one. Your
+One loop it can't see: OBS's audio monitoring of PdScenes playing to a whole output the game sound is taken from.
+Taking the game itself (an app) never loops. Your
 voice reaches the stream through PdScenes as well (its Dry level): set Dry to 0 if OBS already carries your mic.
 
 Needs PipeWire with its JACK layer (`pipewire-jack`; the app starts under `pw-jack`), Java 21, and `pactl`.

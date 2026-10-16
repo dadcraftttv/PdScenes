@@ -294,6 +294,10 @@ final class DesktopApp {
         Thread t = new Thread(() -> {
             try (BufferedReader r = new BufferedReader(new InputStreamReader(System.in))) {
                 for (String line; (line = r.readLine()) != null; ) {
+                    if (line.trim().equals("apps")) {
+                        System.out.println("apps: " + engine.apps());
+                        continue;
+                    }
                     String[] f = line.trim().split("[\\s=]+", 2);
                     if (f.length != 2) {
                         continue;

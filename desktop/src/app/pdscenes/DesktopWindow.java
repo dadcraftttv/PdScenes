@@ -764,7 +764,7 @@ final class DesktopWindow {
                 + "Capture</i> source and pick PdScenes. It never hears that output, so it can't feed back."), full(body));
         micBox = narrow(new JComboBox<>());
         micLevel = new JSlider(0, 200, 100);
-        gameOn = new JCheckBox("Also hear the computer's sound (a game, music...)");
+        gameOn = new JCheckBox("Also hear a game (or any app, or a whole output)");
         gameBox = narrow(new JComboBox<>());
         gameLevel = new JSlider(0, 200, 100);
         listenOn = new JCheckBox("Also play to my headphones (the default output)");
@@ -772,11 +772,14 @@ final class DesktopWindow {
         labeled(body, "Mic level", micLevel);
         body.add(gameOn, full(body));
         labeled(body, "Taken from", gameBox);
+        body.add(note("Pick the game itself (start it first, then <i>Look for devices again</i>): PdScenes hears only "
+                + "the game, the game keeps playing to your headphones as before, and nothing can loop. It reconnects "
+                + "when you restart the game."), full(body));
         labeled(body, "Game level", gameLevel);
         body.add(listenOn, full(body));
-        body.add(note("<b>Game sound without a loop:</b> PdScenes must never hear itself. If you listen on the same "
-                + "output the game sound is taken from (here, or through OBS's audio monitoring), its music goes round "
-                + "and round. Give the game its own output (a virtual sink) and take the game sound from that."), full(body));
+        body.add(note("<b>Taking a whole output instead</b> (everything you hear) can loop: if PdScenes's music plays to "
+                + "that same output (here, or through OBS's audio monitoring), it goes round and round. Taking the game "
+                + "itself never loops."), full(body));
         JButton refresh = new JButton("Look for devices again");
         refresh.addActionListener(e -> refreshDevices());
         body.add(refresh, full(body));
@@ -810,12 +813,41 @@ final class DesktopWindow {
         quiet = true;
         DesktopEngine.Setup s = DesktopApp.setup();
         fillDevices(micBox, "sources", "Default input", s.mic, true);
-        fillDevices(gameBox, "sinks", "Default output", s.gameOutput, false);
+        fillGame(gameBox, s.gameOutput);
         gameOn.setSelected(s.game);
         listenOn.setSelected(s.listen);
         micLevel.setValue(Math.round(s.micLevel * 100));
         gameLevel.setValue(Math.round(s.gameLevel * 100));
         quiet = false;
+    }
+
+    /** The game menu: the apps playing now (the game itself), then whole outputs (everything heard on them). */
+    private static void fillGame(JComboBox<Device> box, String chosen) {
+        box.removeAllItems();
+        Device pick = null;
+        List<String> apps = DesktopApp.engine != null ? DesktopApp.engine.apps() : new ArrayList<>();
+        for (String a : apps) {
+            Device d = new Device(DesktopEngine.APP + a, "App: " + a);
+            box.addItem(d);
+            if (d.name.equals(chosen)) {
+                pick = d;
+            }
+        }
+        if (chosen != null && chosen.startsWith(DesktopEngine.APP) && pick == null) {   // (starts later: connects then)
+            pick = new Device(chosen, "App: " + chosen.substring(DesktopEngine.APP.length()) + " (not running)");
+            box.addItem(pick);
+        }
+        Device def = new Device(null, "Whole output: the default (everything you hear)");
+        box.addItem(def);
+        String[] match = chosen == null || chosen.startsWith(DesktopEngine.APP) ? null : DesktopEngine.find("sinks", chosen);
+        for (String[] d : DesktopEngine.devices("sinks")) {
+            Device dev = new Device(match != null && d[0].equals(match[0]) ? chosen : d[0], "Whole output: " + d[1]);
+            box.addItem(dev);
+            if (match != null && d[0].equals(match[0])) {
+                pick = dev;
+            }
+        }
+        box.setSelectedItem(pick != null ? pick : def);
     }
 
     private static void fillDevices(JComboBox<Device> box, String kind, String defaultTitle, String chosen, boolean none) {
