@@ -10,13 +10,11 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        // pd-core 1.2.1-rc6 (the last numbered release) cannot pick audio devices; the snapshot can.
-        // Limited to the libpd group so nothing else is ever fetched from it.
-        maven("https://central.sonatype.com/repository/maven-snapshots/") {
-            mavenContent {
-                snapshotsOnly()
-                includeGroup("io.github.libpd.android")
-            }
+        // Our own pd-core build (tools/build_pdcore.sh, from the dadcraftttv/pd-for-android and libpd forks), kept
+        // in the repo. Only the libpd group comes from here, and libpd only from here.
+        exclusiveContent {
+            forRepository { maven(uri("third_party/maven")) { name = "pdscenes-pdcore" } }
+            filter { includeGroup("io.github.libpd.android") }
         }
     }
 }

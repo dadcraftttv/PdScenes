@@ -35,9 +35,20 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
 - `app/src/main/res/values/strings.xml` — escape apostrophes as `\'` (an unescaped one broke the aapt build once).
 
 ## Dependencies
-- `io.github.libpd.android:pd-core:1.4.2-SNAPSHOT` from the Sonatype snapshots repo (declared in `settings.gradle.kts`, snapshotsOnly,
-  restricted to group `io.github.libpd.android`). It is needed for `PdAudio.setDevicesId` (input picker). The last numbered release,
-  1.2.1-rc6, lacks it. **Switch to a numbered release before the Play release.**
+- **pd-core is our own build** (Oct 16): `io.github.libpd.android:pd-core:1.4.2-pdscenes.1` from `third_party/maven` (committed;
+  `settings.gradle.kts` takes the libpd group only from there, exclusiveContent). `tools/build_pdcore.sh` rebuilds it from
+  our public forks at a pinned commit: **dadcraftttv/pd-for-android `pdscenes`** (2eb5545 = upstream master d3ec6c9 +
+  PR #198 setAutoReopen, version bumped, libpd submodule -> our fork) and **dadcraftttv/libpd `pdscenes`** (ebc0b83 = libpd
+  3fc60ea, Pd 0.55.2, the commit pd-core 1.4.2-SNAPSHOT used, on no upstream branch, + PR #428 the Oboe race fix).
+  NDK 29.0.14206865 (pinned in the fork's libs.versions.toml), JDK 21; clones live in `tools/.pdcore` (gitignored).
+  Same .so set as the snapshot (only libpdnativeoboe grew ~600 bytes), 64-bit libs 16 KB-aligned. Why: pd-for-android's
+  last numbered release is 1.2.1-rc6 (2021), the snapshot can change under us, and the fix isn't merged upstream yet.
+  **Fork rules (Samuel agreed):** keep our changes small, one commit each, offer general ones upstream; new C objects
+  only *added* with a `pds_` prefix (Pd prefers a built-in class over a scene's own abstraction of the same name), never
+  change a standard object (scenes would change). When moving Pd (0.56 breaks StreetBeatz): rebase both branches,
+  bump the version (`1.4.2-pdscenes.N` in the fork's build.gradle files and build_pdcore.sh), rebuild, test the scenes.
+  Next: setAutoReopen(false) + DISCONNECT_SETTLE_MS 0 with an unplug retest (wired + Bluetooth); desktop/test libpd
+  from the same fork (`tools/build_libpd.sh` still uses upstream tag 0.15.0, also Pd 0.55.2).
 
 ## Tests (run these after touching patch or Java logic)
 1. Desktop libpd is needed for the Pd tests: `tools/build_libpd.sh` builds it into `tools/.libpd/libpd.so` (needs git, make, gcc).

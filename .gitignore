@@ -11,3 +11,4 @@ __pycache__/
 tools/.venv/
 desktop/lib/
 desktop/build/
+tools/.pdcore/
