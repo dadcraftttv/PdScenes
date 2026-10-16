@@ -551,6 +551,23 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   (`Params.withMovers`), or loading a preset or world switched it off. Not stored: gain/gate/compressor, smoothing/nudge,
   music on/key/scale, locks, worlds choices, audio device, scenes, appearance.
 
+## Desktop stream mode (`desktop/`, Oct 16)
+- Samuel wants the app on Linux as background music for his stream (no sensors, Set tempo, Realms by room level).
+  Step 1 done: `desktop/run.sh` runs the built-in patch in libpd for Java (`make javalib` in tools/.libpd, via
+  `desktop/fetch_libs.sh`, with JNAJack 1.4.0 / JNA 5.14.0 / org.json 20240303 from Maven Central, SHA-1 checked,
+  not in git) through PipeWire's JACK layer (`pw-jack`). Mic (+ optional game sound = a sink's monitor) mixed to the
+  patch's one input; output to its own null sink "pdscenes" (description "PdScenes", made with pactl, removed on
+  exit), which OBS records with Audio Output Capture. The JACK client is "PdScenes Engine" (JACK port names are
+  device *descriptions*, so the sink's "PdScenes" would clash). Routes (output, mic, game, --listen) are re-checked
+  every 2 s and reconnected; devices match by name or part of name/description. Never hears itself: the sink is
+  never an input, --listen refused/skipped while the game sound comes from that sink. Typed lines change settings.
+- Samuel's machine: PreSonus AudioBox Go (its USB link drops now and then; nodes come back renamed ".3"/".4"),
+  EasyEffects on the mic (OBS reads Easy Effects Source). Through the patch the EasyEffects source (peaks at 0 dBFS)
+  sounded overdriven; the AudioBox directly with the compressor off "sounds amazing" -> `DESKTOP_DEFAULTS`
+  comp_thresh 0. Pd 0.55.2's expr prints "realloc called with N bytes" to stdout (filtered in run.sh).
+- Next: the control window (Swing, built from Params), presets in the phone's format (import/export both ways),
+  the app's tick logic (movers, Realms, Calm builds, motifs, packs) without Android.
+
 ## Open / next
 - **Ideas queue with details: `docs/ROADMAP.md`** (in-key resonators, pitch-following harmony, Ghost capture, Kinetic tiers, Unstable and Collective worlds, stems player).
 - Release prep: final name + applicationId, `source_url` in strings.xml, privacy policy, Play foreground-service + microphone declarations, icon, store listing.

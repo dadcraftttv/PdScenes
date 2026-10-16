@@ -32,10 +32,12 @@ import java.util.Map;
  * speakers it would loop through are refused while the game sound is on, so the app can never hear itself.
  *
  * <pre>
- * --mic NODE         the mic (a PipeWire source, default: the system's default input; "none" = no mic)
- * --game [NODE]      also hear the computer's sound (default: the monitor of the default output)
+ * --mic NAME         the mic: a PipeWire source by name or part of its name or description, e.g. "AudioBox"
+ *                    (default: the system's default input; "none" = no mic)
+ * --game [NAME]      also hear the computer's sound: the monitor of this output (default: the default output)
  * --mic-level X      --game-level X   (default 1)
- * --listen           also play to the default output (to hear it yourself; refused together with --game)
+ * --listen           also play to the default output (to hear it yourself; refused when the game sound is taken
+ *                    from that same output)
  * --set id=value     a setting, as the phone app's ids (repeatable)
  * --seconds N        stop after N seconds (for tests)
  * </pre>
@@ -45,6 +47,12 @@ import java.util.Map;
 public final class Engine {
 
     static final String SINK = "pdscenes";          // the virtual output OBS records
+    /**
+     * The phone's defaults that don't suit a desktop mic. The compressor (-30 dB, 4:1) evens out a phone mic, but a
+     * desktop mic chain usually already arrives levelled (EasyEffects peaks at full scale), and squeezing it again
+     * sounded overdriven (Samuel, Oct 16: the AudioBox directly with the compressor off "sounds amazing").
+     */
+    static final Map<String, Float> DESKTOP_DEFAULTS = Map.of("comp_thresh", 0f);
     static final String CLIENT = "PdScenes Engine";   // (the virtual output is "PdScenes")
 
     private final float[] in;
@@ -53,8 +61,8 @@ public final class Engine {
     private volatile float micLevel = 1, gameLevel = 1;
     private volatile float peakIn, peakOut;
     private volatile int xruns;
+    private static volatile boolean closing;   // (shutting down: devices vanish, nothing to report)
     private JackPort micL, micR, gameL, gameR, outL, outR;
-    private boolean micMono, gameMono;
 
     private Engine(int maxFrames) {
         block = PdBase.blockSize();
@@ -94,20 +102,10 @@ public final class Engine {
         if (patch == null || !new File(patch).isFile()) {
             throw new IllegalArgumentException("No patch: " + patch);
         }
-        String defaultSink = pactl("get-default-sink");
-        if (mic == null) {
-            mic = pactl("get-default-source");
-        }
-        if (wantGame && game == null) {
-            game = defaultSink;   // its monitor
-        }
         // never hear ourselves: our own output is not an input, and with the game sound on we don't play to the
-        // output whose monitor we listen to
-        if (SINK.equals(mic) || SINK.equals(game)) {
-            fail("PdScenes can't listen to its own output (that would feed back).");
-        }
-        if (listen && wantGame && game.equals(defaultSink)) {
-            fail("--listen plays to " + defaultSink + ", which the game sound is taken from: it would feed back. "
+        // output whose monitor we listen to (checked again whenever a device comes back: see keep)
+        if (listen && wantGame && game == null) {
+            fail("--listen plays to your default output, which the game sound is taken from: it would feed back. "
                     + "Listen in OBS instead (its audio monitoring), or take the game sound from another output.");
         }
         int sinkModule = ensureSink();
@@ -120,11 +118,15 @@ public final class Engine {
         PdBase.setReceiver(new Printer());
         PdBase.openAudio(1, 2, rate);
         int h = PdBase.openPatch(patch);
+        for (Map.Entry<String, Float> s : DESKTOP_DEFAULTS.entrySet()) {   // (before the user's own --set)
+            PdBase.sendFloat(s.getKey(), s.getValue());
+        }
         for (Map.Entry<String, Float> s : sets.entrySet()) {
             PdBase.sendFloat(s.getKey(), s.getValue());
         }
         PdBase.computeAudio(true);
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            closing = true;
             client.close();
             PdBase.closePatch(h);
             PdBase.release();
@@ -134,13 +136,13 @@ public final class Engine {
         e.micLevel = micLevel;
         e.gameLevel = gameLevel;
         try {
-            e.start(jack, client, mic, wantGame ? game : null, listen ? defaultSink : null);
+            e.start(jack, client, mic, wantGame, game, listen);
         } catch (JackException ex) {   // (JACK's threads would keep a half-started engine alive)
             fail("Couldn't connect the audio: " + ex);
         }
         System.out.printf(Locale.US, "PdScenes running at %d Hz, %d frames per cycle. Mic: %s. Game sound: %s. "
-                        + "Output: \"PdScenes\"%s.%n", rate, frames, mic.equals("none") ? "off" : mic,
-                wantGame ? "monitor of " + game : "off", listen ? " and " + defaultSink : "");
+                        + "Output: \"PdScenes\"%s.%n", rate, frames, "none".equals(mic) ? "off" : e.nodeOf("mic"),
+                wantGame ? "monitor of " + e.nodeOf("game") : "off", listen ? " and " + e.nodeOf("out") : "");
         startCommands(e);
         long end = seconds < 0 ? Long.MAX_VALUE : System.currentTimeMillis() + (long) (seconds * 1000);
         while (System.currentTimeMillis() < end) {
@@ -185,7 +187,31 @@ public final class Engine {
         t.start();
     }
 
-    private void start(Jack jack, JackClient c, String mic, String game, String listenSink) throws JackException {
+    /**
+     * A connection kept up while the engine runs: a PipeWire device, found by its name or part of its name or
+     * description (or the system's default when {@code pattern} is null), and our two ports. Devices come and go
+     * (a USB interface reconnecting, EasyEffects restarting): every 2 s each route is checked and made again.
+     */
+    private static final class Route {
+        final String what, kind, portKind, pattern;   // kind: "sources" or "sinks"; portKind: capture, monitor, playback
+        final boolean intoUs;
+        String node;                                  // the device's name when last found
+        boolean up;
+
+        Route(String what, String kind, String portKind, String pattern, boolean intoUs) {
+            this.what = what;
+            this.kind = kind;
+            this.portKind = portKind;
+            this.pattern = pattern;
+            this.intoUs = intoUs;
+        }
+    }
+
+    private final List<Route> routes = new ArrayList<>();
+    private Route gameRoute, listenRoute;
+
+    private void start(Jack jack, JackClient c, String mic, boolean game, String gamePattern, boolean listen)
+            throws JackException {
         micL = c.registerPort("mic_L", JackPortType.AUDIO, JackPortFlags.JackPortIsInput);
         micR = c.registerPort("mic_R", JackPortType.AUDIO, JackPortFlags.JackPortIsInput);
         gameL = c.registerPort("game_L", JackPortType.AUDIO, JackPortFlags.JackPortIsInput);
@@ -195,45 +221,176 @@ public final class Engine {
         c.setProcessCallback((client, n) -> process(n));
         c.setXrunCallback(client -> xruns++);
         c.activate();
-        if (!mic.equals("none")) {
-            micMono = connectSource(jack, c, describe("sources", mic), "capture", "mic");
+        routes.add(new Route("output", "sinks", "playback", SINK, false));
+        if (!"none".equals(mic)) {
+            routes.add(new Route("mic", "sources", "capture", mic, true));
         }
-        if (game != null) {
-            gameMono = connectSource(jack, c, describe("sinks", game), "monitor", "game");
+        if (game) {
+            routes.add(gameRoute = new Route("game", "sinks", "monitor", gamePattern, true));
         }
-        connectOut(jack, c, describe("sinks", SINK));
-        if (listenSink != null) {
-            connectOut(jack, c, describe("sinks", listenSink));
+        if (listen) {
+            routes.add(listenRoute = new Route("out", "sinks", "playback", null, false));
         }
-    }
-
-    /** Connects a node's ports of this kind (capture_FL.. or monitor_FL..) to our L/R inputs. True if mono. */
-    private static boolean connectSource(Jack jack, JackClient c, String node, String kind, String ours)
-            throws JackException {
-        String[] ports = jack.getPorts(c, "^" + rx(node) + ":" + kind + "_", JackPortType.AUDIO,
-                EnumSet.of(JackPortFlags.JackPortIsOutput));
-        if (ports == null || ports.length == 0) {
-            fail("Found no " + kind + " ports on \"" + node + "\". Inputs: see pw-link -o.");
-        }
-        jack.connect(c, ports[0], c.getName() + ":" + ours + "_L");
-        jack.connect(c, ports.length > 1 ? ports[1] : ports[0], c.getName() + ":" + ours + "_R");
-        return ports.length == 1;
-    }
-
-    private static void connectOut(Jack jack, JackClient c, String sink) throws JackException {
-        String[] ports = null;
-        for (int tries = 0; tries < 40 && (ports == null || ports.length < 2); tries++) {   // (a new sink's ports
-            if (tries > 0) {                                                                //  take a moment to show)
-                sleep(50);
+        for (Route r : routes) {
+            for (int tries = 0; !r.up && tries < 40; tries++) {   // (a sink made just now takes a moment to show)
+                keep(jack, c, r);
+                if (!r.up) {
+                    sleep(50);
+                }
             }
-            ports = jack.getPorts(c, "^" + rx(sink) + ":playback_", JackPortType.AUDIO,
-                    EnumSet.of(JackPortFlags.JackPortIsInput));
+            if (!r.up) {
+                fail("Couldn't find " + describeWanted(r) + ". " + listChoices(r.kind));
+            }
         }
-        if (ports == null || ports.length < 2) {
-            fail("Found no playback ports on \"" + sink + "\".");
+        Thread t = new Thread(() -> {
+            while (!closing) {
+                sleep(2000);
+                for (Route r : routes) {
+                    boolean was = r.up;
+                    try {
+                        keep(jack, c, r);
+                    } catch (JackException | RuntimeException ex) {
+                        r.up = false;
+                    }
+                    if (was != r.up && !closing) {
+                        System.out.println(r.up ? "Reconnected the " + r.what + " (" + r.node + ")."
+                                : "Lost the " + r.what + " (" + r.node + "): waiting for it to come back.");
+                    }
+                }
+            }
+        }, "routes");
+        t.setDaemon(true);
+        t.start();
+    }
+
+    String micName() {
+        return nodeOf("mic");
+    }
+
+    String nodeOf(String what) {
+        for (Route r : routes) {
+            if (r.what.equals(what)) {
+                return r.node;
+            }
         }
-        jack.connect(c, c.getName() + ":out_L", ports[0]);
-        jack.connect(c, c.getName() + ":out_R", ports[1]);
+        return null;
+    }
+
+    /** Finds the route's device and connects whatever isn't connected. Never hears our own output. */
+    private void keep(Jack jack, JackClient c, Route r) throws JackException {
+        String[] dev = find(r.kind, r.pattern != null ? r.pattern : defaultOf(r.kind));
+        if (dev == null) {
+            r.up = false;
+            return;
+        }
+        if (r.intoUs && dev[0].equals(SINK)) {
+            fail("PdScenes can't listen to its own output (that would feed back).");
+        }
+        if (r == listenRoute && gameRoute != null && dev[0].equals(gameRoute.node)) {
+            if (!dev[0].equals(r.node) || r.up) {
+                System.out.println("Not playing to " + dev[0] + ": the game sound is taken from it (it would feed back).");
+            }
+            r.node = dev[0];
+            r.up = false;
+            return;
+        }
+        r.node = dev[0];
+        String[] ports = jack.getPorts(c, "^" + rx(dev[1]) + ":" + r.portKind + "_", JackPortType.AUDIO,
+                EnumSet.of(r.intoUs ? JackPortFlags.JackPortIsOutput : JackPortFlags.JackPortIsInput));
+        if (ports == null || ports.length == 0) {
+            r.up = false;
+            return;
+        }
+        String me = c.getName() + ":";
+        if (r.intoUs) {
+            String base = r.what.equals("mic") ? "mic" : "game";
+            link(jack, c, ports[0], me + base + "_L", true);
+            link(jack, c, ports.length > 1 ? ports[1] : ports[0], me + base + "_R", true);   // (mono feeds both)
+        } else {
+            link(jack, c, me + "out_L", ports[0], false);
+            link(jack, c, me + "out_R", ports.length > 1 ? ports[1] : ports[0], false);
+        }
+        r.up = true;
+    }
+
+    private static void link(Jack jack, JackClient c, String from, String to, boolean toIsOurs) throws JackException {
+        String[] now = jack.getAllConnections(c, toIsOurs ? to : from);
+        if (now != null) {
+            for (String p : now) {
+                if (p.equals(toIsOurs ? from : to)) {
+                    return;
+                }
+            }
+        }
+        jack.connect(c, from, to);
+    }
+
+    /**
+     * A device of this kind ("sources"/"sinks") by its exact name, else the first whose name or description holds
+     * the pattern (any case). Monitors aren't sources here, and our own output is never offered. {name, description}.
+     */
+    private static String[] find(String kind, String pattern) {
+        if (pattern == null) {
+            return null;
+        }
+        List<String[]> all = devices(kind);
+        for (String[] d : all) {
+            if (d[0].equals(pattern)) {
+                return d;
+            }
+        }
+        String p = pattern.toLowerCase(Locale.ROOT);
+        for (String[] d : all) {
+            if (!d[0].equals(SINK) && (d[0].toLowerCase(Locale.ROOT).contains(p) || d[1].toLowerCase(Locale.ROOT).contains(p))) {
+                return d;
+            }
+        }
+        return null;
+    }
+
+    private static List<String[]> devices(String kind) {
+        List<String[]> out = new ArrayList<>();
+        try {
+            String name = null;
+            for (String line : run("pactl", "list", kind)) {
+                String t = line.trim();
+                if (t.startsWith("Name: ")) {
+                    name = t.substring(6);
+                } else if (t.startsWith("Description: ") && name != null) {
+                    if (!(kind.equals("sources") && (name.endsWith(".monitor") || name.startsWith(SINK)))) {
+                        out.add(new String[]{name, t.substring(13)});
+                    }
+                    name = null;
+                }
+            }
+        } catch (IOException | InterruptedException ignored) {
+            // no PipeWire right now: nothing found
+        }
+        return out;
+    }
+
+    private static String defaultOf(String kind) {
+        try {
+            return pactl(kind.equals("sources") ? "get-default-source" : "get-default-sink");
+        } catch (IOException | InterruptedException e) {
+            return null;
+        }
+    }
+
+    private static String describeWanted(Route r) {
+        String which = r.what.equals("mic") ? "a mic" : r.what.equals("game") ? "an output to take the game sound from"
+                : "an output to play to";
+        return which + (r.pattern != null ? " matching \"" + r.pattern + "\"" : " (the system default)");
+    }
+
+    private static String listChoices(String kind) {
+        StringBuilder b = new StringBuilder(kind.equals("sources") ? "Mics:" : "Outputs:");
+        for (String[] d : devices(kind)) {
+            if (!d[0].equals(SINK)) {
+                b.append("\n  ").append(d[1]).append("   (").append(d[0]).append(")");
+            }
+        }
+        return b.toString();
     }
 
     /** JACK's audio thread: mic and game sound, each at its level, into the patch's one input; its two outputs out. */
@@ -284,28 +441,6 @@ public final class Engine {
                 // PipeWire drops it on its next restart anyway
             }
         }
-    }
-
-    /**
-     * Under JACK, PipeWire names a device's ports by its description ("Easy Effects Source:capture_FL"), not by
-     * the name pactl uses ("easyeffects_source"): finds the description of a sink or source.
-     */
-    private static String describe(String kind, String name) {
-        try {
-            String current = null;
-            for (String line : run("pactl", "list", kind)) {
-                String t = line.trim();
-                if (t.startsWith("Name: ")) {
-                    current = t.substring(6);
-                } else if (t.startsWith("Description: ") && name.equals(current)) {
-                    return t.substring(13);
-                }
-            }
-        } catch (IOException | InterruptedException e) {
-            fail("pactl list " + kind + " failed: " + e.getMessage());
-        }
-        fail("No " + kind.substring(0, kind.length() - 1) + " called \"" + name + "\" (see pactl list short " + kind + ").");
-        return null;
     }
 
     private static String pactl(String what) throws IOException, InterruptedException {
