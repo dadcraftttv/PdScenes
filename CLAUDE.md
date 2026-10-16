@@ -605,6 +605,10 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   when the game restarts. `DesktopEngine.apps()` leaves out PdScenes, anything with "obs" (its monitoring carries
   our music), EasyEffects' ee_ filters, speech-dispatcher, MIDI. A whole output's monitor can still be picked
   (loop guard as before). Tested with a pw-cat tone into a throwaway sink: listed, linked, lost on quit, back.
+  Samuel's Minecraft (Prism Launcher Flatpak) plays as a stream named just "java": the menu labels apps from
+  `pactl --format=json list sink-inputs` (portal app id -> "java (PrismLauncher)"; pw-dump's JSON repeats keys and
+  org.json refuses it). Picking an entry ticks "Also hear a game" (he picked it, the box stayed off, nothing came).
+  Device names match without PipeWire's ".N" suffix (`DesktopEngine.base`), and menus store the plain name.
 - Not yet: a walking/pace stand-in, more cleanup.
 
 ## Open / next

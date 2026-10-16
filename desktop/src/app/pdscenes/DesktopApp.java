@@ -295,7 +295,12 @@ final class DesktopApp {
             try (BufferedReader r = new BufferedReader(new InputStreamReader(System.in))) {
                 for (String line; (line = r.readLine()) != null; ) {
                     if (line.trim().equals("apps")) {
-                        System.out.println("apps: " + engine.apps());
+                        Map<String, String> labels = DesktopEngine.appLabels();
+                        List<String> named = new java.util.ArrayList<>();
+                        for (String a : engine.apps()) {
+                            named.add(labels.getOrDefault(a, a));
+                        }
+                        System.out.println("apps: " + named);
                         continue;
                     }
                     String[] f = line.trim().split("[\\s=]+", 2);

@@ -20,6 +20,7 @@ import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.function.Consumer;
 
 /**
@@ -426,6 +427,39 @@ final class DesktopEngine {
         return out;
     }
 
+    /**
+     * A name to show for each app that plays sound: its stream's name plus where it comes from, when PipeWire knows
+     * (a Flatpak's app id: Minecraft from Prism Launcher plays as "java (PrismLauncher)").
+     */
+    static Map<String, String> appLabels() {
+        Map<String, String> out = new java.util.HashMap<>();
+        try {
+            // (pactl's JSON: pw-dump's repeats keys, which a strict JSON reader refuses)
+            Process p = new ProcessBuilder("pactl", "--format=json", "list", "sink-inputs").start();
+            String json = new String(p.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+            p.waitFor();
+            org.json.JSONArray all = new org.json.JSONArray(json);
+            for (int i = 0; i < all.length(); i++) {
+                org.json.JSONObject props = all.getJSONObject(i).optJSONObject("properties");
+                if (props == null) {
+                    continue;
+                }
+                String name = props.optString("node.name", null);
+                String from = props.optString("pipewire.access.portal.app_id", "");
+                if (from.isEmpty()) {
+                    from = props.optString("application.name", "");
+                }
+                from = from.substring(from.lastIndexOf('.') + 1);
+                if (name != null && !from.isEmpty() && !from.equalsIgnoreCase(name)) {
+                    out.put(name, name + " (" + from + ")");
+                }
+            }
+        } catch (IOException | InterruptedException | RuntimeException ignored) {
+            // just the plain names
+        }
+        return out;
+    }
+
     // ---- devices ----
 
     /**
@@ -484,6 +518,11 @@ final class DesktopEngine {
                 return d;
             }
         }
+        for (String[] d : all) {   // (a device back from a dropout gets ".3", ".4" added; a restart drops it again)
+            if (base(d[0]).equals(base(pattern))) {
+                return d;
+            }
+        }
         String p = pattern.toLowerCase(Locale.ROOT);
         for (String[] d : all) {
             if (d[0].toLowerCase(Locale.ROOT).contains(p) || d[1].toLowerCase(Locale.ROOT).contains(p)) {
@@ -491,6 +530,11 @@ final class DesktopEngine {
             }
         }
         return null;
+    }
+
+    /** A device name without the ".N" PipeWire adds when a device comes back under a name still in use. */
+    static String base(String name) {
+        return name.replaceFirst("\\.\\d+$", "");
     }
 
     private static String describe(String kind, String name) {

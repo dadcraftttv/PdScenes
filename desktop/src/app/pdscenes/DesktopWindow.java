@@ -789,9 +789,10 @@ final class DesktopWindow {
             }
             DesktopEngine.Setup s = DesktopApp.setup();
             Device mic = (Device) micBox.getSelectedItem(), game = (Device) gameBox.getSelectedItem();
-            s.mic = mic == null ? s.mic : mic.name;
+            s.mic = mic == null ? s.mic : mic.name == null || mic.name.equals("none") ? mic.name : DesktopEngine.base(mic.name);
             s.game = gameOn.isSelected();
-            s.gameOutput = game == null ? s.gameOutput : game.name;
+            s.gameOutput = game == null ? s.gameOutput : game.name == null || game.name.startsWith(DesktopEngine.APP)
+                    ? game.name : DesktopEngine.base(game.name);
             s.listen = listenOn.isSelected();
             s.micLevel = micLevel.getValue() / 100f;
             s.gameLevel = gameLevel.getValue() / 100f;
@@ -801,7 +802,12 @@ final class DesktopWindow {
             }
         };
         micBox.addActionListener(e -> changed.run());
-        gameBox.addActionListener(e -> changed.run());
+        gameBox.addActionListener(e -> {
+            if (!quiet && gameBox.getSelectedItem() != null) {
+                gameOn.setSelected(true);   // (picking the game means hearing it)
+            }
+            changed.run();
+        });
         gameOn.addActionListener(e -> changed.run());
         listenOn.addActionListener(e -> changed.run());
         micLevel.addChangeListener(e -> changed.run());
@@ -826,8 +832,9 @@ final class DesktopWindow {
         box.removeAllItems();
         Device pick = null;
         List<String> apps = DesktopApp.engine != null ? DesktopApp.engine.apps() : new ArrayList<>();
+        Map<String, String> labels = DesktopEngine.appLabels();
         for (String a : apps) {
-            Device d = new Device(DesktopEngine.APP + a, "App: " + a);
+            Device d = new Device(DesktopEngine.APP + a, "App: " + labels.getOrDefault(a, a));
             box.addItem(d);
             if (d.name.equals(chosen)) {
                 pick = d;
