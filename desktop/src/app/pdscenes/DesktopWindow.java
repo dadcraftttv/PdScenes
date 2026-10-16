@@ -95,7 +95,7 @@ final class DesktopWindow {
         }
 
         void refresh() {
-            float v = ParamStore.get(p.id);
+            float v = valueOf(p.id);
             if (control instanceof JSlider) {
                 JSlider s = (JSlider) control;
                 int pos = Math.round(p.toNorm(v) * STEPS);
@@ -123,18 +123,55 @@ final class DesktopWindow {
         }
     }
 
+    /**
+     * Settings changed on screen reach the engine from this thread, the latest value of each only: the engine
+     * waits while Pd works on a cycle, and the window must never wait with it.
+     */
+    private static final java.util.concurrent.ConcurrentHashMap<String, Float> pending = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final java.util.concurrent.ExecutorService sender = java.util.concurrent.Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r, "settings");
+        t.setDaemon(true);
+        return t;
+    });
+    private static volatile Map<String, Float> shown = new java.util.HashMap<>();   // ParamStore, as last read
+
+    private static void send(String id, float v) {
+        if (pending.put(id, v) == null) {
+            sender.execute(() -> {
+                Float latest = pending.remove(id);
+                if (latest != null) {
+                    ParamStore.set(id, latest);
+                }
+            });
+        }
+    }
+
+    /** A setting's value as the screen should show it: what was just moved, else the last reading. */
+    private static float valueOf(String id) {
+        Float p = pending.get(id);
+        if (p != null) {
+            return p;
+        }
+        Float v = shown.get(id);
+        return v != null ? v : ParamStore.get(id);
+    }
+
     private DesktopWindow() { }
 
     /** Builds and shows the window (on Swing's thread) and returns it. */
     static DesktopWindow open() throws Exception {
         DesktopWindow[] w = new DesktopWindow[1];
         SwingUtilities.invokeAndWait(() -> {
-            try {
-                UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-            } catch (Exception ignored) {
-                // Swing's own look is fine too
+            // FlatLaf: quick to draw (Swing's GTK look drew every slider through the desktop theme, and dragging one
+            // felt sluggish, Samuel Oct 16), dark like the phone app
+            if (!com.formdev.flatlaf.FlatDarkLaf.setup()) {
+                try {
+                    UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+                } catch (Exception ignored) {
+                    // Swing's own look is fine too
+                }
             }
-            UIManager.put("Slider.paintValue", Boolean.FALSE);   // (GTK draws the raw position over the knob)
+            UIManager.put("Slider.paintValue", Boolean.FALSE);
             w[0] = new DesktopWindow();
             w[0].build();
         });
@@ -174,6 +211,7 @@ final class DesktopWindow {
         SwingUtilities.invokeLater(() -> {
             refreshDevices();
             new Timer((int) REFRESH_MS, e -> refresh()).start();
+            new Timer(50, e -> meters()).start();
         });
     }
 
@@ -287,7 +325,7 @@ final class DesktopWindow {
             JCheckBox box = new JCheckBox(p.label);
             box.addActionListener(e -> {
                 if (!quiet) {
-                    ParamStore.set(p.id, box.isSelected() ? 1f : 0f);
+                    send(p.id, box.isSelected() ? 1f : 0f);
                 }
             });
             g.gridwidth = 3;
@@ -308,7 +346,7 @@ final class DesktopWindow {
             JComboBox<String> box = narrow(new JComboBox<>(p.choices));
             box.addActionListener(e -> {
                 if (!quiet && box.getSelectedIndex() >= 0) {
-                    ParamStore.set(p.id, box.getSelectedIndex());
+                    send(p.id, box.getSelectedIndex());
                 }
             });
             control = box;
@@ -316,19 +354,19 @@ final class DesktopWindow {
             JSlider s = new JSlider(0, STEPS, Math.round(p.toNorm(ParamStore.get(p.id)) * STEPS));
             value = new JLabel("0000000");
             value.setPreferredSize(new Dimension(80, value.getPreferredSize().height));
-            JLabel shown = value;
+            JLabel valueLabel = value;
             s.addChangeListener(e -> {
                 if (quiet) {
                     return;
                 }
                 float v = p.clamp(p.toValue(s.getValue() / (float) STEPS));
                 if (p.budget != null) {
-                    v = Math.min(v, ParamStore.budgetRoom(p));   // the glitch matrix: shares can't pass 100%
+                    v = Math.min(v, budgetRoom(p));   // the glitch matrix: shares can't pass 100%
                 }
-                if (Math.abs(v - ParamStore.get(p.id)) > 1e-6f) {
-                    ParamStore.set(p.id, v);
+                if (Math.abs(v - valueOf(p.id)) > 1e-6f) {
+                    send(p.id, v);
                 }
-                shown.setText(p.format(ParamStore.get(p.id)));
+                valueLabel.setText(p.format(v));
             });
             control = s;
         }
@@ -688,21 +726,43 @@ final class DesktopWindow {
         say("Everything is back to how a new install starts.");
     }
 
+    /** ParamStore.budgetRoom from what the screen shows (no waiting on the engine). */
+    private static float budgetRoom(Param p) {
+        float others = 0;
+        for (Param q : Params.ALL) {
+            if (q != p && p.budget.equals(q.budget)) {
+                others += valueOf(q.id);
+            }
+        }
+        return Math.max(0f, p.max - others);
+    }
+
     // ---- keeping the screen in step ----
 
+    private float meterInDb = -120, meterOutDb = -120;
+
+    /** The meters, 20 times a second: up at once, down 30 dB a second (easier to read than raw peaks). */
+    private void meters() {
+        if (DesktopApp.engine == null) {
+            return;
+        }
+        float[] m = DesktopApp.engine.meters();
+        meterInDb = Math.max(m[0], meterInDb - 1.5f);
+        meterOutDb = Math.max(m[1], meterOutDb - 1.5f);
+        meterIn.setValue(Math.round(meterInDb));
+        meterIn.setString(meterInDb <= -90 ? "silent" : String.format(Locale.US, "%.0f dB", meterInDb));
+        meterOut.setValue(Math.round(meterOutDb));
+        meterOut.setString((meterOutDb <= -90 ? "silent" : String.format(Locale.US, "%.0f dB", meterOutDb))
+                + (m[2] > 0 ? "   dropouts " + (int) m[2] : ""));
+    }
+
     private void refresh() {
+        shown = ParamStore.snapshot();   // (one wait for the whole screen instead of one per row)
         quiet = true;
         for (Row r : rows) {
             r.refresh();
         }
         quiet = false;
-        if (DesktopApp.engine != null) {
-            float[] m = DesktopApp.engine.meters();
-            meterIn.setValue(Math.round(m[0]));
-            meterIn.setString(String.format(Locale.US, "%.0f dB", m[0]));
-            meterOut.setValue(Math.round(m[1]));
-            meterOut.setString(String.format(Locale.US, "%.0f dB", m[1]) + (m[2] > 0 ? "  dropouts " + (int) m[2] : ""));
-        }
         String world = Worlds.currentWorld();
         String realm = !Worlds.isEnabled() ? "your own settings" : world == null ? "your own settings (no Realm fits)"
                 : title(world) + " realm" + (Worlds.isHeld() ? " (held)" : "");

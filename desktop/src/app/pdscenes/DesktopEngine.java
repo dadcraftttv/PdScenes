@@ -59,7 +59,7 @@ final class DesktopEngine {
     private volatile int xruns;
     private volatile boolean closing;
     private final List<Route> routes = new ArrayList<>();
-    private int rate, frames;
+    private volatile int rate, frames;
 
     DesktopEngine(Consumer<String> say) {
         this.say = say;
@@ -116,6 +116,13 @@ final class DesktopEngine {
             outR = client.registerPort("out_R", JackPortType.AUDIO, JackPortFlags.JackPortIsOutput);
             client.setProcessCallback((c, n) -> process(n));
             client.setXrunCallback(c -> xruns++);
+            client.setSampleRateCallback((c, r) -> {   // (PipeWire can switch the whole graph's rate)
+                if (r != rate) {
+                    rate = r;
+                    PdBase.openAudio(1, 2, r);
+                    say.accept("The audio now runs at " + r + " Hz.");
+                }
+            });
             client.activate();
         } catch (JackException e) {
             stop();

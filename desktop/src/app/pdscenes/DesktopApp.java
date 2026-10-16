@@ -132,8 +132,8 @@ final class DesktopApp {
         }));
         clock.scheduleAtFixedRate(DesktopApp::tick, TICK_MS, TICK_MS, TimeUnit.MILLISECONDS);
         clock.scheduleAtFixedRate(() -> ParamStore.save(context), 5, 5, TimeUnit.SECONDS);
-        say.accept(String.format(Locale.US, "Running at %d Hz. Mic: %s. Playing to \"PdScenes\"%s.",
-                engine.sampleRate(), orWords(engine.connected("mic"), "none"),
+        say.accept(String.format(Locale.US, "Running at %d Hz, %d samples a cycle. Mic: %s. Playing to \"PdScenes\"%s.",
+                engine.sampleRate(), engine.framesPerCycle(), orWords(engine.connected("mic"), "none"),
                 engine.connected("headphones") != null ? " and your headphones" : ""));
         if (win != null) {
             win.started();

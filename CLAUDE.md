@@ -578,6 +578,13 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   monitoring PdScenes onto the output the game sound is taken from (UI and README say: give the game its own
   output). `desktop/test.sh` (DesktopTest): phone preset in (unknown keys ignored, clamped, noPreset not taken,
   sensor mover kept), out in the same format, settings file written. `--snapshot prefix` draws each tab to a png.
+- Responsiveness (Samuel: sliders and dB readings "sluggish"): FlatLaf 3.4.1 instead of the GTK look (slow to
+  draw), screen changes sent to ParamStore from a "settings" thread (latest value per id), one ParamStore.snapshot
+  per screen refresh, meters 20x a second (falling 30 dB/s), 256-sample cycles (`PIPEWIRE_LATENCY=256/<graph
+  rate>`; `pw-jack -p` forced 48 kHz while Pd ran at 44.1 = 9% sharp; the engine reopens Pd on a rate change).
+  Pd took ~0.6 ms of a 23 ms cycle, so its lock was not the cause.
+- Echo scatter in a quiet room: steady mic hiss in the echo hops ear to ear each repeat (Samuel heard it on the
+  desktop; outdoors on the phone it was masked). Not a bug (only with the echo on); his call on a fix.
 - Not yet: movers' controls, stem packs, scenes, a walking/pace stand-in, ingredients ("What it changes").
 
 ## Open / next
