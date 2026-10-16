@@ -10,8 +10,11 @@ window comes next.
     desktop/run.sh                                  # your default mic in, out to "PdScenes"
     desktop/run.sh --game                           # also hear the computer's sound (the default output's monitor)
     desktop/run.sh --set wet=0.3 --set beat_level=0.5 --set tempo_mode=1 --set tempo_bpm=90
+    desktop/run.sh --listen --mic-level 0.1         # also hear it in your headphones (not with --game)
 
-Settings use the phone app's ids (see `app/src/main/java/app/pdscenes/Params.java`). Stop with Ctrl+C.
+Settings use the phone app's ids (see `app/src/main/java/app/pdscenes/Params.java`). While it runs, type a
+name and a number to change things live: `mic 0.1`, `game 0.5`, `gain 1`, `wet 0.3`. Stop with Ctrl+C.
+A desktop mic after EasyEffects is ~20 dB louder than the phone's mic, so start with `--mic-level 0.1`.
 The first run builds what it needs (`desktop/fetch_libs.sh`: libpd's Java connection from `tools/.libpd`, built by
 `tools/build_libpd.sh`, plus JNAJack, JNA and org.json from Maven Central, checked by SHA-1).
 

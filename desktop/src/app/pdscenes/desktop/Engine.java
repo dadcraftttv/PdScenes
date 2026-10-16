@@ -39,6 +39,8 @@ import java.util.Map;
  * --set id=value     a setting, as the phone app's ids (repeatable)
  * --seconds N        stop after N seconds (for tests)
  * </pre>
+ * While it runs, lines typed into its terminal change things live: "mic 0.2", "game 0.5" (the input levels) or any
+ * setting by its id, "gain 1" or "wet=0.3".
  */
 public final class Engine {
 
@@ -131,10 +133,15 @@ public final class Engine {
         Engine e = new Engine(Math.max(frames, 8192));
         e.micLevel = micLevel;
         e.gameLevel = gameLevel;
-        e.start(jack, client, mic, wantGame ? game : null, listen ? defaultSink : null);
+        try {
+            e.start(jack, client, mic, wantGame ? game : null, listen ? defaultSink : null);
+        } catch (JackException ex) {   // (JACK's threads would keep a half-started engine alive)
+            fail("Couldn't connect the audio: " + ex);
+        }
         System.out.printf(Locale.US, "PdScenes running at %d Hz, %d frames per cycle. Mic: %s. Game sound: %s. "
                         + "Output: \"PdScenes\"%s.%n", rate, frames, mic.equals("none") ? "off" : mic,
                 wantGame ? "monitor of " + game : "off", listen ? " and " + defaultSink : "");
+        startCommands(e);
         long end = seconds < 0 ? Long.MAX_VALUE : System.currentTimeMillis() + (long) (seconds * 1000);
         while (System.currentTimeMillis() < end) {
             Thread.sleep(Math.min(2000, Math.max(1, end - System.currentTimeMillis())));
@@ -142,6 +149,40 @@ public final class Engine {
             e.peakIn = e.peakOut = 0;
         }
         System.exit(0);
+    }
+
+    /** Typed commands: "mic X", "game X", or "id value" / "id=value" for a setting. */
+    private static void startCommands(Engine e) {
+        Thread t = new Thread(() -> {
+            try (BufferedReader r = new BufferedReader(new InputStreamReader(System.in))) {
+                for (String line; (line = r.readLine()) != null; ) {
+                    String[] f = line.trim().split("[\\s=]+");
+                    if (f.length != 2) {
+                        if (!line.isBlank()) {
+                            System.out.println("Type a name and a number, like: mic 0.2   game 0.5   gain 1   wet 0.3");
+                        }
+                        continue;
+                    }
+                    float v;
+                    try {
+                        v = Float.parseFloat(f[1]);
+                    } catch (NumberFormatException ex) {
+                        System.out.println("Not a number: " + f[1]);
+                        continue;
+                    }
+                    switch (f[0]) {
+                        case "mic": e.micLevel = v; break;
+                        case "game": e.gameLevel = v; break;
+                        default: PdBase.sendFloat(f[0], v);
+                    }
+                    System.out.println(f[0] + " = " + v);
+                }
+            } catch (IOException ignored) {
+                // no terminal: fine
+            }
+        }, "commands");
+        t.setDaemon(true);
+        t.start();
     }
 
     private void start(Jack jack, JackClient c, String mic, String game, String listenSink) throws JackException {
@@ -174,8 +215,8 @@ public final class Engine {
         if (ports == null || ports.length == 0) {
             fail("Found no " + kind + " ports on \"" + node + "\". Inputs: see pw-link -o.");
         }
-        jack.connect(c, ports[0], CLIENT + ":" + ours + "_L");
-        jack.connect(c, ports.length > 1 ? ports[1] : ports[0], CLIENT + ":" + ours + "_R");
+        jack.connect(c, ports[0], c.getName() + ":" + ours + "_L");
+        jack.connect(c, ports.length > 1 ? ports[1] : ports[0], c.getName() + ":" + ours + "_R");
         return ports.length == 1;
     }
 
@@ -191,8 +232,8 @@ public final class Engine {
         if (ports == null || ports.length < 2) {
             fail("Found no playback ports on \"" + sink + "\".");
         }
-        jack.connect(c, CLIENT + ":out_L", ports[0]);
-        jack.connect(c, CLIENT + ":out_R", ports[1]);
+        jack.connect(c, c.getName() + ":out_L", ports[0]);
+        jack.connect(c, c.getName() + ":out_R", ports[1]);
     }
 
     /** JACK's audio thread: mic and game sound, each at its level, into the patch's one input; its two outputs out. */
