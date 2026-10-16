@@ -18,7 +18,7 @@ phone app's own format, so **Presets > Export current sound** writes a file the 
 reads one the phone exported. Desktop differences from the phone: the compressor starts off and the tempo starts
 on Set; settings that need a phone (pocket, handling, following your steps) are hidden; Kinetic, Pocket and
 Unstable never come (they need walking, a pocket or a shake). Not here yet: the movers' own controls (presets
-bring theirs), stem packs and scenes.
+bring theirs). Stem packs and scenes stay on the phone.
 
 Tip: in a quiet room a desktop mic's faint hiss gets echoed too, and with Echo scatter that hiss hops from ear to
 ear. Raise **Sound > Input & output > Noise gate threshold** (around -55 dB) so the gate closes between sounds.

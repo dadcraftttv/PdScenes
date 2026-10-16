@@ -585,7 +585,11 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   Pd took ~0.6 ms of a 23 ms cycle, so its lock was not the cause.
 - Echo scatter in a quiet room: steady mic hiss in the echo hops ear to ear each repeat (Samuel heard it on the
   desktop; outdoors on the phone it was masked). Not a bug (only with the echo on). Fix: raise the noise gate (~-55 dB): Samuel, "raising the noise gate works fine" (README tip).
-- Not yet: movers' controls, stem packs, scenes, a walking/pace stand-in, ingredients ("What it changes").
+- Realms tab: "What it changes" per Realm (Worlds.uses/setUses, as the phone), phone-only Realms greyed. Cleanup
+  round 1: window size/place, last tab and open sections kept (pdscenes_desktop), wider label column, the glitch
+  budget line, "Mic in"/"Out" meters. Samuel (Oct 16): stem packs and scenes are not part of the desktop app; it is
+  for showing the engine on stream.
+- Not yet: movers' controls, a walking/pace stand-in, more cleanup.
 
 ## Open / next
 - **Ideas queue with details: `docs/ROADMAP.md`** (in-key resonators, pitch-following harmony, Ghost capture, Kinetic tiers, Unstable and Collective worlds, stems player).

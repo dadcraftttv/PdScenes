@@ -56,7 +56,10 @@ final class DesktopWindow {
 
     private static final int STEPS = 1000;                 // slider resolution
     private static final long REFRESH_MS = 250;
-    private static final int TEXT_WIDTH = 430;            // explanations wrap at this many pixels
+    private static final int TEXT_WIDTH = 500;            // explanations wrap at this many pixels
+    private static final int LABEL_WIDTH = 290;           // the settings' names
+    /** Shorter names where the phone's (made for a narrow screen with room to wrap) run long here. */
+    private static final Map<String, String> SHORT = Map.of("intensity", "Intensity (calmer - busier)");
     /**
      * Settings that only mean something on a phone: the pocket and handling hushes, notes following light and
      * stairs, the beat following your steps or playing only while walking. Kept at their defaults here (the beat on
@@ -115,7 +118,7 @@ final class DesktopWindow {
                 value.setText(p.format(v));
             }
             if (label != null) {
-                String text = p.label + (Modulation.isMoving(p.id) ? " •" : "");   // (a dot while a mover pushes it)
+                String text = SHORT.getOrDefault(p.id, p.label) + (Modulation.isMoving(p.id) ? " •" : "");   // (a dot while a mover pushes it)
                 if (!text.equals(label.getText())) {
                     label.setText(text);
                 }
@@ -249,7 +252,7 @@ final class DesktopWindow {
         g.insets = new Insets(2, 0, 2, 6);
         g.anchor = GridBagConstraints.WEST;
         g.gridy = 0;
-        meters.add(new JLabel("In"), g);
+        meters.add(new JLabel("Mic in"), g);
         g.weightx = 1;
         g.fill = GridBagConstraints.HORIZONTAL;
         meters.add(meterIn, g);
@@ -300,16 +303,71 @@ final class DesktopWindow {
 
         frame.getContentPane().add(top, BorderLayout.NORTH);
         frame.getContentPane().add(tabs, BorderLayout.CENTER);
-        frame.setSize(620, 860);
-        frame.setLocationByPlatform(true);
+        android.content.SharedPreferences prefs = DesktopApp.desktopPrefs();
+        frame.setSize(prefs.getInt("win_w", 720), prefs.getInt("win_h", 920));
+        if (prefs.contains("win_x")) {
+            frame.setLocation(prefs.getInt("win_x", 0), prefs.getInt("win_y", 0));
+        } else {
+            frame.setLocationByPlatform(true);
+        }
+        tabs.setSelectedIndex(Math.max(0, Math.min(tabs.getTabCount() - 1, prefs.getInt("tab", 0))));
+        tabs.addChangeListener(e -> prefs.edit().putInt("tab", tabs.getSelectedIndex()).apply());
+        frame.addWindowListener(new java.awt.event.WindowAdapter() {
+            @Override
+            public void windowClosing(java.awt.event.WindowEvent e) {
+                java.awt.Rectangle r = frame.getBounds();
+                prefs.edit().putInt("win_x", r.x).putInt("win_y", r.y).putInt("win_w", r.width).putInt("win_h", r.height)
+                        .apply();
+            }
+        });
         frame.setVisible(true);
     }
+
+    private final Map<String, JLabel> budgetLines = new java.util.HashMap<>();   // budget -> "used / left" line
 
     private void fillSection(JPanel body, Params.Section section) {
         for (Param p : Params.ALL) {
             if (p.section.equals(section.id) && p.moverOf == null && !p.id.equals(Params.moversSwitchId(section.id))
                     && !p.id.equals("intensity") && !PHONE_ONLY.contains(p.id)) {
                 addRow(body, p);
+                if (p.budget != null && lastOfBudget(p)) {   // the glitch matrix: how much of it is in use
+                    JLabel line = new JLabel(" ");
+                    line.setFont(line.getFont().deriveFont(Font.BOLD));
+                    GridBagConstraints g = full(body);
+                    g.insets = new Insets(6, 2, 6, 6);
+                    body.add(line, g);
+                    budgetLines.put(p.budget, line);
+                }
+            }
+        }
+    }
+
+    /** True for the last slider of its budget group (the line showing what is used goes under it). */
+    private static boolean lastOfBudget(Param p) {
+        boolean after = false;
+        for (Param q : Params.ALL) {
+            if (q == p) {
+                after = true;
+            } else if (after && p.budget.equals(q.budget)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private void updateBudgetLines() {
+        for (Map.Entry<String, JLabel> e : budgetLines.entrySet()) {
+            float used = 0;
+            for (Param q : Params.ALL) {
+                if (e.getKey().equals(q.budget)) {
+                    used += valueOf(q.id);
+                }
+            }
+            int u = Math.round(used);
+            String text = u > 100 ? "Glitch budget: " + u + "% (over 100, shared out in proportion)"
+                    : "Glitch budget: " + u + "% used \u00b7 " + (100 - u) + "% left to silence";
+            if (!text.equals(e.getValue().getText())) {
+                e.getValue().setText(text);
             }
         }
     }
@@ -336,8 +394,8 @@ final class DesktopWindow {
             r.refresh();
             return;
         }
-        JLabel label = new JLabel(p.label);
-        label.setPreferredSize(new Dimension(230, label.getPreferredSize().height));
+        JLabel label = new JLabel(SHORT.getOrDefault(p.id, p.label));
+        label.setPreferredSize(new Dimension(LABEL_WIDTH, label.getPreferredSize().height));
         label.setToolTipText(p.label);
         body.add(label, g);
         JComponent control;
@@ -420,10 +478,13 @@ final class DesktopWindow {
                 g.gridwidth = 1;
                 g.weightx = 0;
                 g.fill = GridBagConstraints.NONE;
+                g.insets = new Insets(10, 2, 2, 6);
                 JLabel title = new JLabel("<html><b>" + w.title + "</b> - " + w.when + (here ? "" : " (phone only)") + "</html>");
-                title.setPreferredSize(new Dimension(260, title.getPreferredSize().height));
+                title.setPreferredSize(new Dimension(LABEL_WIDTH, title.getPreferredSize().height));
+                title.setEnabled(here);
                 body.add(title, g);
                 JComboBox<String> preset = narrow(new JComboBox<>());
+                preset.setEnabled(here);
                 Runnable fill = () -> {
                     quiet = true;
                     preset.removeAllItems();
@@ -441,17 +502,72 @@ final class DesktopWindow {
                 fill.run();
                 preset.addActionListener(e -> {
                     if (!quiet && preset.getSelectedItem() != null) {
-                        String s = (String) preset.getSelectedItem();
-                        Worlds.setPreset(w.id, s.equals("Off") ? Worlds.NONE : s);
+                        String sel = (String) preset.getSelectedItem();
+                        Worlds.setPreset(w.id, sel.equals("Off") ? Worlds.NONE : sel);
                     }
                 });
                 realmRefresh.add(fill);
+                g = (GridBagConstraints) g.clone();
                 g.gridx = 1;
+                g.gridwidth = GridBagConstraints.REMAINDER;
                 g.weightx = 1;
                 g.fill = GridBagConstraints.HORIZONTAL;
                 body.add(preset, g);
+                if (here) {
+                    ingredients(body, w);
+                }
             }
         });
+    }
+
+    /**
+     * A Realm's ingredients, as on the phone: "What it changes: everything" folds open to one switch per group
+     * (Rhythm, Music, Echo...). A group switched off stays at your own settings while that Realm plays.
+     */
+    private void ingredients(JPanel body, Worlds.World w) {
+        JButton head = new JButton();
+        flat(head);
+        JPanel box = new JPanel(new GridBagLayout());
+        box.setVisible(false);
+        List<JCheckBox> boxes = new ArrayList<>();
+        Runnable words = () -> {
+            List<String> left = new ArrayList<>();
+            for (String[] grp : Worlds.GROUPS) {
+                if (!Worlds.uses(w.id, grp[0])) {
+                    left.add(grp[1].replaceAll(" \\(.*\\)", "").toLowerCase(Locale.ROOT));
+                }
+            }
+            String what = left.isEmpty() ? "everything" : left.size() == Worlds.GROUPS.length
+                    ? "nothing (all left at your settings)" : "all but " + String.join(", ", left);
+            head.setText((box.isVisible() ? "\u25be " : "\u25b8 ") + "What it changes: " + what);
+        };
+        for (String[] grp : Worlds.GROUPS) {
+            JCheckBox c = new JCheckBox(grp[1], Worlds.uses(w.id, grp[0]));
+            c.addActionListener(e -> {
+                Worlds.setUses(w.id, grp[0], c.isSelected());
+                words.run();
+            });
+            boxes.add(c);
+            GridBagConstraints g = full(box);
+            g.insets = new Insets(0, 18, 0, 2);
+            box.add(c, g);
+        }
+        head.addActionListener(e -> {
+            box.setVisible(!box.isVisible());
+            words.run();
+            body.revalidate();
+        });
+        realmRefresh.add(() -> {
+            for (int i = 0; i < boxes.size(); i++) {
+                boxes.get(i).setSelected(Worlds.uses(w.id, Worlds.GROUPS[i][0]));
+            }
+            words.run();
+        });
+        words.run();
+        GridBagConstraints g = full(body);
+        g.insets = new Insets(0, 10, 0, 2);
+        body.add(head, g);
+        body.add(box, full(body));
     }
 
     // ---- presets ----
@@ -762,6 +878,7 @@ final class DesktopWindow {
         for (Row r : rows) {
             r.refresh();
         }
+        updateBudgetLines();
         quiet = false;
         String world = Worlds.currentWorld();
         String realm = !Worlds.isEnabled() ? "your own settings" : world == null ? "your own settings (no Realm fits)"
@@ -822,20 +939,21 @@ final class DesktopWindow {
     }
 
     /** A section that folds open and shut, like the phone's. */
-    private static void section(JPanel page, String title, boolean open, Consumer<JPanel> fill) {
+    private static void section(JPanel page, String title, boolean openByDefault, Consumer<JPanel> fill) {
+        String key = "open_" + title;
+        boolean open = DesktopApp.desktopPrefs().getBoolean(key, openByDefault);
         JPanel body = new JPanel(new GridBagLayout());
         body.setBorder(BorderFactory.createEmptyBorder(2, 14, 8, 2));
         fill.accept(body);
         JButton head = new JButton();
-        head.setHorizontalAlignment(JButton.LEFT);
-        head.setBorderPainted(false);
-        head.setContentAreaFilled(false);
+        flat(head);
         head.setFont(head.getFont().deriveFont(Font.BOLD, head.getFont().getSize2D() + 1));
         Runnable show = () -> head.setText((body.isVisible() ? "▾  " : "▸  ") + title);
         body.setVisible(open);
         show.run();
         head.addActionListener(e -> {
             body.setVisible(!body.isVisible());
+            DesktopApp.desktopPrefs().edit().putBoolean(key, body.isVisible()).apply();
             show.run();
             page.revalidate();
         });
@@ -899,6 +1017,14 @@ final class DesktopWindow {
     private static JComponent left(JComponent c) {
         c.setAlignmentX(Component.LEFT_ALIGNMENT);
         return c;
+    }
+
+    /** A button that reads as a heading (fold open and shut). */
+    private static void flat(JButton b) {
+        b.setHorizontalAlignment(JButton.LEFT);
+        b.setBorderPainted(false);
+        b.setContentAreaFilled(false);
+        b.setFocusPainted(false);
     }
 
     private static JButton button(String text, Runnable action) {
