@@ -762,6 +762,10 @@ public class AudioService extends Service {
         logEvent("Devices: input " + (in == null ? "Automatic" : in.label + " (type " + in.type + ", id " + in.id + ")")
                 + ", output " + out.label + " (type " + out.type + ", id " + out.id + "). Mics: " + mics);
 
+        // When the output device goes away, libpd's Oboe layer would reopen its streams on whatever Android offers
+        // next (the phone speaker). We never want that: we choose the next headphones ourselves (headphonesLost).
+        // In our own pd-core build (libpd #428, pd-for-android #198, see CLAUDE.md "Dependencies").
+        PdAudio.setAutoReopen(false);
         // 1 input channel (mic), 2 output channels. The ticks-per-buffer argument is
         // ignored by the Oboe backend; Oboe picks the device's low-latency burst size.
         PdAudio.initAudio(sampleRate, 1, 2, 8, true);
@@ -933,10 +937,12 @@ public class AudioService extends Service {
     };
 
     /**
-     * How long to leave libpd alone after the headphones go. Its Oboe layer reacts to the disconnect on its own
-     * thread: it closes both streams and reopens them (on the phone speaker), which took about 0.1 s on the Moto G.
+     * How long to leave libpd alone after the headphones go. It was 600 ms: libpd's Oboe layer closed and reopened
+     * its streams on its own thread with no lock, and stopping at the same moment crashed (libpd issue #427). Our
+     * pd-core has the fix (a lock, and no reopening: setAutoReopen(false)), so we act at once. Tested Oct 14 on the
+     * Moto G with the same fix: 20 wired unplugs, clean, stopped ~20 ms after the unplug.
      */
-    private static final long DISCONNECT_SETTLE_MS = 600;
+    private static final long DISCONNECT_SETTLE_MS = 0;
     /** True between losing the headphones and acting on it. */
     private boolean outputLost;
     private final Runnable afterHeadphonesLost = this::afterHeadphonesLost;
@@ -947,6 +953,7 @@ public class AudioService extends Service {
         // keeps the reopened speaker stream quiet, and stop only after libpd has finished.
         outputLost = true;
         PdBase.computeAudio(false);
+        logEvent("Headphones disconnected");
         handler.postDelayed(afterHeadphonesLost, DISCONNECT_SETTLE_MS);
     }
 
@@ -959,8 +966,10 @@ public class AudioService extends Service {
         try {
             startEngine();   // picks the best headphones still connected, or throws if none
             lastError = null;
+            logEvent("Carried on with the headphones still connected");
         } catch (IOException | RuntimeException e) {
             Log.i(TAG, "Headphones removed, stopping: " + e.getMessage());
+            logEvent("Stopped: no headphones left");
             lastError = getString(R.string.err_headphones_removed);
             shutDown();
         }

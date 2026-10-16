@@ -47,8 +47,8 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   only *added* with a `pds_` prefix (Pd prefers a built-in class over a scene's own abstraction of the same name), never
   change a standard object (scenes would change). When moving Pd (0.56 breaks StreetBeatz): rebase both branches,
   bump the version (`1.4.2-pdscenes.N` in the fork's build.gradle files and build_pdcore.sh), rebuild, test the scenes.
-  Next: setAutoReopen(false) + DISCONNECT_SETTLE_MS 0 with an unplug retest (wired + Bluetooth); desktop/test libpd
-  from the same fork (`tools/build_libpd.sh` still uses upstream tag 0.15.0, also Pd 0.55.2).
+  setAutoReopen(false) + DISCONNECT_SETTLE_MS 0 are in (Oct 16). Next: desktop/test libpd from the same fork
+  (`tools/build_libpd.sh` still uses upstream tag 0.15.0, also Pd 0.55.2).
 
 ## Tests (run these after touching patch or Java logic)
 1. Desktop libpd is needed for the Pd tests: `tools/build_libpd.sh` builds it into `tools/.libpd/libpd.so` (needs git, make, gcc).
@@ -77,8 +77,10 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   pd-for-android PR #198 6306ff8 + libpd PR #428 56c7021 cherry-picked onto libpd 3fc60ea = Pd 0.55.2, NDK 29): build A
   (fix + 600 ms delay) and build B (fix, delay 0, `PdAudio.setAutoReopen(false)`) each 10 wired unplugs while playing
   (Music + beat on) and 10 unplugs right after Stop on the Moto G: 40/40 clean, no crash, no sound on the speaker;
-  B stopped ~20 ms after the unplug. Bluetooth not tested. When a pd-core release has both PRs: set
-  `PdAudio.setAutoReopen(false)` before initAudio and DISCONNECT_SETTLE_MS to 0 (check Pd 0.56 + StreetBeatz first).
+  B stopped ~20 ms after the unplug. Bluetooth not tested. **Done Oct 16 with our own pd-core (see Dependencies):**
+  `PdAudio.setAutoReopen(false)` before initAudio, DISCONNECT_SETTLE_MS 0 (the mute first stays); the event log says
+  "Headphones disconnected" then "Carried on with the headphones still connected" or "Stopped: no headphones left".
+  Needs Samuel's unplug retest (wired, and Bluetooth for the first time).
 - **Bluetooth mic = call mode** (mono, poor quality). Uses MODE_IN_COMMUNICATION and `setCommunicationDevice` matched by type + address
   (the mic and speaker are separate devices with separate ids; matching by id failed). LE Audio headsets can be better. The UI hints about it.
 - **Soft limiter** at the output (`clip~` base plus cubic-eased excess, never above 1.0). Hard clipping sounded fuzzy.
