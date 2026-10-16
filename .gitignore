@@ -9,3 +9,5 @@ __pycache__/
 *.jks
 *.keystore
 tools/.venv/
+desktop/lib/
+desktop/build/
