@@ -8,8 +8,12 @@ room's loudness and the time of day.
 
 ## Run it
 
-    desktop/run.sh                  # the window
+    desktop/install-launcher.sh     # once: puts PdScenes in the app menu (Sound & Video), no terminal needed
+    desktop/run.sh                  # the window, from a terminal
     desktop/run.sh --no-window      # just the sound; typed lines change things ("wet 0.3", "mic_device AudioBox")
+
+From the menu (`desktop/launch.sh`) one copy runs at a time (a second start says so), and its messages go to
+`~/.local/state/pdscenes/desktop.log` (the run before in `desktop.log.1`).
 
 The first start connects no mic: pick yours in **Setup > Listening and playing** (the mic itself, not an effects
 chain's output such as EasyEffects': a mic that arrives already limited sounded overdriven through the patch).

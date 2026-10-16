@@ -589,7 +589,12 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   round 1: window size/place, last tab and open sections kept (pdscenes_desktop), wider label column, the glitch
   budget line, "Mic in"/"Out" meters. Samuel (Oct 16): stem packs and scenes are not part of the desktop app; it is
   for showing the engine on stream.
-- Not yet: movers' controls, a walking/pace stand-in, more cleanup.
+- App menu launcher (Oct 16): `desktop/install-launcher.sh` writes ~/.local/share/applications/pdscenes-desktop.desktop
+  (no app icon yet: the theme's audio-x-generic), `desktop/launch.sh` = flock on ~/.local/state/pdscenes/running.lock
+  (a second start: notify-send and exit), log to desktop.log (one rotation), zenity on an error exit. Installed on
+  Samuel's machine. The desktop stays in this repo (it compiles the phone's sources in place; split later with a
+  shared library if it gets its own releases). Movers: not wanted for now (Samuel).
+- Not yet: a walking/pace stand-in, more cleanup.
 
 ## Open / next
 - **Ideas queue with details: `docs/ROADMAP.md`** (in-key resonators, pitch-following harmony, Ghost capture, Kinetic tiers, Unstable and Collective worlds, stems player).
