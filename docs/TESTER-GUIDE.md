@@ -1,6 +1,6 @@
 # Beta Tester Guide
 
-Oct 14, 2026 · Dad · for 0.9.0-rc2
+Oct 16, 2026 · Dad · for 0.9.0-rc3
 
 ## What this app is
 
@@ -15,14 +15,16 @@ There are two ways to use it:
 
 ## What's new
 
-**Oct 15 (in the next test build):**
+**New in rc3 (Oct 15-16):**
 
 - **Locks on the Mix levels:** the Kick, Bass, Chimes, Walking notes, Ring, Bells and Stems levels now have a Lock box too, so a Realm can't change them.
 - **Melody rhythm** (Music): the walking notes and the standing-still chimes can follow real rhythms (quarters, halves, 8ths, or dotted and syncopated ones), each note ringing as long as it lasts. Off at first.
 - **Melody phrases** (Music, with Melody rhythm on): the melody makes four-bar phrases: a line, the line again ending like an answer, something new, then the first line once more.
 - **Breakbeat** (Rhythm): turn it up for drums with off-beat kicks, ghost snares, now and then a chopped bar, a quick snare roll or a longer fill. At 0 the beat is as before.
+- **Standing-still chimes keep an even pace with the Rhythm on:** before, they came a little too often at fast tempos and too rarely at slow ones.
+- **Stem packs:** a pack too long to hold in memory (over 4 minutes of stereo audio) is refused at import with an explanation, instead of risking a crash.
 
-**Oct 13-14:**
+**Oct 13-14 (rc2):**
 
 - **Call and response** (Music): sing, hum or whistle a short phrase, pause, and the app answers it with chimes, a third away, in key.
 - **Send feedback** (Setup, About): writes an email to Dad with your phone and app details and, if you like, the app's event log.
