@@ -584,7 +584,7 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   rate>`; `pw-jack -p` forced 48 kHz while Pd ran at 44.1 = 9% sharp; the engine reopens Pd on a rate change).
   Pd took ~0.6 ms of a 23 ms cycle, so its lock was not the cause.
 - Echo scatter in a quiet room: steady mic hiss in the echo hops ear to ear each repeat (Samuel heard it on the
-  desktop; outdoors on the phone it was masked). Not a bug (only with the echo on); his call on a fix.
+  desktop; outdoors on the phone it was masked). Not a bug (only with the echo on). Fix: raise the noise gate (~-55 dB): Samuel, "raising the noise gate works fine" (README tip).
 - Not yet: movers' controls, stem packs, scenes, a walking/pace stand-in, ingredients ("What it changes").
 
 ## Open / next

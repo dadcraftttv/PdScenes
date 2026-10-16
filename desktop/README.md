@@ -20,6 +20,9 @@ on Set; settings that need a phone (pocket, handling, following your steps) are 
 Unstable never come (they need walking, a pocket or a shake). Not here yet: the movers' own controls (presets
 bring theirs), stem packs and scenes.
 
+Tip: in a quiet room a desktop mic's faint hiss gets echoed too, and with Echo scatter that hiss hops from ear to
+ear. Raise **Sound > Input & output > Noise gate threshold** (around -55 dB) so the gate closes between sounds.
+
 The first run builds what it needs (`desktop/fetch_libs.sh`: libpd's Java connection from `tools/.libpd`, built by
 `tools/build_libpd.sh`, plus JNAJack, JNA and org.json from Maven Central, checked by SHA-1). `desktop/test.sh` runs
 the desktop's logic tests (presets both ways, settings kept).
