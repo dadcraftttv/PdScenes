@@ -80,7 +80,9 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   B stopped ~20 ms after the unplug. Bluetooth not tested. **Done Oct 16 with our own pd-core (see Dependencies):**
   `PdAudio.setAutoReopen(false)` before initAudio, DISCONNECT_SETTLE_MS 0 (the mute first stays); the event log says
   "Headphones disconnected" then "Carried on with the headphones still connected" or "Stopped: no headphones left".
-  Needs Samuel's unplug retest (wired, and Bluetooth for the first time).
+  Retested Oct 16 on the Moto G (one app process throughout, event log): wired unplugged while playing 5/5 and right
+  after Stop 5/5, **Bluetooth (JLab GO Pods ANC) disconnected while playing 5/5**: each stopped within ~0.5 s, no
+  crash, nothing on the speaker. Not yet tried: wired + Bluetooth together (unplugging wired should carry on in BT).
 - **Bluetooth mic = call mode** (mono, poor quality). Uses MODE_IN_COMMUNICATION and `setCommunicationDevice` matched by type + address
   (the mic and speaker are separate devices with separate ids; matching by id failed). LE Audio headsets can be better. The UI hints about it.
 - **Soft limiter** at the output (`clip~` base plus cubic-eased excess, never above 1.0). Hard clipping sounded fuzzy.
