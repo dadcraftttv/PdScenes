@@ -565,8 +565,20 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   EasyEffects on the mic (OBS reads Easy Effects Source). Through the patch the EasyEffects source (peaks at 0 dBFS)
   sounded overdriven; the AudioBox directly with the compressor off "sounds amazing" -> `DESKTOP_DEFAULTS`
   comp_thresh 0. Pd 0.55.2's expr prints "realloc called with N bytes" to stdout (filtered in run.sh).
-- Next: the control window (Swing, built from Params), presets in the phone's format (import/export both ways),
-  the app's tick logic (movers, Realms, Calm builds, motifs, packs) without Android.
+- **Window** (Oct 16; `DesktopApp` tick + Pd receiver, `DesktopWindow` Swing, `DesktopEngine` routes): compiles the
+  phone's 15 logic classes unchanged (`run.sh` SHARED list) with `desktop/shim/` stand-ins: android.content.Context
+  (files dir ~/.local/share/pdscenes, prefs ~/.config/pdscenes/<store>.json via JsonPrefs) and AudioService
+  (isRunning). Tabs Sound/Music/Realms/Presets/Setup built from Params (sections as on the phone; mover params,
+  section mover switches and `PHONE_ONLY` hidden), rows refreshed 4x a second from ParamStore. The tick is the
+  phone's mover tick minus sensors: `PdBase.pollPdMessageQueue()` first (desktop libpd queues messages; without it
+  mic_level/tempo never arrived), morph, Modulation, realm_cue, Worlds.tick(walking/pocket false, no shake),
+  CalmBuild + calm_chimes, call and response, motif. `DESKTOP_DEFAULTS` (first start and Reset): comp_thresh 0,
+  tempo_mode Set. First start connects no mic (Samuel's laptop mic reads 0 dBFS nonstop) and opens Setup. Device
+  menus / `mic_device`, `game_device`, `listen` commands call `engine.apply`. A loop the engine can't see: OBS
+  monitoring PdScenes onto the output the game sound is taken from (UI and README say: give the game its own
+  output). `desktop/test.sh` (DesktopTest): phone preset in (unknown keys ignored, clamped, noPreset not taken,
+  sensor mover kept), out in the same format, settings file written. `--snapshot prefix` draws each tab to a png.
+- Not yet: movers' controls, stem packs, scenes, a walking/pace stand-in, ingredients ("What it changes").
 
 ## Open / next
 - **Ideas queue with details: `docs/ROADMAP.md`** (in-key resonators, pitch-following harmony, Ghost capture, Kinetic tiers, Unstable and Collective worlds, stems player).
