@@ -5,19 +5,24 @@
  *
  *   [dcs_voice~]
  *   inlet:   messages
- *     engine <0 off | 1 pluck | 2 bowed | 3 modal>
+ *     engine <0 off | 1 pluck | 2 bowed | 3 modal | 4 analog>
  *     note <Hz> <velocity 0..1> <length ms> [<brightness 0..1>]   a note that rings and dies away by itself
  *     pnote <slot> <Hz> [<velocity>]   a held note in a slot (a pad's chord tone, the bass): when the slot gets a new
  *                                      pitch, the old note fades out over `release` while the new one comes in
  *     poff <slot>, alloff
  *     bright <0..1>, level <gain>, attack <ms>, release <ms>, decay <ms> (how long a held pluck rings)
  *     modal <1 bell | 2 marimba | 3 bowl>
+ *     analog: cutoff <x the note's pitch>, reso <0..1>, fenv <how far the filter opens at a note, x pitch>,
+ *             detune <cents between the two saws>, sub <0..1, a square an octave down>
  *   outlet:  the sound (mono)
  *
  * Engines: pluck = a plucked string (Karplus-Strong: a delay loop tuned to the note through a loss filter designed
  * from two decay times, plucked by a triangle so the note itself leads; see dcs_string~). bowed = the same string
  * kept sounding by soft low-passed noise, with an attack and a release. modal = a bank of resonators tuned to an
- * instrument's partials (a bell's inharmonic ones, a marimba's, a singing bowl's), struck by a click.
+ * instrument's partials (a bell's inharmonic ones, a marimba's, a singing bowl's), struck by a click. analog = two
+ * detuned band-limited saws and a sub square through a 4-pole ladder filter (zero-delay feedback, tanh in the loop
+ * so the resonance growls rather than whistles), the cutoff following the note and opened by an envelope at each
+ * note, with an attack and a release.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  * Copyright (c) 2026 dadcraft (DadCraft Studios)
@@ -33,7 +38,8 @@
 #define PLUCK_GAIN 1.5f               /* each engine near the classic voices' loudness at velocity 1 */
 #define BOWED_GAIN 6.f
 
-enum { E_OFF, E_PLUCK, E_BOWED, E_MODAL };
+enum { E_OFF, E_PLUCK, E_BOWED, E_MODAL, E_ANALOG };
+#define ANALOG_GAIN 0.35f
 
 static const double MODAL_RATIO[4][NMODES] = {
     {0}, {1, 2.76, 5.40, 8.93, 13.34, 18.64},          /* bell (a free bar / bell's inharmonic partials) */
@@ -62,6 +68,9 @@ typedef struct _vvoice
     float c1[NMODES], c2[NMODES], mg[NMODES], y1[NMODES], y2[NMODES];
     int nmodes;
     double life;                       /* samples until a ringing note is let go (0 = held) */
+    /* analog */
+    double ph[3];                      /* saw, detuned saw, sub square */
+    float lad[4], fenv, fenvk;
 } t_vvoice;
 
 typedef struct _dcs_voice
@@ -70,6 +79,7 @@ typedef struct _dcs_voice
     double x_sr;
     int x_engine, x_modal;
     float x_bright, x_level, x_attack, x_release, x_decay;
+    float x_cutoff, x_reso, x_fenv, x_detune, x_sub;
     unsigned long x_count;
     unsigned int x_seed;
     t_vvoice x_v[NV];
@@ -177,6 +187,12 @@ static void voice_start(t_dcs_voice *x, t_vvoice *v, double hz, float vel, doubl
         v->gstep = (float)(1000. / ((x->x_attack > 1 ? x->x_attack : 1) * sr));
         v->life = slot < 0 ? len_ms * sr / 1000 : 0;
         break;
+    case E_ANALOG:
+        v->gstep = (float)(1000. / ((x->x_attack > 1 ? x->x_attack : 1) * sr));
+        v->fenv = 1;                                     /* the filter opens at the note, closing over its length */
+        v->fenvk = (float)exp(-1. / ((slot < 0 ? len_ms : x->x_decay) * 0.25 * sr / 1000.));
+        v->life = slot < 0 ? len_ms * sr / 1000 : 0;
+        break;
     case E_MODAL:
         voice_modal(x, v, hz, len_ms);                   /* (struck in perform, on its first sample) */
         v->gain = 1; v->gstep = 0;
@@ -252,7 +268,61 @@ static t_int *dcs_voice_perform(t_int *w)
     {
         t_vvoice *v = &x->x_v[k];
         if (!v->on) continue;
-        if (v->engine == E_MODAL)
+        if (v->engine == E_ANALOG)
+        {
+            double sr = x->x_sr, f0 = v->hz, d = pow(2, x->x_detune / 1200.);
+            double inc[3] = { f0 / sr, f0 * d / sr, f0 * 0.5 / sr };
+            double fc = f0 * x->x_cutoff * (1 + x->x_fenv * v->fenv), g, G, k = 3.9 * (x->x_reso < 0 ? 0 : (x->x_reso > 1 ? 1 : x->x_reso));
+            float sub = x->x_sub;
+            if (fc > 0.45 * sr) fc = 0.45 * sr;
+            if (fc < 20) fc = 20;
+            g = tan(M_PI * fc / sr);
+            G = g / (1 + g);                             /* (the cutoff moves per block: tan per sample is costly) */
+            for (i = 0; i < n; i++)
+            {
+                int o;
+                float osc = 0, xin, G4 = (float)(G * G * G * G), S, y4, u;
+                for (o = 0; o < 3; o++)
+                {
+                    /* band-limited by PolyBLEP: the jump smoothed over a sample either side */
+                    double t = v->ph[o], dt = inc[o], blep = 0, val;
+                    if (t < dt) { double q = t / dt; blep = q + q - q * q - 1; }
+                    else if (t > 1 - dt) { double q = (t - 1) / dt; blep = q * q + q + q + 1; }
+                    if (o < 2) val = 2 * t - 1 - blep;               /* saw */
+                    else
+                    {                                               /* square: two saws half a cycle apart */
+                        double t2 = t + 0.5 - floor(t + 0.5), b2 = 0;
+                        if (t2 < dt) { double q = t2 / dt; b2 = q + q - q * q - 1; }
+                        else if (t2 > 1 - dt) { double q = (t2 - 1) / dt; b2 = q * q + q + q + 1; }
+                        val = ((2 * t - 1 - blep) - (2 * t2 - 1 - b2)) * sub;
+                    }
+                    osc += (float)val;
+                    v->ph[o] = t + dt - floor(t + dt);
+                }
+                xin = osc * 0.5f;
+                /* the ladder: four one-pole TPT stages, the feedback solved without a delay, tanh on the input */
+                S = (float)(G * G * G * (1 - G) * v->lad[0] + G * G * (1 - G) * v->lad[1] + G * (1 - G) * v->lad[2] + (1 - G) * v->lad[3]);
+                y4 = (G4 * xin + S) / (1 + (float)k * G4);
+                u = tanhf(xin - (float)k * y4);
+                for (o = 0; o < 4; o++)
+                {
+                    float vv = (u - v->lad[o]) * (float)G, yy = vv + v->lad[o];
+                    v->lad[o] = yy + vv;
+                    u = yy;
+                }
+                if (v->gain != v->gtarget)
+                {
+                    if (v->gain < v->gtarget) { v->gain += v->gstep; if (v->gain > v->gtarget) v->gain = v->gtarget; }
+                    else { v->gain -= v->gstep; if (v->gain < v->gtarget) v->gain = v->gtarget; }
+                }
+                out[i] += u * v->gain * v->amp * ANALOG_GAIN * level;
+            }
+            v->fenv *= (float)pow(v->fenvk, n);
+            for (m = 0; m < 4; m++)
+                if (PD_BIGORSMALL(v->lad[m])) v->lad[m] = 0;
+            if (v->releasing && v->gain <= 0) v->on = 0;
+        }
+        else if (v->engine == E_MODAL)
         {
             for (i = 0; i < n; i++)
             {
@@ -314,7 +384,7 @@ static t_int *dcs_voice_perform(t_int *w)
             v->life -= n;
             if (v->life <= 0)
             {
-                if (v->engine == E_BOWED) voice_release(x, v);
+                if (v->engine == E_BOWED || v->engine == E_ANALOG) voice_release(x, v);
                 else v->on = 0;
             }
         }
@@ -332,7 +402,12 @@ static void dcs_voice_dsp(t_dcs_voice *x, t_signal **sp)
     dsp_add(dcs_voice_perform, 3, x, sp[0]->s_vec, (t_int)sp[0]->s_n);
 }
 
-static void dcs_voice_engine(t_dcs_voice *x, t_floatarg f) { x->x_engine = (int)f >= 0 && (int)f <= 3 ? (int)f : 0; if (!x->x_engine) dcs_voice_alloff(x); }
+static void dcs_voice_engine(t_dcs_voice *x, t_floatarg f) { x->x_engine = (int)f >= 0 && (int)f <= 4 ? (int)f : 0; if (!x->x_engine) dcs_voice_alloff(x); }
+static void dcs_voice_cutoff(t_dcs_voice *x, t_floatarg f) { x->x_cutoff = f > 0.1f ? f : 0.1f; }
+static void dcs_voice_reso(t_dcs_voice *x, t_floatarg f) { x->x_reso = f; }
+static void dcs_voice_fenv(t_dcs_voice *x, t_floatarg f) { x->x_fenv = f > 0 ? f : 0; }
+static void dcs_voice_detune(t_dcs_voice *x, t_floatarg f) { x->x_detune = f; }
+static void dcs_voice_sub(t_dcs_voice *x, t_floatarg f) { x->x_sub = f < 0 ? 0 : (f > 1 ? 1 : f); }
 static void dcs_voice_bright(t_dcs_voice *x, t_floatarg f) { x->x_bright = f < 0 ? 0 : (f > 1 ? 1 : f); }
 static void dcs_voice_level(t_dcs_voice *x, t_floatarg f) { x->x_level = f < 0 ? 0 : f; }
 static void dcs_voice_attack(t_dcs_voice *x, t_floatarg f) { x->x_attack = f; }
@@ -345,6 +420,7 @@ static void *dcs_voice_new(void)
     t_dcs_voice *x = (t_dcs_voice *)pd_new(dcs_voice_class);
     x->x_sr = sys_getsr() > 0 ? sys_getsr() : 44100;
     x->x_bright = 0.4f; x->x_level = 1; x->x_attack = 300; x->x_release = 800; x->x_decay = 3000; x->x_modal = 1;
+    x->x_cutoff = 4; x->x_reso = 0.3f; x->x_fenv = 6; x->x_detune = 8; x->x_sub = 0.3f;
     x->x_seed = (unsigned int)(size_t)x;
     outlet_new(&x->x_obj, &s_signal);
     return (x);
@@ -366,4 +442,9 @@ void dcs_voice_tilde_setup(void)
     class_addmethod(dcs_voice_class, (t_method)dcs_voice_release_ms, gensym("release"), A_FLOAT, 0);
     class_addmethod(dcs_voice_class, (t_method)dcs_voice_decay, gensym("decay"), A_FLOAT, 0);
     class_addmethod(dcs_voice_class, (t_method)dcs_voice_modalp, gensym("modal"), A_FLOAT, 0);
+    class_addmethod(dcs_voice_class, (t_method)dcs_voice_cutoff, gensym("cutoff"), A_FLOAT, 0);
+    class_addmethod(dcs_voice_class, (t_method)dcs_voice_reso, gensym("reso"), A_FLOAT, 0);
+    class_addmethod(dcs_voice_class, (t_method)dcs_voice_fenv, gensym("fenv"), A_FLOAT, 0);
+    class_addmethod(dcs_voice_class, (t_method)dcs_voice_detune, gensym("detune"), A_FLOAT, 0);
+    class_addmethod(dcs_voice_class, (t_method)dcs_voice_sub, gensym("sub"), A_FLOAT, 0);
 }

@@ -25,7 +25,7 @@ objects or with anyone's abstractions.
   signal and the gain it applied, so other signals can be squashed alike.
 
 - **`[dcs_voice~]`** — one part of a kit: a small polyphonic instrument (engines: plucked string, bowed string,
-  modal bell / marimba / bowl), configured by messages, playing one-shot notes or held "slot" notes that
+  modal bell / marimba / bowl, analog: detuned saws and a sub through a resonant ladder filter), configured by messages, playing one-shot notes or held "slot" notes that
   crossfade when they move.
 - Also: `dcs_pitch~` (YIN pitch tracker), `dcs_shift~` (PSOLA pitch shifter that keeps a voice's tone colour),
   `dcs_onset~` (spectral-flux onset detector), `dcs_reverb~` (Freeverb-style stereo reverb in one object).

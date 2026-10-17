@@ -383,6 +383,26 @@ w = y[int(0.02 * SR):int(0.6 * SR)]
 check(abs(peak_hz(w, 400, 480) / 440 - 1) < 0.002 and harm(w, 440 * 2.76, 1) > 0.1 * harm(w, 440, 1) and 0.02 < np.abs(y).max() < 1,
       f"modal bell: the note and its 2.76x partial, struck once (peak {np.abs(y).max():.2f})")
 check(np.abs(play([("engine", 0), ("note", 440, 0.5, 1000)], 1.0)).max() == 0, "engine 0 plays nothing")
+def cent(y):
+    S_ = np.abs(np.fft.rfft(y * np.hanning(len(y)))); f = np.fft.rfftfreq(len(y), 1 / SR); return (S_ * f).sum() / S_.sum()
+an = [("engine", 4), ("fenv", 0), ("reso", 0), ("attack", 5), ("detune", 0)]   # (detuned saws beat on purpose: off here)
+y = play(an + [("cutoff", 4), ("pnote", 0, 220)], 1.5); w = y[int(0.3 * SR):]
+dark = play(an + [("cutoff", 1.5), ("pnote", 0, 220)], 1.5)[int(0.3 * SR):]
+bright = play(an + [("cutoff", 16), ("pnote", 0, 220)], 1.5)[int(0.3 * SR):]
+check(abs(peak_hz(w, 200, 240) / 220 - 1) < 0.003 and cent(dark) < 0.7 * cent(w) < 0.7 * cent(bright) and 0.05 < np.abs(w).max() < 1,
+      f"analog: in tune, the cutoff darkens and brightens it (brightness {cent(dark):.0f} / {cent(w):.0f} / {cent(bright):.0f} Hz)")
+res = play([("engine", 4), ("fenv", 0), ("attack", 5), ("sub", 0), ("cutoff", 6), ("reso", 0.9), ("pnote", 0, 110)], 1.5)[int(0.3 * SR):]
+flat = play([("engine", 4), ("fenv", 0), ("attack", 5), ("sub", 0), ("cutoff", 6), ("reso", 0), ("pnote", 0, 110)], 1.5)[int(0.3 * SR):]
+check(harm(res, 110, 6) / harm(res, 110, 1) > 3 * harm(flat, 110, 6) / harm(flat, 110, 1),
+      f"analog: resonance lifts the harmonics at the cutoff ({harm(res, 110, 6) / harm(res, 110, 1):.2f} vs {harm(flat, 110, 6) / harm(flat, 110, 1):.2f})")
+hot = play([("engine", 4), ("fenv", 8), ("attack", 5), ("cutoff", 8), ("reso", 1), ("pnote", 0, 55)], 3.0)
+check(np.isfinite(hot).all() and np.abs(hot).max() < 2, f"analog: full resonance stays stable (peak {np.abs(hot).max():.2f})")
+hi = play(an + [("cutoff", 16), ("sub", 0), ("pnote", 0, 3000)], 1.0)[int(0.3 * SR):]
+S_ = np.abs(np.fft.rfft(hi * np.hanning(len(hi)))) ** 2; f = np.fft.rfftfreq(len(hi), 1 / SR)
+on_harm = sum(S_[np.abs(f - 3000 * k) < 15].sum() for k in range(1, 9))
+check(on_harm / S_.sum() > 0.9, f"analog: a 3 kHz saw is band-limited ({100 * on_harm / S_.sum():.0f}% of its energy on its harmonics)")
+held = db_frames(play(an + [("cutoff", 4), ("pnote", 0, 110)], 3.0)[int(0.5 * SR):], 100)
+check(held.max() - held.min() < 1, f"analog: a held note stands steady ({held.max() - held.min():.2f} dB)")
 
 print("ALL PASSED" if not fails else f"{len(fails)} FAILED")
 sys.exit(1 if fails else 0)
