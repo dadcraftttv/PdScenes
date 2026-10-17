@@ -430,7 +430,7 @@ class Patch:
     # self.groups: (group name, compiled regex); first match wins
 
     # objects whose name ends in ~ but whose outlets carry messages
-    CONTROL_TILDE = {"snapshot~", "env~", "samplerate~", "threshold~", "bonk~", "fiddle~", "sigmund~", "dcs_pitch~"}
+    CONTROL_TILDE = {"snapshot~", "env~", "samplerate~", "threshold~", "bonk~", "fiddle~", "sigmund~", "dcs_pitch~", "dcs_onset~"}
 
     def group(self, gname, pattern):
         self.groups.append((gname, re.compile(pattern)))
@@ -3543,6 +3543,8 @@ def add_onset_switch(P, x=2600, y=20):
     P.obj("on_gc_c", "spigot 1", x, y + 70); P.obj("on_fs_c", "spigot 1", x + 100, y + 70)
     P.c("gc_det_sel", "on_gc_c"); P.c("on_gc_c", "on_gc"); P.c("fs_det_sel", "on_fs_c"); P.c("on_fs_c", "on_fs")
     P.obj("on_dcs", "dcs_onset~", x + 200, y + 40); P.c("mic", "on_dcs")
+    P.group("onsetn", r"^on_dcs$")                                       # (only runs when chosen)
+    add_switch(P, "onsetn", ("onset_mode",), 100)
     P.obj("on_new", "spigot 0", x + 200, y + 70); P.c("on_dcs", "on_new"); P.c("on_new", "on_gc"); P.c("on_new", "on_fs")
     P.obj("on_r", "r onset_mode", x, y)
     P.obj("on_sel", "expr $f1==0 ; $f1>=1".replace("$", BS + "$").replace(" ; ", " " + BS + "; "), x, y + 20)
@@ -4423,35 +4425,16 @@ def build():
     ron = smoothed(P, "reverb_on", "reverb_on", 2100, 400)
     P.sig2("rev_gain", "*~", rmix, ron, 2000, 480)               # level, forced to 0 when bypassed
 
+    # the reverb itself: dcs_reverb~ (Oct 17) = the same combs and all-passes these Pd objects used to make, sample for
+    # sample (tools/test_dcs.py compares the two), at ~60% of the cost
+    rargs = " ".join(str(v) for v in [RIGHT_EXTRA_MS, len(COMB_MS)] + COMB_MS + ALLPASS_MS)
+    P.obj("rev_dcs", f"dcs_reverb~ {rargs}", 1600, 600)
+    P.c("rev_in", "rev_dcs"); P.c("ln_rfb", "rev_dcs", 0, 1)
+    P.msg("rev_tone", f"tone {BS}$1", 1900, 430); P.c("r_reverb_tone", "rev_tone"); P.c("rev_tone", "rev_dcs")
     for side, extra in (("l", 0.0), ("r", RIGHT_EXTRA_MS)):
         x0 = 1600 if side == "l" else 2000
-        combs = []
-        for i, ms in enumerate(COMB_MS):
-            n = f"c{side}{i}"
-            buf = f"comb_{side}{i}"
-            P.obj(f"{n}_rd", f"delread~ {buf} {ms + extra:.2f}", x0, 600 + i * 90)
-            P.obj(f"{n}_lp", "lop~ 6000", x0, 625 + i * 90)
-            P.sig2(f"{n}_fb", "*~", f"{n}_lp", "ln_rfb", x0, 650 + i * 90)
-            P.sig2(f"{n}_sum", "+~", "rev_in", f"{n}_fb", x0 + 120, 650 + i * 90)
-            P.obj(f"{n}_wr", f"delwrite~ {buf} 100", x0 + 120, 675 + i * 90)
-            P.c(f"{n}_rd", f"{n}_lp"); P.c(f"{n}_sum", f"{n}_wr")
-            P.c("r_reverb_tone", f"{n}_lp", 0, 1)
-            combs.append(f"{n}_rd")
-        acc = combs[0]
-        for i, c in enumerate(combs[1:]):
-            acc = P.sig2(f"c{side}_acc{i}", "+~", acc, c, x0 + 250, 600 + i * 40)
-        for k, ms in enumerate(ALLPASS_MS):
-            n = f"a{side}{k}"
-            buf = f"allp_{side}{k}"
-            P.obj(f"{n}_rd", f"delread~ {buf} {ms + extra:.2f}", x0 + 400, 600 + k * 130)
-            P.obj(f"{n}_g1", "*~ 0.5", x0 + 400, 625 + k * 130)
-            P.sig2(f"{n}_w", "+~", acc, f"{n}_g1", x0 + 400, 650 + k * 130)
-            P.obj(f"{n}_wr", f"delwrite~ {buf} 100", x0 + 520, 650 + k * 130)
-            P.obj(f"{n}_g2", "*~ 0.5", x0 + 400, 675 + k * 130)
-            P.sig2(f"{n}_y", "-~", f"{n}_rd", f"{n}_g2", x0 + 400, 700 + k * 130)
-            P.c(f"{n}_rd", f"{n}_g1"); P.c(f"{n}_w", f"{n}_wr"); P.c(f"{n}_w", f"{n}_g2")
-            acc = f"{n}_y"
-        P.sig2(f"rev_{side}", "*~", acc, "rev_gain", x0 + 400, 1150)
+        P.obj(f"rev_{side}", "*~", x0 + 400, 1150)
+        P.c("rev_dcs", f"rev_{side}", 0 if side == "l" else 1, 0); P.c("rev_gain", f"rev_{side}", 0, 1)
         P.sig2(f"in_{side}0", "+~", "mix_out", f"rev_{side}", x0 + 400, 1200)
         P.sig2(f"in_{side}1", "+~", f"in_{side}0", gc_l if side == "l" else gc_r, x0 + 400, 1210)
         P.sig2(f"in_{side}2", "+~", f"in_{side}1", "rr_out", x0 + 400, 1215)   # (reverse reverb, below)
@@ -4593,14 +4576,22 @@ def build():
 
     # --- switchable blocks: each one's DSP stops while it can't be heard ---
     P.group("cue", r"^cue_(fq|fd|f5|oa|ob|oc|gc|ab|abc|ea|dry|ein|ew|er|efb|ewet|mix|pan|pq|pcl|pqr|pcr|gl_l|gl_r|l|rr)$")                    # the Realm cue: on only while it sounds
-    P.group("reverb", r"^(c[lr]\d+_|c[lr]_acc\d|a[lr]\d_|rev_in$|rev_[lr]$|pk_rfb$|ln_rfb$|pk_rin$|ln_rin$)")
+    P.group("reverb", r"^(rev_dcs$|rev_in$|rev_[lr]$|pk_rfb$|ln_rfb$|pk_rin$|ln_rin$)")
     add_switch(P, "reverb", ("reverb_on", "reverb_mix"), 300)
     P.group("revrev", r"^rr_(src0|src|wr|rd|sound)$")                     # reverse reverb
     P.group("stems", r"^st(\d+_(ix|rl|rr|ln|ol|or)|_sum[lr]\d+|_mix_[lr])$")   # a stem pack's audio: on while one plays
     add_switch(P, "stems", ("stem_on", "stems_level"), 300)
     add_switch(P, "revrev", ("reverb_on", "reverb_mix", "reverb_rev"), 300)
-    P.group("pitch", r"^(rate_hz|ph1|ph2|ph2_off|delwrite_p|tap[12]_\w+|rd[12]|cos[12]|cos[12]_neg|win[12]|grain[12]|shifted|shifted_c|shifted_n|shifted_sel|pshift_dcs)$")
-    add_switch(P, "pitch", ("pitch_on", "pitch_mix"), 300)
+    # (the prototype switches' twins: only the chosen one runs, Oct 17. A "<name>_c" receiver = 1 - <name>.)
+    for name in ("shift_voice", "harm_tracker"):
+        P.obj(f"inv_{name}_r", f"r {name}", 4400, 1500 + 40 * len(P.groups))
+        P.obj(f"inv_{name}", "expr 1-$f1".replace("$", BS + "$"), 4400, 1515 + 40 * len(P.groups))
+        P.obj(f"inv_{name}_s", f"s {name}_c", 4400, 1530 + 40 * len(P.groups))
+        P.c(f"inv_{name}_r", f"inv_{name}"); P.c(f"inv_{name}", f"inv_{name}_s")
+    P.group("pitch", r"^(rate_hz|ph1|ph2|ph2_off|delwrite_p|tap[12]_\w+|rd[12]|cos[12]|cos[12]_neg|win[12]|grain[12]|shifted)$")
+    add_switch(P, "pitch", ("pitch_on", "pitch_mix", "shift_voice_c"), 300)
+    P.group("pshiftn", r"^pshift_dcs$")
+    add_switch(P, "pshiftn", ("pitch_on", "pitch_mix", "shift_voice"), 300)
     P.group("chorus", r"^(chorus_wr|chorus_ph|ch[01]_\w+|ch_sum|ch_wet)$")
     add_switch(P, "chorus", ("chorus_on", "chorus_mix"), 300)
     P.group("flanger", r"^(fl_wr|fl_ph|fl_cos|fl_half|fl_unit|fl_sweep|fl_ms|fl_rd|fl_fb_sig|fl_in|fl_wet)$")
@@ -4628,9 +4619,13 @@ def build():
         P.group(f"pads{k}", rf"^(mu_pad\d_{k}_(o1|o2|s|x)|mu_xf{k})$")
     P.group("horgan", r"^mu_hm\d_")                                      # the organ voices: off for "Your voice"
     add_switch(P, "horgan", ("music_on", "music_harm", "harm_organ"), 2500)
+    P.group("hvnew", r"^hv_(din|dcs)$")                                 # (Pitch shifter New: only while it sings)
+    add_switch(P, "hvnew", ("sw_hvoice", "shift_voice"), 100)
     P.group("hvoice", r"^hv_")                                           # your voice as harmony: on only while it sings
-    P.group("harmsig", r"^mu_hm_sig2?$")                                  # the pitch tracker, at half the sample rate
-    add_switch(P, "harmsig", ("music_on", "harm_run"), 100, block="64 1 0.5")
+    P.group("harmsig", r"^mu_hm_sig$")                                  # the pitch tracker, at half the sample rate
+    add_switch(P, "harmsig", ("music_on", "harm_run", "harm_tracker_c"), 100, block="64 1 0.5")
+    P.group("harmsign", r"^mu_hm_sig2$")                                # (Pitch tracker New: dcs_pitch~)
+    add_switch(P, "harmsign", ("music_on", "harm_run", "harm_tracker"), 100, block="64 1 0.5")
     P.group("harm", r"^mu_hm")                                          # Harmony's tracker and voices: off at 0
     add_switch(P, "harm", ("music_on", "harm_run"), 2500)            # (its notes fade over 1.8 s)
     P.group("music", r"^(mu_|ba_)")

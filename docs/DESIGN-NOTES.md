@@ -99,6 +99,17 @@ to date in the same commit when behaviour changes.
   0.4 s swell: none. Patch: `add_onset_switch` reroutes every listener of gc_det_sel / fs_det_sel to on_gc / on_fs,
   fed by the classic detectors or dcs_onset~ (on `mic`, always running); `s onset_heard` for the tests. In the
   patch a swell triggers Classic once, New never; a clap both once.
+- **CPU round, Oct 17** (desktop, 20 s of noise; process time): whole patch with defaults 0.205 -> 0.172 s, with
+  Samuel-like settings (reverb 0.6, phaser 0.4, chorus 0.5, pitch 0.25, glitch 1, music, beat 0.6, echo 0.4)
+  0.603 -> 0.493 s (2.5% of a desktop core; the phone is ~10x slower). (1) **The prototype twins no longer both
+  run**: each new object has its own switch group needing its effect AND its switch (`onsetn`: onset_mode;
+  `pshiftn`: pitch x shift_voice; `harmsign`: harm_run x harm_tracker; `hvnew`: sw_hvoice x shift_voice), the
+  Classic ones need `<name>_c` (= 1 - switch, sent by `inv_<name>`); dcs_onset~ alone was ~20% of the idle patch.
+  (2) **dcs_reverb~** replaces the ~100-object Freeverb (8 low-passed combs + 4 all-passes per ear, COMB_MS /
+  ALLPASS_MS / RIGHT_EXTRA_MS as args): identical sample for sample (test_dcs builds the Pd-object version and
+  compares: worst 1.3e-6), ~55-60% of its cost (the maths is the same; the saving is per-object overhead: Pd's own
+  objects are already tight C). Reverb at Samuel's settings 0.069 -> 0.039 s. Still always on: 338 small signal
+  objects (117 *~, 84 line~ smoothers, 62 +~...), ~0.9% of a desktop core idle.
 - Waiting on Samuel's ears for both. Not in the tester guide (prototype). `dcs_derustle~` (Oct 17): see Pocket rustle. Ideas next: analog-style ladder filter,
   oversampled distortion/crush, a lighter pitch tracker than sigmund~, a dcs phaser, more glitch kinds.
 
