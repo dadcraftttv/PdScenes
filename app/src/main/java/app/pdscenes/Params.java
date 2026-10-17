@@ -118,6 +118,12 @@ final class Params {
             // Pocket rustle (prototype, Oct 17): Rustle squash pulls sudden cloth noise back down to the room's own level
             // (dcs_derustle~), so the world stays while the rustle drops. Step duck dips the mic around each footfall
             // while walking. Both only in a pocket. 0 = as before.
+            // Sudden-sound detector (prototype, Oct 17): what starts glitches, found-sound catches and found room notes.
+            // New = our own (dcs_onset~): it hears a new sound by how the spectrum jumps, so swells and vibrato don't
+            // count and a clap still does in a loud room.
+            new Param("onset_mode", "Sudden-sound detector", 0f, 1f, 0f, "", Param.Curve.LINEAR)
+                    .choices("Classic (how loud)", "New (how the sound changes)")
+                    .inSection("main").noPreset().resetWhenAbsent(),
             new Param("pocket_rustle", "Rustle squash (pocket: sudden cloth noise pulled down to the room)", 0f, 1f, 0f, "",
                     Param.Curve.LINEAR).inSection("main").noRandom().noPreset().resetWhenAbsent(),
             new Param("pocket_steps", "Step duck (pocket, walking: the mic dips at each footfall)", 0f, 1f, 0f, "",

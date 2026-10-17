@@ -2107,6 +2107,15 @@ y, m = gc_run(burst_in(steady, at=3.1), "gc_pct_stutter", steps=0.5)
 _, start = glitch_part(y, at=3.1, thr=0.05)
 check(start is not None and 0.15 <= start <= 0.18,   # the half-step at +0.15 s, a 5 ms fade, a few ms of pre-roll
       "glitch cloud: while walking it lands on the half-step (%.3f s after the sound, wanted 0.15-0.18)" % (start or -1))
+# Sudden-sound detector New (dcs_onset~): a clap is still heard; a sound swelling up isn't (Classic hears it)
+def gc_tries(x, mode):
+    e = fresh(dry=0, wet=0, gc_amount=1, gc_level=1, reverb_mix=0, onset_mode=mode); e.listen("onset_heard")
+    e.run(x); return len(e.heard["onset_heard"])
+tt = np.arange(5 * SR) / SR
+swell_x = (np.random.default_rng(12).standard_normal(len(tt)) * 0.15 * np.clip((tt - 2) / 0.3, 0, 1) ** 2).astype(np.float32)
+clap_x = burst_in(np.random.default_rng(13).standard_normal(int(0.04 * SR)) * 0.4 * np.exp(-np.arange(int(0.04 * SR)) / (0.008 * SR)), total=5.0)
+sc, sn, cc_, cn = gc_tries(swell_x, 0), gc_tries(swell_x, 1), gc_tries(clap_x, 0), gc_tries(clap_x, 1)
+check(cn == 1 and cc_ == 1 and sn == 0 and sc >= 1, "sudden-sound detector New: a clap is heard once (%d; Classic %d), a swell isn't (%d; Classic %d)" % (cn, cc_, sn, sc))
 # the glitch matrix: each kind gets its share of the chances; what is left over is silence
 def matrix(**pct):
     e = fresh(dry=0, wet=0, gc_amount=1, gc_level=1, reverb_mix=0, **dict({k: 0 for k in GC_KINDS}, **pct))

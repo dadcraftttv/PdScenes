@@ -38,7 +38,7 @@ DEFAULTS = [
     ("music_tone", 0.5), ("music_react", 0.8), ("music_res", 0.8), ("music_harm", 0.6), ("beat_follow", 1), ("beat_when", 1), ("rhythm_src", 1), ("melody_src", 1), ("harm_src", 1), ("pad_src", 1), ("bass_src", 0), ("tempo_mode", 0), ("tempo_bpm", 100), ("chime_char", 0.5), ("res_src", 1), ("cue_sound", 1), ("beat_glitch", 0.4), ("gate_attack", 5), ("gate_hold", 0), ("gate_release", 80), ("comp_attack", 40),
     ("comp_release", 40), ("music_drift", 1), ("echo_scatter", 0.5), ("gc_amount", 0), ("gc_level", 0.7), ("gc_pct_stutter", 35), ("gc_pct_reverse", 25),
     ("gc_pct_shuffle", 20), ("gc_pct_stretch", 20), ("music_pad_reg", 2), ("pocket_hush", 0.5), ("pocket_guard", 0.6), ("handling_hush", 0.5), ("intensity", 0.5), ("mix_kick", 1), ("mix_bass", 1), ("mix_chimes", 1), ("mix_walk", 1), ("mix_ring", 1), ("mix_bells", 1), ("reverb_rev", 0), ("stems_level", 0.8), ("music_answer", 0.5), ("beat_break", 0), ("mel_rhythm", 0), ("mel_phrase", 0),
-    ("gc_voice", 0), ("fm_ring", 0), ("pocket_rustle", 0), ("pocket_steps", 0), ("harm_tracker", 0), ("shift_voice", 0),
+    ("gc_voice", 0), ("fm_ring", 0), ("pocket_rustle", 0), ("pocket_steps", 0), ("harm_tracker", 0), ("shift_voice", 0), ("onset_mode", 0),
 ]
 
 # Scales as semitone steps above the key note. The patch snaps every note it plays to these.
@@ -3530,6 +3530,25 @@ def add_pocket_rustle(P, x=1300, y=170):
     return "pr_g"
 
 
+def add_onset_switch(P, x=2600, y=20):
+    """Sudden-sound detector (`onset_mode`, Oct 17): Classic = the two level-jump detectors (gc_det_sel for glitches
+    and reverse reverb, fs_det_sel for the found kit and found room notes); New = dcs_onset~ (spectral flux: fires on
+    new sounds, not on swells or vibrato, and catches claps in a loud room) for both. Everything that listened to
+    either detector now listens to on_gc / on_fs, fed by whichever is chosen."""
+    for old, new in (("gc_det_sel", "on_gc"), ("fs_det_sel", "on_fs")):
+        P.conns = [(new if (a == old and o == 0) else a, o, b, i) for a, o, b, i in P.conns]
+    P.obj("on_gc", "t b", x, y + 100); P.obj("on_fs", "t b", x + 100, y + 100)
+    P.msg("on_one", "1", x, y + 120); P.obj("on_heard", "s onset_heard", x, y + 140)    # (each one, for the tests)
+    P.c("on_gc", "on_one"); P.c("on_one", "on_heard")
+    P.obj("on_gc_c", "spigot 1", x, y + 70); P.obj("on_fs_c", "spigot 1", x + 100, y + 70)
+    P.c("gc_det_sel", "on_gc_c"); P.c("on_gc_c", "on_gc"); P.c("fs_det_sel", "on_fs_c"); P.c("on_fs_c", "on_fs")
+    P.obj("on_dcs", "dcs_onset~", x + 200, y + 40); P.c("mic", "on_dcs")
+    P.obj("on_new", "spigot 0", x + 200, y + 70); P.c("on_dcs", "on_new"); P.c("on_new", "on_gc"); P.c("on_new", "on_fs")
+    P.obj("on_r", "r onset_mode", x, y)
+    P.obj("on_sel", "expr $f1==0 ; $f1>=1".replace("$", BS + "$").replace(" ; ", " " + BS + "; "), x, y + 20)
+    P.c("on_r", "on_sel"); P.c("on_sel", "on_gc_c", 0, 1); P.c("on_sel", "on_fs_c", 0, 1); P.c("on_sel", "on_new", 1, 1)
+
+
 def add_handling(P, x=2200, y=300):
     """Handling noise (taps, grips, rubbing; the app's HandlingDetector): [handling 0..1( turns the mic down by up to
     handling_hush x HND_HUSH_DB (fast down, slower up), and [jolt( marks the next HND_JOLT_MS as handling for the
@@ -4628,6 +4647,8 @@ def build():
     P.group("gcs", r"^gc2_")
     P.group("gcloud", r"^gc\d*_(?!r_amt$|amt$|amt_rd$|clk_|rest|cool|m_t$|det|slow|roll|pass|ons_t$|timer$|flag|trig$|ask$|walk|step|half|pend|beat_t$|fire$|mode|en\d$|rn\d$|el2?$|st2$|st_rd$|stepms|par$|pack$|wait|vc|route$|dbg|kind$|spar$|spack$)")
     add_switch(P, "gcloud", ("gc_amount", "gc_level"), 1500)           # a glitch runs up to ~1.3 s
+
+    add_onset_switch(P)
 
     # --- defaults on load (desktop Pd / standalone) ---
     P.obj("loadbang", "loadbang", 20, 780)

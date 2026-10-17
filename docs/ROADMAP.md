@@ -167,7 +167,8 @@ and microphone declarations, icon, store listing, numbered pd-core release.
 
 18. **Our own objects (`dcs/`), the queue (Samuel, Oct 17: "i'd like to do all of this").** Each one behind a switch,
     with its own tests (tools/test_dcs.py), the old sound the default until Samuel's ears say otherwise. Built so far:
-    dcs_string~, dcs_glitch~, dcs_derustle~.
+    dcs_string~, dcs_glitch~, dcs_derustle~, dcs_pitch~, dcs_shift~, dcs_onset~ (Oct 17; dcs_pitch~ turned out an
+    accuracy win, not a battery one: sigmund~ at the patch's hop already costs ~0.1% of real time).
     - Voices: **dcs_shift~** (clean pitch shifter for Pitch and "Your voice" harmony, keeping the voice's own tone
       colour: no chipmunk, no warble). **dcs_pitch~** (a light pitch tracker to replace sigmund~, about half of Harmony's
       cost: battery).
@@ -207,7 +208,8 @@ and microphone declarations, icon, store listing, numbered pd-core release.
     - **Stems player:** kept until kits cover what it does, then retired (open question: a kit part could still be
       a loop, which would let old stem packs load as kits).
     - The mic still never touches disk: kits may bring their own files, and "found" parts stay in memory.
-    - **Order:** (a) dcs_voice~ with the engines Classic needs, so today's sound is reproduced behind a Kit switch,
+    - **Order** (Samuel, Oct 17: the quick wins dcs_shift~, dcs_pitch~, dcs_onset~ first, then kits; first new kit
+      style: Acoustic): (a) dcs_voice~ with the engines Classic needs, so today's sound is reproduced behind a Kit switch,
       (b) the first built-in kits one style at a time (each one Samuel's ears pass before the next), (c) mix and match
       per part, (d) user kits and the format page, (e) retire stems.
 

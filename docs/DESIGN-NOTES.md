@@ -90,6 +90,15 @@ to date in the same commit when behaviour changes.
   shifter: ~1050), level within 0.9 dB. A pure sine shifted down keeps ~88% on the note (PSOLA spacing > period).
   Patch: both trackers in `harmsig`, spigots pick one; the voice harmony's dcs_shift~ reads `delread~ hv_buf 0`
   (a direct line from the harm group into hvoice and back was a DSP loop).
+- `dcs_onset~` (Sudden-sound detector = New, `onset_mode`, main, noPreset, default Classic), Oct 17: spectral flux
+  over 24 log bands 80 Hz-16 kHz, ~11 ms frames every ~2.7 ms (mayer_realfft), each band floored 30 dB under the
+  frame's whole (without it a vibrato tone's leakage in one-bin bands fired 12-32 times), rise counted over the max
+  of that band and its neighbours two frames before (SuperFlux); fires one hop after a peak over 1.5 x the 0.5 s
+  average + threshold (40), level over 55 Pd dB, 50 ms apart; also outputs level, lows, highs (dB under the whole),
+  centroid, jump. Measured: claps in a quiet room 10/10 within 11 ms; claps 8 dB over a roar 9/10; vibrato and a
+  0.4 s swell: none. Patch: `add_onset_switch` reroutes every listener of gc_det_sel / fs_det_sel to on_gc / on_fs,
+  fed by the classic detectors or dcs_onset~ (on `mic`, always running); `s onset_heard` for the tests. In the
+  patch a swell triggers Classic once, New never; a clap both once.
 - Waiting on Samuel's ears for both. Not in the tester guide (prototype). `dcs_derustle~` (Oct 17): see Pocket rustle. Ideas next: analog-style ladder filter,
   oversampled distortion/crush, a lighter pitch tracker than sigmund~, a dcs phaser, more glitch kinds.
 
