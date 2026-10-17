@@ -14,3 +14,4 @@ desktop/build/
 tools/.pdcore/
 tools/.dcs-android/
 dcs/build/
+tools/.test_costs.json
