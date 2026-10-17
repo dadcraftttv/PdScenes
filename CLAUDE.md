@@ -44,19 +44,49 @@ Test device: Moto G Stylus 2025, Android 16, no root. Build machine: Linux Mint 
   Same .so set as the snapshot (only libpdnativeoboe grew ~600 bytes), 64-bit libs 16 KB-aligned. Why: pd-for-android's
   last numbered release is 1.2.1-rc6 (2021), the snapshot can change under us, and the fix isn't merged upstream yet.
   **Fork rules (Samuel agreed):** keep our changes small, one commit each, offer general ones upstream; new C objects
-  only *added* with a `pds_` prefix (Pd prefers a built-in class over a scene's own abstraction of the same name), never
+  only *added* with a `dcs_` prefix (in `dcs/`, not the fork) (Pd prefers a built-in class over a scene's own abstraction of the same name), never
   change a standard object (scenes would change). When moving Pd (0.56 breaks StreetBeatz): rebase both branches,
   bump the version (`1.4.2-pdscenes.N` in the fork's build.gradle files and build_pdcore.sh), rebuild, test the scenes.
   setAutoReopen(false) + DISCONNECT_SETTLE_MS 0 are in (Oct 16). The tests and the desktop app use the same fork
   (Oct 16): `tools/build_libpd.sh` pins dadcraftttv/libpd ebc0b83 (was upstream tag 0.15.0); `desktop/run.sh`
   rebuilds desktop/lib when `lib/libpd-commit` differs from the pin. Moving Pd = move both pins together.
 
+## Our own Pd objects: `dcs/` (Oct 16)
+- Samuel chose the prefix `dcs_` (DadCraft Studios: not tied to the app's name, which isn't final) and BSD 3-Clause
+  (Pd-compatible, so useful ones can go upstream or onto deken). A library of its own, NOT in the libpd fork (that
+  stays tiny: bug fixes only). Lives in this repo for now; it can move to its own repo when published.
+- Loaded by `#X declare -lib dcs;` right after the patch's `#N canvas` line (make_patch.py writes it). A `[declare]`
+  object alone does nothing while a file loads. Android: `app/src/main/jniLibs/<abi>/libdcs.so` (committed, built by
+  `tools/build_dcs_android.sh` with NDK 29 against pd-core's libpd.so, 16 KB-aligned); Pd finds `lib<name>.so` in the
+  native lib folder. Desktop/tests: `make -C dcs` -> `dcs/build/dcs.pd_linux`; pdtest adds dcs/build to the search
+  path; the desktop app opens libpdnative.so RTLD_GLOBAL via JNA first (Java loads it privately: the library then
+  finds no Pd symbols) and run.sh passes `-Dpdscenes.dcs`. After changing dcs/src: `make -C dcs`,
+  `tools/build_dcs_android.sh`, `tools/test_dcs.py`. If libdcs is missing, its objects fail to create and the
+  prototype voices are silent; the rest of the patch still works.
+- `dcs_string~` (Found note ring = String, `fm_ring`, Music, noPreset, default Resonator): Karplus-Strong with a
+  one-pole loss filter from two decay times (bottom = decay, top = decay x 10^(2b-2.5)), pole capped at 0.9 and
+  backed off by bisection so the loop's DC gain stays < 1 without cutting the note short; tuning includes both
+  filters' phase (worst 0.03 cents C2-C7). `pluck amp [pos]` adds a zero-mean triangle across one period. In the
+  patch the band-passed strike (`{n}_bp`) feeds it and each note plucks it (`FM_PLUCK` 0.3 x the note's loudness):
+  a clap alone has nothing at a low note and rang only the 2nd/3rd harmonics (thin); with the pluck the fundamental
+  leads ~10x. `FM_STR_GAIN` 40, brightness `FM_STR_BRIGHT` 0.3 + `FM_STR_CHAR_BRIGHT` 0.4 x chime_char, ring =
+  cdec x (1 - 0.7 cc). Measured with a clap: same notes as the resonator, tonal 0.71 (resonator 0.39), ~+3 dB.
+- `dcs_glitch~` (Glitch voice = New, `gc_voice`, Glitch section, noPreset, default Classic): takes the brain's
+  lists unchanged (`slice L d0 c1 c2 S place` from gc_wait_l, `stretch L d0 rate place` from gc_spack; spigots
+  `gc_vc_*` pick the voice), 4 voices (+ 4 slots for stolen ones fading 4 ms), own 4 s buffer, sample-exact starts
+  (vline~'s block timing, the fraction carried), ITD as before. Stretch: 4 Hann grains of 100 ms, each new grain
+  placed within +-8 ms where its waveform best matches the playing grain (WSOLA, 5.3 ms compared, every 2nd
+  sample): a held tone swings 0.1 dB (the old 2-grain stretch: grains half-cancel, 22 dB in the same test).
+  Cost while glitching +11% of the patch (Classic +7%); in the gcloud switch group, so nothing at Amount 0.
+- Waiting on Samuel's ears for both. Not in the tester guide (prototype). Ideas next: analog-style ladder filter,
+  oversampled distortion/crush, a lighter pitch tracker than sigmund~, a dcs phaser, more glitch kinds.
+
 ## Tests (run these after touching patch or Java logic)
 1. Desktop libpd is needed for the Pd tests: `tools/build_libpd.sh` builds it into `tools/.libpd/libpd.so` (needs git, make, gcc).
    It is pinned to our libpd fork's commit ebc0b83 (Pd 0.55.2), the same libpd as the app's pd-core. Pd 0.56 breaks StreetBeatz.rj
    (`hip~` multichannel error); move the pin only together with pd-core. numpy lives in `tools/.venv` (run the tests with `tools/.venv/bin/python`).
 2. `python3 tools/make_patch.py && tools/.venv/bin/python tools/test_patch.py tools/.libpd/libpd.so` — must end `ALL PASSED`.
-   Also `tools/test_scene_loader.py`, `test_scene_sensors.py`, `test_rj_analysis.py`, `test_bundled_scenes.py`, `test_scene_helpers.py` (same libpd argument).
+   Also `tools/test_scene_loader.py`, `test_scene_sensors.py`, `test_rj_analysis.py`, `test_bundled_scenes.py`, `test_scene_helpers.py`, `test_dcs.py` (same libpd argument; dcs needs `make -C dcs`).
 3. Java logic tests (no Android): `tools/javatests/run.sh` (or one at a time: `tools/javatests/run.sh W`; D = diagnostics, H = handling, I = intensity, F = first run, B = calm build, G = scene graphics, K = stem packs). All must pass
    (C and P print no summary line, just no `FAIL:`). Android classes are stand-ins in `tools/javatests/stubs*`: when app code
    starts using a new Android method, add it there. Java is not on PATH: `export JAVA_HOME=~/.jdks/jbr-21.0.11` and put its
