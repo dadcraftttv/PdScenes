@@ -20,8 +20,8 @@ behaviour changes, or tell Samuel it needs one).
   only failures and summaries; read files in parts (grep first); don't re-read what's already in context.
 
 ## Hard rules
-- **The final name and applicationId must not contain "RjDj".** Chosen name: **Ouralia** (Oct 17; Samuel is
-  checking USPTO/EUIPO first; Oura the ring maker has fought similar marks). Not renamed yet: when it is, a new
+- **The final name and applicationId must not contain "RjDj".** Chosen name: **Ouralia** (Oct 17; no USPTO or
+  EUIPO results for it, Samuel checked; Oura the ring maker has fought similar marks). Not renamed yet: when it is, a new
   applicationId (e.g. com.dadcraftstudios.ouralia) is a new app for testers (they export presets first).
 - **Output never goes to the phone speaker** (headphones only; see "Output never goes" in DESIGN-NOTES).
 - **The mic never touches disk.** No recording audio to files.
