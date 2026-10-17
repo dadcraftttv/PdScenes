@@ -5,7 +5,7 @@
  *
  *   [dcs_voice~]
  *   inlet:   messages
- *     engine <0 off | 1 pluck | 2 bowed | 3 modal | 4 analog | 5 drums>
+ *     engine <0 off | 1 pluck | 2 bowed | 3 modal | 4 analog | 5 drums | 6 chop>
  *     note <Hz> <velocity 0..1> <length ms> [<brightness 0..1>]   a note that rings and dies away by itself
  *     pnote <slot> <Hz> [<velocity>]   a held note in a slot (a pad's chord tone, the bass): when the slot gets a new
  *                                      pitch, the old note fades out over `release` while the new one comes in
@@ -17,6 +17,11 @@
  *             spread across `detune`, a supersaw>
  *     drums: hit <0 kick | 1 snare | 2 hat> <velocity> [<hat decay ms>]; ktune <Hz>, kdecay <ms>, kdrive <0..1>,
  *             stone <Hz>, sdecay <ms>, hdecay <ms> (closed hats; a hit's own decay overrides)
+ *     analog: wobble <0..1> and wrate <cycles a beat>: a tempo-synced wobble (the volume dips and the filter closes
+ *             each cycle, every voice together, restarted on each `tempo <bpm>` the patch sends at every beat);
+ *             bend <semitones> and bendms: each note starts that far off and glides to its pitch
+ *     chop: a note plays a short slice of the newest held voice the patch kept (tables fpad_<n>, fpad_f0, fpad_g,
+ *             fpad_n), pitched to the note (folded by octaves); chop <ms> = its length. Nothing kept yet: analog.
  *     pump, pumprel: accepted and ignored (a kit's sidechain settings, read by the patch)
  *   outlet:  the sound (mono)
  *
@@ -35,6 +40,7 @@
 #include "m_pd.h"
 #include <math.h>
 #include <string.h>
+#include <stdio.h>
 
 #define NV 10
 #define DLEN 4096                 /* power of two: 20 Hz at 48 kHz (the bass goes down to ~40) */
@@ -43,8 +49,9 @@
 #define PLUCK_GAIN 1.5f               /* each engine near the classic voices' loudness at velocity 1 */
 #define BOWED_GAIN 6.f
 
-enum { E_OFF, E_PLUCK, E_BOWED, E_MODAL, E_ANALOG, E_DRUMS };
+enum { E_OFF, E_PLUCK, E_BOWED, E_MODAL, E_ANALOG, E_DRUMS, E_CHOP };
 #define MAXSAWS 7
+#define CHOP_GAIN 0.15f               /* a chop near the analog fallback at the same `level` */
 #define ANALOG_GAIN 0.35f
 
 static const double MODAL_RATIO[4][NMODES] = {
@@ -79,6 +86,12 @@ typedef struct _vvoice
     /* drums */
     int role;
     double t, dph, dhx, dhy, dh2x, dh2y, dec;
+    float bendcur, bendk;              /* analog: semitones still to glide, the glide factor per sample */
+    /* chop */
+    t_word *cvec;
+    int clen;
+    double cpos, crate, ctotal;
+    float cgain;
     float lad[4], fenv, fenvk;
 } t_vvoice;
 
@@ -90,6 +103,8 @@ typedef struct _dcs_voice
     float x_bright, x_level, x_attack, x_release, x_decay;
     float x_cutoff, x_reso, x_fenv, x_detune, x_sub;
     int x_saws;
+    float x_wobble, x_wrate, x_bend, x_bendms, x_chop;
+    double x_bpm, x_lfoph;
     float x_ktune, x_kdecay, x_kdrive, x_stone, x_sdecay, x_hdecay;
     unsigned long x_count;
     unsigned int x_seed;
@@ -198,12 +213,52 @@ static void voice_start(t_dcs_voice *x, t_vvoice *v, double hz, float vel, doubl
         v->gstep = (float)(1000. / ((x->x_attack > 1 ? x->x_attack : 1) * sr));
         v->life = slot < 0 ? len_ms * sr / 1000 : 0;
         break;
+    case E_CHOP:
+        {
+            t_float fn, fs, f0, g;
+            t_garray *a;
+            char name[32];
+            int size;
+            t_word *vec;
+            {
+                t_garray *na = (t_garray *)pd_findbyclass(gensym("fpad_n"), garray_class);
+                t_word *nv; int nn;
+                fn = 0; fs = 0;
+                if (na && garray_getfloatwords(na, &nn, &nv) && nn >= 2) { fn = nv[0].w_float; fs = nv[1].w_float; }
+            }
+            snprintf(name, sizeof(name), "fpad_%d", (int)fs);
+            a = fn >= 1 ? (t_garray *)pd_findbyclass(gensym(name), garray_class) : 0;
+            if (a && garray_getfloatwords(a, &size, &vec) && size > sr * 0.4)
+            {
+                t_garray *fa = (t_garray *)pd_findbyclass(gensym("fpad_f0"), garray_class), *ga = (t_garray *)pd_findbyclass(gensym("fpad_g"), garray_class);
+                t_word *fv, *gv; int fz, gz;
+                f0 = (fa && garray_getfloatwords(fa, &fz, &fv) && fz > (int)fs) ? fv[(int)fs].w_float : 0;
+                g = (ga && garray_getfloatwords(ga, &gz, &gv) && gz > (int)fs) ? gv[(int)fs].w_float : 1;
+                if (f0 > 20)
+                {
+                    double r = hz / f0;
+                    while (r > 1.5) r *= 0.5;            /* (folded by octaves: close to the voice's own range) */
+                    while (r < 0.75) r *= 2;
+                    v->cvec = vec; v->clen = size; v->crate = r; v->cgain = g > 0 ? g : 1;
+                    v->cpos = sr * (0.2 + 0.1 * (0.5 + 0.5 * voice_noise(x)));   /* past its start, into the held note */
+                    v->ctotal = (x->x_chop > 20 ? x->x_chop : 20) * sr / 1000;
+                    if (v->ctotal > len_ms * sr / 1000) v->ctotal = len_ms * sr / 1000;
+                    v->t = 0;
+                    v->gain = 1; v->gstep = 0;
+                    break;
+                }
+            }
+            v->engine = E_ANALOG;                        /* nothing kept yet: the analog voice plays it */
+        }
+        /* fall through */
     case E_ANALOG:
         {
             int o;                               /* each saw from its own phase (a supersaw doesn't "zap" in phase) */
             for (o = 0; o <= MAXSAWS; o++) v->ph[o] = 0.5 + 0.5 * voice_noise(x);
         }
         v->gstep = (float)(1000. / ((x->x_attack > 1 ? x->x_attack : 1) * sr));
+        v->bendcur = x->x_bend;                          /* a bend: starts off its pitch, glides to it */
+        v->bendk = (float)exp(-1. / ((x->x_bendms > 1 ? x->x_bendms : 1) * 0.25 * sr / 1000.));
         v->fenv = 1;                                     /* the filter opens at the note, closing over its length */
         v->fenvk = (float)exp(-1. / ((slot < 0 ? len_ms : x->x_decay) * 0.25 * sr / 1000.));
         v->life = slot < 0 ? len_ms * sr / 1000 : 0;
@@ -285,13 +340,16 @@ static t_int *dcs_voice_perform(t_int *w)
         if (!v->on) continue;
         if (v->engine == E_ANALOG)
         {
-            double sr = x->x_sr, f0 = v->hz, inc[MAXSAWS + 1];
+            double sr = x->x_sr, f0 = v->hz * pow(2, v->bendcur / 12.), inc[MAXSAWS + 1];
+            /* the wobble: shared by every voice, restarted on each beat; volume dips and the filter closes as it runs */
+            double wph = x->x_lfoph, wob = x->x_wobble < 0 ? 0 : (x->x_wobble > 1 ? 1 : x->x_wobble);
+            float wgain = (float)(1 - 0.8 * wob * wph);
             int ns = x->x_saws < 1 ? 1 : (x->x_saws > MAXSAWS ? MAXSAWS : x->x_saws), o2;
             float sawgain = ns == 2 ? 1.f : (float)(1.41 / sqrt((double)ns));   /* (two saws: as before) */
             for (o2 = 0; o2 < ns; o2++)          /* two: the note and `detune` above; more: spread across `detune` */
                 inc[o2] = f0 * pow(2, (ns == 2 ? o2 : (ns > 1 ? (double)o2 / (ns - 1) - 0.5 : 0)) * x->x_detune / 1200.) / sr;
             inc[ns] = f0 * 0.5 / sr;
-            double fc = f0 * x->x_cutoff * (1 + x->x_fenv * v->fenv), g, G, k = 3.9 * (x->x_reso < 0 ? 0 : (x->x_reso > 1 ? 1 : x->x_reso));
+            double fc = f0 * x->x_cutoff * (1 + x->x_fenv * v->fenv) * (1 + 2 * wob * (1 - wph)), g, G, k = 3.9 * (x->x_reso < 0 ? 0 : (x->x_reso > 1 ? 1 : x->x_reso));
             float sub = x->x_sub;
             if (fc > 0.45 * sr) fc = 0.45 * sr;
             if (fc < 20) fc = 20;
@@ -334,12 +392,29 @@ static t_int *dcs_voice_perform(t_int *w)
                     if (v->gain < v->gtarget) { v->gain += v->gstep; if (v->gain > v->gtarget) v->gain = v->gtarget; }
                     else { v->gain -= v->gstep; if (v->gain < v->gtarget) v->gain = v->gtarget; }
                 }
-                out[i] += u * v->gain * v->amp * ANALOG_GAIN * level;
+                out[i] += u * v->gain * v->amp * ANALOG_GAIN * level * wgain;
             }
+            v->bendcur *= (float)pow(v->bendk, n);
             v->fenv *= (float)pow(v->fenvk, n);
             for (m = 0; m < 4; m++)
                 if (PD_BIGORSMALL(v->lad[m])) v->lad[m] = 0;
             if (v->releasing && v->gain <= 0) v->on = 0;
+        }
+        else if (v->engine == E_CHOP)
+        {
+            /* a slice of the held voice at the note's rate: 3 ms in, 25 ms out at the end of its length */
+            double sr = x->x_sr, att = 0.003 * sr, rel = 0.025 * sr;
+            for (i = 0; i < n; i++)
+            {
+                long ip = (long)v->cpos;
+                float fr = (float)(v->cpos - ip), a, b, e;
+                if (ip + 1 >= v->clen || v->t >= v->ctotal) { v->on = 0; break; }
+                a = v->cvec[ip].w_float; b = v->cvec[ip + 1].w_float;
+                e = (float)(v->t < att ? v->t / att : (v->t > v->ctotal - rel ? (v->ctotal - v->t) / rel : 1));
+                out[i] += (a + fr * (b - a)) * e * v->amp * v->cgain * level * CHOP_GAIN;
+                v->cpos += v->crate;
+                v->t += 1;
+            }
         }
         else if (v->engine == E_DRUMS)
         {
@@ -442,6 +517,8 @@ static t_int *dcs_voice_perform(t_int *w)
             }
         }
     }
+    x->x_lfoph += x->x_wrate * x->x_bpm / 60. / x->x_sr * n;   /* the wobble, `wrate` cycles a beat */
+    x->x_lfoph -= floor(x->x_lfoph);
     return (w + 4);
 }
 
@@ -455,7 +532,13 @@ static void dcs_voice_dsp(t_dcs_voice *x, t_signal **sp)
     dsp_add(dcs_voice_perform, 3, x, sp[0]->s_vec, (t_int)sp[0]->s_n);
 }
 
-static void dcs_voice_engine(t_dcs_voice *x, t_floatarg f) { x->x_engine = (int)f >= 0 && (int)f <= 5 ? (int)f : 0; if (!x->x_engine) dcs_voice_alloff(x); }
+static void dcs_voice_engine(t_dcs_voice *x, t_floatarg f) { x->x_engine = (int)f >= 0 && (int)f <= 6 ? (int)f : 0; if (!x->x_engine) dcs_voice_alloff(x); }
+static void dcs_voice_wobble(t_dcs_voice *x, t_floatarg f) { x->x_wobble = f; }
+static void dcs_voice_wrate(t_dcs_voice *x, t_floatarg f) { x->x_wrate = f > 0 ? f : 0; }
+static void dcs_voice_bend(t_dcs_voice *x, t_floatarg f) { x->x_bend = f; }
+static void dcs_voice_bendms(t_dcs_voice *x, t_floatarg f) { x->x_bendms = f; }
+static void dcs_voice_chopms(t_dcs_voice *x, t_floatarg f) { x->x_chop = f; }
+static void dcs_voice_tempo(t_dcs_voice *x, t_floatarg f) { if (f > 20) x->x_bpm = f; x->x_lfoph = 0; }   /* (sent on every beat) */
 static void dcs_voice_saws(t_dcs_voice *x, t_floatarg f) { x->x_saws = (int)f; }
 static void dcs_voice_ignore(t_dcs_voice *x, t_floatarg f) { }
 static void dcs_voice_set(t_dcs_voice *x, t_symbol *s, t_floatarg f)
@@ -501,6 +584,7 @@ static void *dcs_voice_new(void)
     x->x_sr = sys_getsr() > 0 ? sys_getsr() : 44100;
     x->x_bright = 0.4f; x->x_level = 1; x->x_attack = 300; x->x_release = 800; x->x_decay = 3000; x->x_modal = 1;
     x->x_cutoff = 4; x->x_reso = 0.3f; x->x_fenv = 6; x->x_detune = 8; x->x_sub = 0.3f; x->x_saws = 2;
+    x->x_wobble = 0; x->x_wrate = 2; x->x_bend = 0; x->x_bendms = 120; x->x_chop = 180; x->x_bpm = 100;
     x->x_ktune = 50; x->x_kdecay = 350; x->x_kdrive = 0.3f; x->x_stone = 185; x->x_sdecay = 180; x->x_hdecay = 45;
     x->x_seed = (unsigned int)(size_t)x;
     outlet_new(&x->x_obj, &s_signal);
@@ -529,6 +613,12 @@ void dcs_voice_tilde_setup(void)
     class_addmethod(dcs_voice_class, (t_method)dcs_voice_detune, gensym("detune"), A_FLOAT, 0);
     class_addmethod(dcs_voice_class, (t_method)dcs_voice_sub, gensym("sub"), A_FLOAT, 0);
     class_addmethod(dcs_voice_class, (t_method)dcs_voice_saws, gensym("saws"), A_FLOAT, 0);
+    class_addmethod(dcs_voice_class, (t_method)dcs_voice_wobble, gensym("wobble"), A_FLOAT, 0);
+    class_addmethod(dcs_voice_class, (t_method)dcs_voice_wrate, gensym("wrate"), A_FLOAT, 0);
+    class_addmethod(dcs_voice_class, (t_method)dcs_voice_bend, gensym("bend"), A_FLOAT, 0);
+    class_addmethod(dcs_voice_class, (t_method)dcs_voice_bendms, gensym("bendms"), A_FLOAT, 0);
+    class_addmethod(dcs_voice_class, (t_method)dcs_voice_chopms, gensym("chop"), A_FLOAT, 0);
+    class_addmethod(dcs_voice_class, (t_method)dcs_voice_tempo, gensym("tempo"), A_FLOAT, 0);
     class_addmethod(dcs_voice_class, (t_method)dcs_voice_hit, gensym("hit"), A_FLOAT, A_FLOAT, A_DEFFLOAT, 0);
     class_addmethod(dcs_voice_class, (t_method)dcs_voice_ktune, gensym("ktune"), A_FLOAT, 0);
     class_addmethod(dcs_voice_class, (t_method)dcs_voice_kdecay, gensym("kdecay"), A_FLOAT, 0);

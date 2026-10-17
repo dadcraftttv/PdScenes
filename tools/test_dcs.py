@@ -3,7 +3,7 @@
 
     tools/.venv/bin/python tools/test_dcs.py tools/.libpd/libpd.so
 """
-import os, sys, tempfile
+import ctypes, os, sys, tempfile
 import numpy as np
 from pdtest import Engine, SR
 
@@ -422,6 +422,35 @@ one = play(an + [("cutoff", 16), ("saws", 1), ("pnote", 0, 220)], 1.5)[int(0.3 *
 sev = play(an + [("cutoff", 16), ("saws", 7), ("detune", 25), ("pnote", 0, 220)], 1.5)[int(0.3 * SR):]
 lift = 20 * np.log10(rms(sev) / rms(one))
 check(abs(lift) < 3 and abs(peak_hz(sev, 210, 230) / 220 - 1) < 0.01, f"supersaw: 7 saws across 25 cents, about as loud as one ({lift:+.1f} dB), around the note")
+def env_rate(y):
+    """The strongest rate (Hz) at which y's level moves (2-20 Hz)."""
+    e = np.sqrt(np.convolve(y ** 2, np.ones(240) / 240, "same"))[::48]; e = e - e.mean()
+    S_ = np.abs(np.fft.rfft(e * np.hanning(len(e)), 1 << 16)); f = np.fft.rfftfreq(1 << 16, 48 / SR)
+    b = (f > 2) & (f < 20); return float(f[b][np.argmax(S_[b])]), float(S_[b].max() / (np.abs(e).sum() + 1e-9))
+wob = an + [("cutoff", 3), ("wrate", 2), ("tempo", 120)]
+yw = play(wob + [("wobble", 1), ("pnote", 0, 220)], 3.0)[SR:]; y0 = play(wob + [("wobble", 0), ("pnote", 0, 220)], 3.0)[SR:]
+rw, sw_ = env_rate(yw); _, s0_ = env_rate(y0)
+check(abs(rw - 4) < 0.2 and sw_ > 5 * s0_, f"wobble: 2 a beat at 120 BPM pulses at {rw:.2f} Hz (vs no wobble: {sw_ / max(s0_, 1e-9):.0f}x stronger)")
+yb = play(an + [("cutoff", 8), ("bend", -2), ("bendms", 150), ("pnote", 0, 220)], 1.0)
+check(peak_hz(yb[int(0.005 * SR):int(0.04 * SR)], 150, 260) < 210 and abs(peak_hz(yb[int(0.5 * SR):], 200, 240) / 220 - 1) < 0.003,
+      f"bend: a note starts low ({peak_hz(yb[int(0.005 * SR):int(0.04 * SR)], 150, 260):.0f} Hz) and glides to 220")
+cp = patch("chop", ["r vc", "dcs_voice~", "dac~", "table fpad_0 48000", "table fpad_f0 2", "table fpad_g 2", "table fpad_n 2"],
+           [(0, 0, 1, 0), (1, 0, 2, 0), (1, 0, 2, 1)])
+def chop(kept, secs=0.6):
+    e = Engine(LIB, cp); L = e.lib
+    L.libpd_write_array.argtypes = [ctypes.c_char_p, ctypes.c_int, ctypes.c_void_p, ctypes.c_int]
+    def put(name, vals):
+        a = np.asarray(vals, np.float32); L.libpd_write_array(name.encode(), 0, a.ctypes.data, len(a))
+    put("fpad_0", 0.5 * np.sin(2 * np.pi * 220 * np.arange(48000) / SR)); put("fpad_f0", [220, 0]); put("fpad_g", [1, 1])
+    put("fpad_n", [kept, 0])
+    for m in [("engine", 6), ("chop", 180), ("note", 330, 0.8, 1000)]:
+        e.send_msg("vc", m[0], *m[1:])
+    y = e.run(np.zeros(int(secs * SR), np.float32))[:, 0]; e.close(); return y
+yc = chop(1); yf = chop(0)
+on = np.nonzero(np.abs(yc) > 0.01)[0]
+check(len(on) and abs(peak_hz(yc[on[0]:on[-1]], 280, 380) / 330 - 1) < 0.005 and 0.15 < (on[-1] - on[0]) / SR < 0.21
+      and rms(yf) > 0.01 and peak_hz(yf, 280, 380) > 320,
+      f"chop: a slice of the held voice at the note ({peak_hz(yc[on[0]:on[-1]], 280, 380):.1f} Hz, {(on[-1] - on[0]) / SR * 1000:.0f} ms); nothing kept: the analog voice plays it")
 held = db_frames(play(an + [("cutoff", 4), ("pnote", 0, 110)], 3.0)[int(0.5 * SR):], 100)
 check(held.max() - held.min() < 1, f"analog: a held note stands steady ({held.max() - held.min():.2f} dB)")
 
