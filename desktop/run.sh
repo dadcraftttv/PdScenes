@@ -10,6 +10,7 @@ CP="$H/lib/libpd.jar:$H/lib/jnajack-1.4.0.jar:$H/lib/jna-5.14.0.jar:$H/lib/json-
 A="$H/../app/src/main/java/app/pdscenes"
 # the phone app's own logic, unchanged, with desktop stand-ins (shim/) for the little Android it touches
 SHARED="Param Params ParamStore PresetManager Modulation PhoneContext Intensity CalmBuild PackPlayer StemPack Worlds WorldSelector MotifMemory NoteRegister CallResponse"
+make -s -C "$H/../dcs"   # our own Pd objects (build/dcs.pd_linux), loaded by the patch
 rm -rf "$H/build"; mkdir -p "$H/build"
 javac -d "$H/build" -cp "$CP" $(for c in $SHARED; do echo "$A/$c.java"; done) $(find "$H/shim" "$H/src" -name '*.java')
 # (Pd 0.55.2's expr prints a leftover debug line, "realloc called with N bytes", whenever it grows a buffer)
@@ -17,5 +18,5 @@ javac -d "$H/build" -cp "$CP" $(for c in $SHARED; do echo "$A/$c.java"; done) $(
 # and readings waited on it (and the voice was ~23 ms late). PDSCENES_PERIOD changes it.
 # (asked at the graph's own rate: pw-jack -p would also force 48 kHz)
 RATE=$(pw-metadata -n settings 0 clock.rate 2>/dev/null | grep -o "value:'[0-9]*" | cut -d"'" -f2)
-PIPEWIRE_LATENCY="${PDSCENES_PERIOD:-256}/${RATE:-48000}" pw-jack java -Djava.library.path="$H/lib" -Dawt.useSystemAAFontSettings=on -cp "$H/build:$CP" app.pdscenes.DesktopApp \
+PIPEWIRE_LATENCY="${PDSCENES_PERIOD:-256}/${RATE:-48000}" pw-jack java -Djava.library.path="$H/lib" -Dpdscenes.dcs="$H/../dcs/build" -Dawt.useSystemAAFontSettings=on -cp "$H/build:$CP" app.pdscenes.DesktopApp \
     --patch "$H/../app/src/main/assets/patches/test_scene.pd" "$@" 2>&1 | grep --line-buffered -v "^realloc called with"

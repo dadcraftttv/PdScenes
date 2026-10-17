@@ -106,6 +106,8 @@ final class DesktopEngine {
             in = new float[Math.max(frames, 8192)];
             out = new float[2 * in.length];
             PdBase.openAudio(1, 2, rate);
+            String dcs = System.getProperty("pdscenes.dcs");    // our own objects (run.sh: dcs/build)
+            if (dcs != null) PdBase.addToSearchPath(dcs);
             if (PdBase.openPatch(patch) == 0) {
                 throw new IOException("Couldn't open the patch " + patch);
             }

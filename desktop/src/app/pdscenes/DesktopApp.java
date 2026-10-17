@@ -68,7 +68,21 @@ final class DesktopApp {
 
     private DesktopApp() { }
 
+    /** Our own Pd objects (dcs/, `[declare -lib dcs]`) are a library Pd opens itself, and it needs libpd's functions:
+     *  Java opens libpdnative.so privately, so it is opened here first with its symbols shared (RTLD_GLOBAL). */
+    static void shareLibpd() {
+        for (String dir : System.getProperty("java.library.path", "").split(File.pathSeparator)) {
+            File f = new File(dir, "libpdnative.so");
+            if (f.isFile()) {
+                com.sun.jna.NativeLibrary.getInstance(f.getAbsolutePath(),
+                        Map.of(com.sun.jna.Library.OPTION_OPEN_FLAGS, 0x102));   // RTLD_NOW | RTLD_GLOBAL
+                return;
+            }
+        }
+    }
+
     public static void main(String[] args) throws Exception {
+        shareLibpd();
         String patch = null;
         boolean window = true;
         double seconds = -1;
