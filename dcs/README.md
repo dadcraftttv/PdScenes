@@ -24,6 +24,12 @@ objects or with anyone's abstractions.
   quiet floor and leaves the floor alone (made for cloth rustle on a pocketed phone's mic). Outputs the processed
   signal and the gain it applied, so other signals can be squashed alike.
 
+- **`[dcs_voice~]`** — one part of a kit: a small polyphonic instrument (engines: plucked string, bowed string,
+  modal bell / marimba / bowl), configured by messages, playing one-shot notes or held "slot" notes that
+  crossfade when they move.
+- Also: `dcs_pitch~` (YIN pitch tracker), `dcs_shift~` (PSOLA pitch shifter that keeps a voice's tone colour),
+  `dcs_onset~` (spectral-flux onset detector), `dcs_reverb~` (Freeverb-style stereo reverb in one object).
+
 Each object's source file starts with a full description of what it does.
 
 ## Building

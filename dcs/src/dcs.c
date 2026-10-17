@@ -14,6 +14,7 @@ void dcs_pitch_tilde_setup(void);
 void dcs_shift_tilde_setup(void);
 void dcs_onset_tilde_setup(void);
 void dcs_reverb_tilde_setup(void);
+void dcs_voice_tilde_setup(void);
 
 void dcs_setup(void)
 {
@@ -24,5 +25,6 @@ void dcs_setup(void)
     dcs_shift_tilde_setup();
     dcs_onset_tilde_setup();
     dcs_reverb_tilde_setup();
-    post("dcs %s: dcs_glitch~ dcs_string~ dcs_derustle~ dcs_pitch~ dcs_shift~ dcs_onset~ dcs_reverb~", DCS_VERSION);
+    dcs_voice_tilde_setup();
+    post("dcs %s: dcs_glitch~ dcs_string~ dcs_derustle~ dcs_pitch~ dcs_shift~ dcs_onset~ dcs_reverb~ dcs_voice~", DCS_VERSION);
 }

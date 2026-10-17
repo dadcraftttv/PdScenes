@@ -348,5 +348,41 @@ diff = np.abs(outs[0] - outs[1]).max(); peak = np.abs(outs[0]).max()
 check(peak > 0.05 and diff < 1e-5 * max(peak, 1), f"matches the Pd-object reverb sample for sample (worst {diff:.1e}, peak {peak:.2f}), both ears")
 check(costs[1] < 0.75 * costs[0], f"costs {100 * costs[1] / costs[0]:.0f}% of the Pd-object version (the maths is the same: it saves the overhead of ~100 objects)")
 
+# ---------------------------------------------------------------- dcs_voice~
+print("dcs_voice~:")
+vp = patch("voice", ["r vc", "dcs_voice~", "dac~"], [(0, 0, 1, 0), (1, 0, 2, 0), (1, 0, 2, 1)])
+def play(msgs, secs, then=(), then_at=None):
+    e = Engine(LIB, vp)
+    for m in msgs:
+        e.send_msg("vc", m[0], *m[1:])
+    if then_at is None:
+        y = e.run(np.zeros(int(secs * SR), np.float32))[:, 0]
+    else:
+        a = e.run(np.zeros(int(then_at * SR), np.float32))[:, 0]
+        for m in then:
+            e.send_msg("vc", m[0], *m[1:])
+        y = np.concatenate([a, e.run(np.zeros(int((secs - then_at) * SR), np.float32))[:, 0]])
+    e.close(); return y
+def harm(y, f0, k):
+    t = np.arange(len(y)) / SR; return abs(np.mean(y * np.exp(-2j * np.pi * f0 * k * t)))
+y = play([("engine", 1), ("bright", 0.3), ("note", 220, 0.5, 1500)], 2.0)
+w = y[int(0.05 * SR):int(0.5 * SR)]
+check(abs(peak_hz(w, 200, 240) / 220 - 1) < 0.002 and harm(w, 220, 1) > 3 * harm(w, 220, 2) and 0.05 < np.abs(y).max() < 1
+      and db_frames(y)[-5:].mean() < db_frames(y)[:5].mean() - 30,
+      f"pluck: in tune, the note leads its overtones, dies away (peak {np.abs(y).max():.2f})")
+y = play([("engine", 2), ("attack", 300), ("release", 600), ("pnote", 0, 110)], 4.0, [("pnote", 0, 165)], 2.5)
+held = db_frames(y[int(1.0 * SR):int(2.4 * SR)], 100)   # (100 ms frames: 20 ms hold ~2 periods of 110 Hz and ripple by themselves)
+late = y[int(3.4 * SR):]
+check(held.max() - held.min() < 4 and held.mean() > -20 and abs(peak_hz(y[int(1.0 * SR):int(2.4 * SR)], 100, 120) / 110 - 1) < 0.003
+      and harm(late, 165, 1) > 5 * harm(late, 110, 1),
+      f"bowed: a held note stays level ({held.max() - held.min():.1f} dB swing), then the slot moves to the new note")
+y = play([("engine", 2), ("release", 300), ("pnote", 0, 110)], 3.0, [("poff", 0)], 1.5)
+check(np.abs(y[int(2.4 * SR):]).max() < 1e-3, "bowed: poff lets it go")
+y = play([("engine", 3), ("modal", 1), ("note", 440, 0.5, 2000)], 2.5)
+w = y[int(0.02 * SR):int(0.6 * SR)]
+check(abs(peak_hz(w, 400, 480) / 440 - 1) < 0.002 and harm(w, 440 * 2.76, 1) > 0.1 * harm(w, 440, 1) and 0.02 < np.abs(y).max() < 1,
+      f"modal bell: the note and its 2.76x partial, struck once (peak {np.abs(y).max():.2f})")
+check(np.abs(play([("engine", 0), ("note", 440, 0.5, 1000)], 1.0)).max() == 0, "engine 0 plays nothing")
+
 print("ALL PASSED" if not fails else f"{len(fails)} FAILED")
 sys.exit(1 if fails else 0)
