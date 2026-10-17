@@ -14,6 +14,7 @@ import numpy as np
 
 SR = 48000
 BLOCK = 64
+DCS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "dcs", "build")   # our own objects (make -C dcs)
 
 
 class Engine:
@@ -47,7 +48,7 @@ class Engine:
         L.libpd_add_float(1.0)
         L.libpd_finish_message(b"pd", b"dsp")
         L.libpd_add_to_search_path.argtypes = [ctypes.c_char_p]
-        for extra in search_path:   # like PdBase.addToSearchPath: folders every patch can use
+        for extra in (DCS,) + tuple(search_path):   # like PdBase.addToSearchPath: folders every patch can use
             L.libpd_add_to_search_path(os.path.abspath(extra).encode())
         d, f = os.path.split(os.path.abspath(patch_path))
         self.handle = L.libpd_openfile(f.encode(), d.encode())

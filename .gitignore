@@ -12,3 +12,5 @@ tools/.venv/
 desktop/lib/
 desktop/build/
 tools/.pdcore/
+tools/.dcs-android/
+dcs/build/
