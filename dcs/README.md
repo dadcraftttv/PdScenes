@@ -20,6 +20,10 @@ objects or with anyone's abstractions.
   - several glitches can sound at once, each starting on its exact sample (as with `vline~`) and placed
     between the ears.
 
+- **`[dcs_derustle~ amount above-dB release-ms]`** — squashes sudden bursts that jump far above a signal's own
+  quiet floor and leaves the floor alone (made for cloth rustle on a pocketed phone's mic). Outputs the processed
+  signal and the gain it applied, so other signals can be squashed alike.
+
 Each object's source file starts with a full description of what it does.
 
 ## Building

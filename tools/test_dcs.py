@@ -198,5 +198,34 @@ f_a = peak_hz(out[100 * ms:600 * ms], 300, 900)
 f_b = peak_hz(out[1500 * ms:2000 * ms], 300, 900)
 check(0 < f_b - f_a < 60, f"stretch moves on slowly: a rising sweep rises 10x slower ({f_a:.0f} -> {f_b:.0f} Hz over 1.4 s)")
 
+# ---------------------------------------------------------------- dcs_derustle~
+print("dcs_derustle~:")
+d = patch("derustle", ["adc~", "dcs_derustle~", "r dr", "dac~"], [(0, 0, 1, 0), (2, 0, 1, 0), (1, 0, 3, 0), (1, 1, 3, 1)])
+rng = np.random.default_rng(4)
+def rustle_room(secs=8.0, room_db=-45, burst_db=-22, every=0.6, burst_ms=80):
+    """A steady room (noise) with bursts of rustle every `every` s from 2 s on; returns the signal and a burst mask."""
+    n = int(secs * SR); x = rng.standard_normal(n) * 10 ** (room_db / 20)
+    mask = np.zeros(n, bool)
+    for t in np.arange(2.0, secs - 0.2, every):
+        i = int(t * SR); k = int(burst_ms * SR / 1000)
+        x[i:i + k] += rng.standard_normal(k) * 10 ** (burst_db / 20) * np.hanning(k) * 1.6; mask[i:i + k] = True
+    return x.astype(np.float32), mask
+def derustle(x, amount):
+    e = Engine(LIB, d); e.send_msg("dr", "amount", amount); y = e.run(x); e.close(); return y
+x, mask = rustle_room()
+y1, y0 = derustle(x, 1), derustle(x, 0)
+lv = lambda v: 20 * np.log10(np.sqrt(np.mean(v ** 2)) + 1e-12)
+late = np.arange(len(x)) > 3 * SR
+gap = late & ~np.convolve(mask, np.ones(int(0.12 * SR)), "same").astype(bool)     # well clear of a burst
+cut = lv(x[late & mask]) - lv(y1[late & mask, 0]); room = lv(x[gap]) - lv(y1[gap, 0])
+check(cut > 15 and abs(room) < 1, f"bursts 23 dB over the room come down {cut:.1f} dB, the room between them {room:+.2f} dB")
+check(np.allclose(y0[:, 0], x[:len(y0)], atol=1e-7), "amount 0 leaves the sound untouched")
+tone = (0.2 * np.sin(2 * np.pi * 220 * np.arange(4 * SR) / SR)).astype(np.float32)
+g = derustle(tone, 1)[SR:, 1]
+check(g.min() > 0.97, f"a steady tone isn't pumped (lowest gain {g.min():.3f})")
+step = np.concatenate([rng.standard_normal(3 * SR) * 0.003, rng.standard_normal(5 * SR) * 0.05]).astype(np.float32)
+g = derustle(step, 1)[:, 1]
+check(g[int(5.5 * SR):].min() > 0.9, f"a room that gets 24 dB louder and stays is let through within ~2.5 s (gain after {g[int(5.5 * SR):].min():.2f})")
+
 print("ALL PASSED" if not fails else f"{len(fails)} FAILED")
 sys.exit(1 if fails else 0)
