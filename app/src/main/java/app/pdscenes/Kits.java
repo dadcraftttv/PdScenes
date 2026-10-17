@@ -9,7 +9,7 @@ import java.util.Map;
 
 /**
  * Kits: what each part of the music sounds like (Oct 17). The music engine decides the notes; a kit gives each part
- * (melody, bass, pad) an engine of the patch's kit voice (dcs_voice~) and its settings, or leaves it Classic.
+ * (melody, bass, pad, drums) an engine of the patch's kit voice (dcs_voice~) and its settings, or leaves it Classic.
  *
  * A kit is a text file (assets/kits/<name>.txt; user kits later), one line per part:
  * <pre>
@@ -23,15 +23,16 @@ import java.util.Map;
  */
 final class Kits {
     static final String ID = "kit";
-    static final String[] PARTS = {"mel", "bass", "pad"};
+    static final String[] PARTS = {"mel", "bass", "pad", "drums"};
     /** The Kit menu, in order (Params' choices for "kit" follow it). */
-    static final String[] BUILT_IN = {"classic", "acoustic", "synth"};
-    static final String[] ENGINES = {"classic", "pluck", "bowed", "modal", "analog"};
+    static final String[] BUILT_IN = {"classic", "acoustic", "synth", "edm"};
+    static final String[] ENGINES = {"classic", "pluck", "bowed", "modal", "analog", "drums"};
     static final String[] MODAL = {"", "bell", "marimba", "bowl"};
     /** The voice's own defaults, sent before a kit's settings (so nothing lingers from the kit before). */
     static final String[][] DEFAULTS = {{"engine", "0"}, {"bright", "0.4"}, {"level", "1"}, {"attack", "300"},
             {"release", "800"}, {"decay", "3000"}, {"modal", "1"}, {"cutoff", "4"}, {"reso", "0.3"}, {"fenv", "6"},
-            {"detune", "8"}, {"sub", "0.3"}};
+            {"detune", "8"}, {"sub", "0.3"}, {"saws", "2"}, {"ktune", "50"}, {"kdecay", "350"}, {"kdrive", "0.3"},
+            {"stone", "185"}, {"sdecay", "180"}, {"hdecay", "45"}, {"pump", "0"}, {"pumprel", "250"}};
 
     /** Reads a built-in kit's text (assets on the phone, files on the desktop); null if missing. */
     interface Source {
@@ -52,7 +53,7 @@ final class Kits {
     static volatile Source source;
     /** The kit each part last got (-1 = none yet): a part whose kit didn't change isn't sent again (its held notes
      *  would start over). */
-    private static final int[] sentKit = {-1, -1, -1};
+    private static final int[] sentKit = {-1, -1, -1, -1};
 
     private Kits() {
     }

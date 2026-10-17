@@ -145,7 +145,21 @@ to date in the same commit when behaviour changes.
   near Classic. The kits test now checks every kit plays in key at Classic's level (each run in a process hears
   other random chords; a dying pluck's FFT lobe had ripples just under the note: take the 3 strongest peaks 20 Hz
   apart). **Marker**: `Param.dcs()` -> `shown()` adds " *" on phone and desktop to every setting using our C
-  objects (Samuel, Oct 17; content descriptions stay plain). Not yet: user kits, drums, register Low for kit pads.
+  objects (Samuel, Oct 17; content descriptions stay plain). **EDM kit** (Oct 17, step 2): drums are a 4th part
+  (`kit_drums`, `kd_voice`, "Drums from" `kitp_drums`); dcs_voice~ engine 5 drums: `hit <0 kick|1 snare|2 hat>
+  <vel> [hat decay]` (kick: a sine diving from 4x `ktune` over 30 ms, `kdecay`, a 3 ms click, tanh `kdrive`;
+  snare: `stone` and 1.83x tones over 80 ms + one-pole high-passed noise over `sdecay`; hat: noise high-passed
+  twice, `hdecay` or the hit's own); it plays the pattern engine's `drum_kick` / `drum_snare` and `rh_h_v` (vel,
+  decay), scaled by mix_kick, beat_snare / 0.6, beat_hats / 0.5 (`add_kit_drums`); the Classic beat (synth + found:
+  `beat_sum00`) x `kit_drums_cl`. Supersaw: `saws` 1..7 spread across `detune` (2 = the note and +detune, as
+  before), 1.41 / sqrt(n) each, every saw from a random phase (no "zap"). **Pump**: `pump` depth and `pumprel` ms
+  come with the drums part (`route pump pumprel` in the patch, ignored by the voice); each drum_kick (while
+  beat_level > 0) snaps `kit_pump` (vline~) to 1 - depth in 4 ms and back over pumprel, on `mu_mix0` (pad, bass,
+  chimes; not room notes or harmony). edm.txt: supersaw lead (7 saws, 22 c), sub bass (sub 0.9), supersaw pad
+  (7 saws, 30 c), drums ktune 52 kdecay 380 kdrive 0.6, pump 0.55 / 220 ms; drums level 0.38 (0.068 rms = Classic's).
+  Measured in the patch: the music dips 5.3 dB right after each kick (median of 10), +0.4 without the pump.
+  Not yet: user kits, register Low for kit pads, kit drums in "Your steps" mode (the old step drums send no
+  drum_* messages).
 - Waiting on Samuel's ears for both. Not in the tester guide (prototype). `dcs_derustle~` (Oct 17): see Pocket rustle. Ideas next: analog-style ladder filter,
   oversampled distortion/crush, a lighter pitch tracker than sigmund~, a dcs phaser, more glitch kinds.
 

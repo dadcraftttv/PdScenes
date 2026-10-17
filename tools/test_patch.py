@@ -77,7 +77,7 @@ check(not bad, "patch loads with no Pd errors" + (": %s" % bad if bad else ""))
 
 jp = java_params()
 patch_text = open(PATCH).read()
-receivers = set(re.findall(r"#X obj \d+ \d+ r (\w+);", patch_text)) - {"step", "scale_n", "pad_glide", "mic_level", "pad_slot", "pool_n", "pool_x", "pocket", "pocket_down", "duck", "step_strength", "step_hit", "beat_sure", "groove", "gc_mode", "gc_try", "density_on", "motif", "drift_now", "drift_set", "drift_n", "music_register", "music_warm", "pulse", "tick16", "clock_walking", "gc_mode", "fs_need", "harm_organ", "fpad_need", "harm_run", "fpad_kick", "fpad_caught", "rh_swing_set", "fs_flourish_set", "rn_ring", "rnf_found", "realm_cue", "handling", "jolt", "msync", "tempo", "calm_chimes", "stem_on", "stem_file", "stem_bars", "stem_lvl", "stem_start", "heard_deg", "heard_off", "shift_voice_c", "harm_tracker_c", "kit_mel", "kit_bass", "kit_pad", "kit_bass_new", "kit_pad_new"} - {r for r in re.findall(r"#X obj \d+ \d+ r (sw_\w+);", open(PATCH).read())}   # events and internal links, not settings
+receivers = set(re.findall(r"#X obj \d+ \d+ r (\w+);", patch_text)) - {"step", "scale_n", "pad_glide", "mic_level", "pad_slot", "pool_n", "pool_x", "pocket", "pocket_down", "duck", "step_strength", "step_hit", "beat_sure", "groove", "gc_mode", "gc_try", "density_on", "motif", "drift_now", "drift_set", "drift_n", "music_register", "music_warm", "pulse", "tick16", "clock_walking", "gc_mode", "fs_need", "harm_organ", "fpad_need", "harm_run", "fpad_kick", "fpad_caught", "rh_swing_set", "fs_flourish_set", "rn_ring", "rnf_found", "realm_cue", "handling", "jolt", "msync", "tempo", "calm_chimes", "stem_on", "stem_file", "stem_bars", "stem_lvl", "stem_start", "heard_deg", "heard_off", "shift_voice_c", "harm_tracker_c", "kit_mel", "kit_bass", "kit_pad", "kit_drums", "kit_bass_new", "kit_pad_new", "drum_kick", "drum_snare"} - {r for r in re.findall(r"#X obj \d+ \d+ r (sw_\w+);", open(PATCH).read())}   # events and internal links, not settings
 pd_ids = {i for i, _, nopd in jp if not nopd}
 check(len(jp) >= 10, "parsed %d params from Params.java" % len(jp))
 check(pd_ids == receivers, "Params.java ids == patch receivers (java-only %s, patch-only %s)"
@@ -1811,22 +1811,23 @@ check(all(abs(a - b) < 4 for a, b in zip(pr, ps)) and ts > 0.4 and 0.5 < ls / lr
       % ([round(v) for v in ps], [round(v) for v in pr], ts, tr, ls, lr_))
 # Kits: Classic changes nothing; Acoustic plays each part's notes through its kit voice and the Classic sound gives way
 KIT_DEFAULTS = (("bright", 0.4), ("level", 1), ("attack", 300), ("release", 800), ("decay", 3000), ("modal", 1),
-                ("cutoff", 4), ("reso", 0.3), ("fenv", 6), ("detune", 8), ("sub", 0.3))
+                ("cutoff", 4), ("reso", 0.3), ("fenv", 6), ("detune", 8), ("sub", 0.3), ("saws", 2), ("ktune", 50),
+                ("kdecay", 350), ("kdrive", 0.3), ("stone", 185), ("sdecay", 180), ("hdecay", 45), ("pump", 0), ("pumprel", 250))
 def read_kit(name):
     """A kit file as Kits.java reads it: part -> [(setting, value)], the engine last."""
-    eng, modal, kit = ["classic", "pluck", "bowed", "modal", "analog"], ["", "bell", "marimba", "bowl"], {}
+    eng, modal, kit = ["classic", "pluck", "bowed", "modal", "analog", "drums"], ["", "bell", "marimba", "bowl"], {}
     for line in open(os.path.join(ROOT, "app/src/main/assets/kits", name + ".txt")):
         key, _, rest = line.strip().partition(":")
-        if line.startswith("#") or key not in ("mel", "bass", "pad"):
+        if line.startswith("#") or key not in ("mel", "bass", "pad", "drums"):
             continue
         items = [w.split() for w in rest.split(",") if len(w.split()) >= 2]
         vals = [(k, eng.index(v) if k == "engine" else modal.index(v) if k == "modal" else float(v)) for k, v, *_ in items]
         kit[key] = [kv for kv in vals if kv[0] != "engine"] + [kv for kv in vals if kv[0] == "engine"]
     return kit
 ACOUSTIC = read_kit("acoustic")
-KITS = {name: read_kit(name) for name in ("acoustic", "synth")}
+KITS = {name: read_kit(name) for name in ("acoustic", "synth", "edm")}
 def send_kit(e, kit):
-    for part in ("mel", "bass", "pad"):
+    for part in ("mel", "bass", "pad", "drums"):
         e.send_msg("kit_" + part, "engine", 0)
         for k, v in KIT_DEFAULTS:
             e.send_msg("kit_" + part, k, v)
@@ -1834,6 +1835,12 @@ def send_kit(e, kit):
             e.send_msg("kit_" + part, k, v)
 def kit_run(kit, part):
     """Music with only `part` audible (melody: motif notes; bass: Pad register Low; pad: Mid), the kit sent or not."""
+    if part == "drums":                                                     # the beat alone, synth drums for Classic
+        e = fresh(music_on=0, wet=0, beat_level=1, beat_follow=1, beat_when=1, rhythm_src=0)
+        if kit is not None:
+            send_kit(e, kit)
+        x = (np.random.default_rng(3).standard_normal(6 * SR) * 0.0005).astype(np.float32)
+        return e.run(x[:5 * SR])[:, 0][2 * SR:]
     over = dict(music_on=1, music_arp=1 if part == "mel" else 0, music_res=0, wet=0, music_react=0, melody_src=0, pad_src=0, bass_src=0,
                 music_pad=1 if part != "mel" else 0, music_pad_reg={"mel": 2, "bass": 0, "pad": 1}[part])
     e = fresh(**over)
@@ -1847,7 +1854,7 @@ def kit_run(kit, part):
             e.send_list("motif", deg, 0.5); ys.append(e.run(x[SR:2 * SR])[:, 0])
         return np.concatenate(ys)
     return e.run(x[:5 * SR])[:, 0][2 * SR:]
-for name, part in [(n, p) for n in KITS for p in ("mel", "bass", "pad")]:
+for name, part in [(n, p) for n in KITS for p in ("mel", "bass", "pad", "drums") if p in KITS[n]]:
     y_none, y_classic, y_ac = kit_run(None, part), kit_run({}, part), kit_run(KITS[name], part)
     def strongest(y, n=3, apart=20):
         """The n strongest spectral peaks at least `apart` Hz apart (a fast-dying pluck is a broad lobe whose ripples
@@ -1865,9 +1872,31 @@ for name, part in [(n, p) for n in KITS for p in ("mel", "bass", "pad")]:
     # (Classic = engine 0: no kit voice, the part's own sound. Two runs in one process never match sample for sample:
     #  Pd's random choices go on from run to run, so "unchanged" is checked by level here, and exactly in test_dcs/Q)
     check(0.75 < rms(y_classic) / rms(y_none) < 1.33 and 0.5 < rms(y_ac) / rms(y_none) < 2 and rms(y_none - y_ac) > 0.3 * rms(y_none)
-          and f_ac and all(in_key(f) for f in f_ac),
+          and f_ac and (part == "drums" or all(in_key(f) for f in f_ac)),
           "kits, %s %s: Classic unchanged; it plays in key, differently, about as loud (rms %.4f vs %.4f, peaks %s vs %s)"
           % (name, part, rms(y_ac), rms(y_none), [round(f) for f in f_ac[:3]], [round(f) for f in f_none]))
+# kits, the EDM pump: a held pad dips at every kick (the kit's drums silenced by the Mix trims, so only the pump is heard)
+def pumped(pump):
+    kit = {k: list(v) for k, v in KITS["edm"].items()}
+    kit["drums"] = [kv for kv in kit["drums"] if kv[0] != "pump"] + [("pump", pump)]
+    kit["drums"] = [kv for kv in kit["drums"] if kv[0] != "engine"] + [("engine", 5)]
+    e = fresh(music_on=1, music_pad=1, music_arp=0, music_res=0, wet=0, music_pad_reg=1, pad_src=0, beat_level=1,
+              beat_follow=1, beat_when=1, rhythm_src=0, mix_kick=0, beat_snare=0, beat_hats=0)
+    send_kit(e, {"drums": kit["drums"]})
+    e.listen("drum_kick"); x = (np.random.default_rng(3).standard_normal(10 * SR) * 0.0005).astype(np.float32)
+    ys, times, n = [], [], 0
+    for i in range(0, len(x), 64):                                 # block by block, so each kick has a time
+        ys.append(e.run(x[i:i + 64])[:, 0]); m = len(e.heard["drum_kick"])
+        times += [i] * (m - n); n = m
+    y = np.concatenate(ys)
+    lv = lambda a, b: 20 * np.log10(rms(y[a:b]) + 1e-9)
+    # (the pad swells and changes chord by itself: compare just after each kick with just before it)
+    dips = [lv(t + int(0.005 * SR), t + int(0.06 * SR)) - lv(t - int(0.06 * SR), t - int(0.005 * SR))
+            for t in times if SR < t < len(y) - int(0.1 * SR)]
+    return (float(np.median(dips)) if dips else 0.0), len(dips)
+dip_on, kicks = pumped(0.55); dip_off, _ = pumped(0)
+check(kicks >= 4 and dip_on < -4 and abs(dip_off) < 1.5,
+      "kits, EDM pump: the music dips %.1f dB at each kick, without the pump %+.1f (%d kicks)" % (dip_on, dip_off, kicks))
 # Room notes, found: after a catch, each sudden sound plays a caught sound on a chord tone (the ring resonators off)
 def room_found(src):
     x = (np.random.default_rng(3).standard_normal(9 * SR) * 0.0005).astype(np.float32)

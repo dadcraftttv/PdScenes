@@ -1781,7 +1781,10 @@ def add_beat(P):
     P.sig2("fs_hat_l", "*~", fs_hat, hats, x + 900, 400)
     P.sig2("beat_hats_all", "+~", "hat", "fs_hat_l", x + 750, 410)
     P.sig2("beat_sum00", "+~", "beat_kick_snare", "beat_hats_all", x, 525)
-    P.sig2("beat_sum0", "+~", "beat_sum00", add_glitch_loop(P, x + 3000), x, 530)   # (C5: glitch loops in the beat)
+    # a kit's drums (Kits): the Classic drums (synth and found) give way to the kit's drum voice
+    P.sig2("beat_sum00c", "*~", "beat_sum00", "kit_drums_cl", x, 526)
+    P.sig2("beat_sum00k", "+~", "beat_sum00c", "kd_voice", x, 527)
+    P.sig2("beat_sum0", "+~", "beat_sum00k", add_glitch_loop(P, x + 3000), x, 530)   # (C5: glitch loops in the beat)
     P.sig2("beat_sum", "*~", "beat_sum0", "rh_gain", x, 535)            # softer standing still (the pattern engine)
     lvl = smoothed(P, "beat_level", "beat_level", x + 1050, 20)
     bon = smoothed(P, "beat_on", "beat_on", x + 1150, 20)
@@ -2792,7 +2795,8 @@ def add_music(P):
     P.sig2("mu_pad_out", "*~", "mu_pad_br", pad_lvl, px, 900)
     P.sig2("mu_chime_out", "*~", "mu_chime_lp", arp_lvl, px + 200, 900)
     P.sig2("mu_mix0", "+~", "mu_pad_out", "mu_chime_out", px, 930)
-    P.sig2("mu_mix1", "+~", "mu_mix0", add_room_notes(P, x + 2500, ex, degree_to_hz), px, 940)
+    P.sig2("mu_mix0p", "*~", "mu_mix0", "kit_pump", px, 935)          # a kit's sidechain pump (Kits): ducks at its kicks
+    P.sig2("mu_mix1", "+~", "mu_mix0p", add_room_notes(P, x + 2500, ex, degree_to_hz), px, 940)
     P.sig2("mu_mix", "+~", "mu_mix1", add_harmony(P, x + 3400, ex, degree_to_hz), px, 945)
     P.sig2("mu_out", "*~", "mu_mix", mon, px, 960)
     return "mu_out"
@@ -3556,8 +3560,8 @@ def add_kits(P, x=3000, y=1700):
     kit_<part> (Kits.java sends them from a kit file: `engine <n>` and the engine's settings). Engine 0 = Classic: the
     part's own sound, as always. Otherwise the part's notes also go to its kit voice and its Classic sound gives way
     (melody: value kmel in the voices' expr; bass and pad: kit_<part>_cl, 1 or 0, faded over 50 ms)."""
-    for part, voice in (("mel", "mu_kv_mel"), ("bass", "ba_kv"), ("pad", "mu_kv_pad")):
-        xx = x + 300 * ("mel", "bass", "pad").index(part)
+    for part, voice in (("mel", "mu_kv_mel"), ("bass", "ba_kv"), ("pad", "mu_kv_pad"), ("drums", "kd_voice")):
+        xx = x + 300 * ("mel", "bass", "pad", "drums").index(part)
         P.obj(f"kit_{part}_r", f"r kit_{part}", xx, y)
         P.obj(voice, "dcs_voice~", xx, y + 60); P.c(f"kit_{part}_r", voice)
         P.obj(f"kit_{part}_rt", "route engine", xx + 100, y + 20); P.c(f"kit_{part}_r", f"kit_{part}_rt")
@@ -3571,6 +3575,35 @@ def add_kits(P, x=3000, y=1700):
             P.obj(f"kit_{part}_cl", "line~", xx + 100, y + 80); P.c(f"kit_{part}_pk", f"kit_{part}_cl")
             P.obj(f"kit_{part}_lb", "loadbang", xx + 200, y + 40); P.msg(f"kit_{part}_one", "1", xx + 200, y + 60)
             P.c(f"kit_{part}_lb", f"kit_{part}_one"); P.c(f"kit_{part}_one", f"kit_{part}_cl")
+
+
+def add_kit_drums(P, x=4300, y=1700):
+    """The kit's drums play the pattern engine's hits (drum_kick / drum_snare, hats with their decay), scaled by the
+    Mix's kick trim, Snare and Hat levels (each over its default). The kit's pump (`pump` depth, `pumprel` ms, sent
+    with the drums part) ducks the music at each kick while the beat is audible."""
+    def ex(name, text, xx, yy):
+        return P.obj(name, "expr " + text.replace(",", BS + ",").replace("$", BS + "$").replace(" ; ", " " + BS + "; "), xx, yy)
+    for nm, recv in (("kdm_k", "mix_kick"), ("kdm_s", "beat_snare"), ("kdm_h", "beat_hats"), ("kdm_bl", "beat_level")):
+        P.obj(f"{nm}_r", f"r {recv}", x + 60 * len(nm), y); P.obj(f"{nm}_v", f"value {nm}", x + 60 * len(nm), y + 15)
+        P.c(f"{nm}_r", f"{nm}_v")
+    P.obj("kd_rk", "r drum_kick", x, y + 40); ex("kd_k", "$f1*kdm_k", x, y + 60); P.msg("kd_km", f"hit 0 {BS}$1", x, y + 80)
+    P.c("kd_rk", "kd_k"); P.c("kd_k", "kd_km"); P.c("kd_km", "kd_voice")
+    P.obj("kd_rs", "r drum_snare", x + 100, y + 40); ex("kd_s", "$f1*kdm_s/0.6", x + 100, y + 60)
+    P.msg("kd_sm", f"hit 1 {BS}$1", x + 100, y + 80); P.c("kd_rs", "kd_s"); P.c("kd_s", "kd_sm"); P.c("kd_sm", "kd_voice")
+    P.obj("kd_hp", "pack f f", x + 200, y + 60); P.c("rh_h_v", "kd_hp", 1, 1); P.c("rh_h_v", "kd_hp", 0, 0)
+    ex("kd_h", "$f1*kdm_h/0.5 ; $f2", x + 200, y + 70)
+    P.obj("kd_hu", "unpack f f", x + 200, y + 65); P.c("kd_hp", "kd_hu"); P.c("kd_hu", "kd_h", 1, 1); P.c("kd_hu", "kd_h", 0, 0)
+    P.obj("kd_hk", "pack f f", x + 200, y + 75); P.c("kd_h", "kd_hk", 1, 1); P.c("kd_h", "kd_hk", 0, 0)
+    P.msg("kd_hm", f"hit 2 {BS}$1 {BS}$2", x + 200, y + 80); P.c("kd_hk", "kd_hm"); P.c("kd_hm", "kd_voice")
+    # the pump: depth and release from the drums part's settings
+    P.obj("kd_pr", "route pump pumprel", x + 300, y + 20); P.c("kit_drums_r", "kd_pr")
+    P.obj("kd_pd", "value pumpd", x + 300, y + 40); P.obj("kd_prl", "value pumprel", x + 380, y + 40)
+    P.c("kd_pr", "kd_pd", 0, 0); P.c("kd_pr", "kd_prl", 1, 0)
+    ex("kd_pump", "1-pumpd*(kdm_bl>0) ; max(pumprel,20)", x + 300, y + 60); P.c("kd_rk", "kd_pump")
+    P.obj("kd_pp", "pack f f", x + 300, y + 75); P.c("kd_pump", "kd_pp", 1, 1); P.c("kd_pump", "kd_pp", 0, 0)
+    P.msg("kd_pm", f"{BS}$1 4 {BS}, 1 {BS}$2 4", x + 300, y + 85); P.c("kd_pp", "kd_pm")
+    P.obj("kit_pump", "vline~", x + 300, y + 100); P.c("kd_pm", "kit_pump")
+    P.obj("kd_plb", "loadbang", x + 400, y + 80); P.msg("kd_p1", "1", x + 400, y + 90); P.c("kd_plb", "kd_p1"); P.c("kd_p1", "kit_pump")
 
 
 def add_onset_switch(P, x=2600, y=20):
@@ -4688,6 +4721,7 @@ def build():
 
     add_onset_switch(P)
     add_kits(P)
+    add_kit_drums(P)
 
     # --- defaults on load (desktop Pd / standalone) ---
     P.obj("loadbang", "loadbang", 20, 780)
