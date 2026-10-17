@@ -165,6 +165,52 @@ Plan first, agreed with Samuel, then build; test on the phone after every step. 
 Release prep (separate list): final name + applicationId (not "RjDj"), `source_url`, privacy policy, Play foreground-service
 and microphone declarations, icon, store listing, numbered pd-core release.
 
+18. **Our own objects (`dcs/`), the queue (Samuel, Oct 17: "i'd like to do all of this").** Each one behind a switch,
+    with its own tests (tools/test_dcs.py), the old sound the default until Samuel's ears say otherwise. Built so far:
+    dcs_string~, dcs_glitch~, dcs_derustle~.
+    - Voices: **dcs_shift~** (clean pitch shifter for Pitch and "Your voice" harmony, keeping the voice's own tone
+      colour: no chipmunk, no warble). **dcs_pitch~** (a light pitch tracker to replace sigmund~, about half of Harmony's
+      cost: battery).
+    - Listening: **dcs_onset~** (sudden sounds by change of tone colour, not loudness only: fewer false triggers, the
+      found kit sorted by its real sound). **dcs_listen~** (talking / music / traffic / wind: Realms follow what the
+      room is like; music nearby could lock the beat to it). **dcs_dewind~** (wind on the mic outdoors, like rustle).
+    - Tone: **dcs_ladder~** (Moog-style filter: resonance that growls), **dcs_drive~** (oversampled distortion and
+      crush: no fizz), **dcs_reverb~** (moving internal echoes, a shimmer mode for Ghost; the reverb is ~13% of the
+      patch), **dcs_phaser~** (per-sample, ~10% of the patch now).
+    - Instruments: **dcs_modal~** (tuned resonator banks: bells, bowls, marimba from caught sounds), **dcs_freeze~**
+      (hold a moment as a drone), **dcs_grain~** (the room as a particle cloud). Several of these are kit voices (19).
+    - When a few are solid: publish dcs on deken (Pd's package manager) for Pd users and scene authors.
+
+19. **Kits: the sound of the music, chosen and mixed per part (Samuel, Oct 17; to replace the stems player).**
+    The music brain (patterns, chords, melody, rhythm, call and response) stays one engine; a **kit** says what each
+    part sounds like. Styles Samuel named: acoustic, fully synth, EDM-adjacent, future bass, low end; mixing and
+    matching parts between kits; users and sound designers making their own and loading them in.
+    - **Parts (roles):** kick, snare, hat, percussion, bass, pad, chimes/lead, walking notes (arpeggio), harmony,
+      texture. Each part in a kit names a **voice engine** and its settings.
+    - **Voice engines** (C, `dcs_voice~`: one polyphonic object per part, notes in as `note <pitch> <velocity>
+      <length>`, engine and settings by message, so a kit is data, not patch code): found (the mic's caught sounds, as
+      now), sample (one-shots and multi-samples from the kit's files, pitched across the keyboard), string
+      (dcs_string~), modal (bells, bowls, marimba), analog (oscillators into dcs_ladder~), FM (bells, electric piano,
+      basses), supersaw (detuned saw stacks: EDM and future bass chords), sub (808-style sine with glide and drive),
+      noise/drum synth (kicks, snares, hats), grain (textures).
+    - **Kit-wide character:** drive, filter, a sidechain pump (future bass and EDM: everything ducks to the kick),
+      chord voicing (spread, octave doubling), pitch bends (future bass wobbles), the kit's own mix.
+    - **Built-in kits** (first set): Classic (today's sounds, exactly), Acoustic (string, modal bells, found
+      percussion, plucked bass), Synth (analog through the ladder), EDM (909-style drums, supersaw, pump), Future
+      bass (supersaw chords with wobble, chopped found voice, pump), Low end (808 sub, deep pad, sparse top).
+    - **Mix and match:** Music tab "Kit" picks a whole kit; each part can be taken from another kit (drums from
+      Acoustic, bass from Low end...). Saved in presets, so a shared preset sounds the same for the friend who loads it.
+    - **User kits:** a kit is a folder or zip: kit.json (parts, engines, settings, mix) + its sample files. Imported
+      like stem packs today (reusing PackLibrary's import and decoding), shared like presets, and listed beside the
+      built-in ones. A documented format and a page for sound designers; the desktop app doubles as a kit-making
+      bench (hear a kit on the big speakers while editing kit.json).
+    - **Stems player:** kept until kits cover what it does, then retired (open question: a kit part could still be
+      a loop, which would let old stem packs load as kits).
+    - The mic still never touches disk: kits may bring their own files, and "found" parts stay in memory.
+    - **Order:** (a) dcs_voice~ with the engines Classic needs, so today's sound is reproduced behind a Kit switch,
+      (b) the first built-in kits one style at a time (each one Samuel's ears pass before the next), (c) mix and match
+      per part, (d) user kits and the format page, (e) retire stems.
+
 ## Compatibility and scene findings (PdParty, rjlib PDF, composer pack)
 
 - **Real scenes for testing.** `danomatika/PdParty` ships RjDj scenes in `res/patches/samples/rjdj/` (ApolloVoice, Atsuke, Boomerang,
