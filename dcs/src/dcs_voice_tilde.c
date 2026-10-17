@@ -5,7 +5,7 @@
  *
  *   [dcs_voice~]
  *   inlet:   messages
- *     engine <0 off | 1 pluck | 2 bowed | 3 modal | 4 analog | 5 drums | 6 chop>
+ *     engine <0 off | 1 pluck | 2 bowed | 3 modal | 4 analog | 5 drums | 6 chop | 7 sub>
  *     note <Hz> <velocity 0..1> <length ms> [<brightness 0..1>]   a note that rings and dies away by itself
  *     pnote <slot> <Hz> [<velocity>]   a held note in a slot (a pad's chord tone, the bass): when the slot gets a new
  *                                      pitch, the old note fades out over `release` while the new one comes in
@@ -22,6 +22,11 @@
  *             bend <semitones> and bendms: each note starts that far off and glides to its pitch
  *     chop: a note plays a short slice of the newest held voice the patch kept (tables fpad_<n>, fpad_f0, fpad_g,
  *             fpad_n), pitched to the note (folded by octaves); chop <ms> = its length. Nothing kept yet: analog.
+ *     sub: an 808: a sine with `drive` (0..1), dying over `decay` ms from each note; a held note that moves glides
+ *             there over `glide` ms (the slide), its level starting again; `retrig` starts the held notes' level
+ *             again (the patch sends it on the kicks, so the 808 plays in rhythm)
+ *     any engine: octave <n> (notes n octaves up or down), chance <0..1> (a ringing note plays with this chance:
+ *             a sparser part); hchance <0..1>: the same for drum hats
  *     pump, pumprel: accepted and ignored (a kit's sidechain settings, read by the patch)
  *   outlet:  the sound (mono)
  *
@@ -49,7 +54,8 @@
 #define PLUCK_GAIN 1.5f               /* each engine near the classic voices' loudness at velocity 1 */
 #define BOWED_GAIN 6.f
 
-enum { E_OFF, E_PLUCK, E_BOWED, E_MODAL, E_ANALOG, E_DRUMS, E_CHOP };
+enum { E_OFF, E_PLUCK, E_BOWED, E_MODAL, E_ANALOG, E_DRUMS, E_CHOP, E_SUB };
+#define SUB_GAIN 0.5f
 #define MAXSAWS 7
 #define CHOP_GAIN 0.15f               /* a chop near the analog fallback at the same `level` */
 #define ANALOG_GAIN 0.35f
@@ -87,6 +93,7 @@ typedef struct _vvoice
     int role;
     double t, dph, dhx, dhy, dh2x, dh2y, dec;
     float bendcur, bendk;              /* analog: semitones still to glide, the glide factor per sample */
+    double hzt, glidek;                /* sub: the pitch it glides to, per sample */
     /* chop */
     t_word *cvec;
     int clen;
@@ -104,6 +111,7 @@ typedef struct _dcs_voice
     float x_cutoff, x_reso, x_fenv, x_detune, x_sub;
     int x_saws;
     float x_wobble, x_wrate, x_bend, x_bendms, x_chop;
+    float x_octave, x_chance, x_hchance, x_glide, x_drive;
     double x_bpm, x_lfoph;
     float x_ktune, x_kdecay, x_kdrive, x_stone, x_sdecay, x_hdecay;
     unsigned long x_count;
@@ -213,6 +221,11 @@ static void voice_start(t_dcs_voice *x, t_vvoice *v, double hz, float vel, doubl
         v->gstep = (float)(1000. / ((x->x_attack > 1 ? x->x_attack : 1) * sr));
         v->life = slot < 0 ? len_ms * sr / 1000 : 0;
         break;
+    case E_SUB:
+        v->hzt = hz; v->dph = 0; v->t = 0; v->fenv = 1;     /* (fenv: the 808's level, falling) */
+        v->gain = 1; v->gstep = 0;
+        v->life = slot < 0 ? (len_ms > x->x_decay ? len_ms : x->x_decay) * 1.5 * sr / 1000 : 0;
+        break;
     case E_CHOP:
         {
             t_float fn, fs, f0, g;
@@ -285,11 +298,12 @@ static void voice_release(t_dcs_voice *x, t_vvoice *v)
 
 static void dcs_voice_note(t_dcs_voice *x, t_symbol *s, int argc, t_atom *argv)
 {
-    double hz = atom_getfloatarg(0, argc, argv), len = atom_getfloatarg(2, argc, argv);
+    double hz = atom_getfloatarg(0, argc, argv) * pow(2, x->x_octave), len = atom_getfloatarg(2, argc, argv);
     float vel = atom_getfloatarg(1, argc, argv);
     double bright = argc > 3 ? atom_getfloat(argv + 3) : x->x_bright;
     t_vvoice *v;
     if (x->x_engine == E_OFF || hz <= 0 || vel <= 0 || x->x_sr <= 0) return;
+    if (x->x_chance < 1 && 0.5 + 0.5 * voice_noise(x) >= x->x_chance) return;     /* (a sparser part) */
     v = voice_alloc(x);
     voice_start(x, v, hz, vel, len > 50 ? len : 50, bright, -1);
 }
@@ -299,12 +313,20 @@ static void dcs_voice_pnote(t_dcs_voice *x, t_floatarg fslot, t_floatarg hz, t_f
     int k, slot = (int)fslot;
     float vel = fvel > 0 ? fvel : 1;
     t_vvoice *v;
+    hz *= pow(2, x->x_octave);
     if (x->x_engine == E_OFF || hz <= 0 || x->x_sr <= 0) return;
     for (k = 0; k < NV; k++)
     {
         v = &x->x_v[k];
         if (v->on && v->slot == slot)
         {
+            if (v->engine == E_SUB && x->x_engine == E_SUB && !v->releasing)
+            {                                        /* the 808 slides to the new note, its level starting again */
+                if (fabs(v->hzt - hz) < 0.01) return;
+                v->hzt = hz; v->t = 0; v->fenv = 1; v->amp = vel;
+                v->glidek = x->x_glide > 1 ? 1 - exp(-1000. / (x->x_glide * 0.3 * x->x_sr)) : 1;
+                return;
+            }
             if (fabs(v->hz - hz) < 0.01 && v->engine == x->x_engine) return;     /* the same note: keep it */
             voice_release(x, v);
         }
@@ -399,6 +421,25 @@ static t_int *dcs_voice_perform(t_int *w)
             for (m = 0; m < 4; m++)
                 if (PD_BIGORSMALL(v->lad[m])) v->lad[m] = 0;
             if (v->releasing && v->gain <= 0) v->on = 0;
+        }
+        else if (v->engine == E_SUB)
+        {
+            /* the 808: a sine dying over `decay`, gliding to its target pitch, driven */
+            double sr = x->x_sr, dk = pow(10., -3. / ((x->x_decay > 10 ? x->x_decay : 10) * sr / 1000.));   /* (60 dB over decay) */
+            float drv = 1 + 4 * (x->x_drive < 0 ? 0 : (x->x_drive > 1 ? 1 : x->x_drive)), norm = tanhf(drv);
+            for (i = 0; i < n; i++)
+            {
+                float e = v->fenv, s_;
+                v->fenv *= (float)dk;
+                v->hz += (v->hzt - v->hz) * v->glidek;
+                v->dph += v->hz / sr;
+                if (v->dph >= 1) v->dph -= 1;
+                s_ = tanhf(drv * (float)sin(2 * M_PI * v->dph) * e) / norm;
+                if (v->releasing) { v->gain -= v->gstep; if (v->gain <= 0) { v->on = 0; break; } }
+                out[i] += s_ * v->gain * v->amp * SUB_GAIN * level;
+                v->t += 1;
+            }
+            if (v->t > x->x_decay * 0.008 * sr) v->on = v->releasing ? v->on : (v->slot >= 0 ? v->on : 0);
         }
         else if (v->engine == E_CHOP)
         {
@@ -532,12 +573,24 @@ static void dcs_voice_dsp(t_dcs_voice *x, t_signal **sp)
     dsp_add(dcs_voice_perform, 3, x, sp[0]->s_vec, (t_int)sp[0]->s_n);
 }
 
-static void dcs_voice_engine(t_dcs_voice *x, t_floatarg f) { x->x_engine = (int)f >= 0 && (int)f <= 6 ? (int)f : 0; if (!x->x_engine) dcs_voice_alloff(x); }
+static void dcs_voice_engine(t_dcs_voice *x, t_floatarg f) { x->x_engine = (int)f >= 0 && (int)f <= 7 ? (int)f : 0; if (!x->x_engine) dcs_voice_alloff(x); }
 static void dcs_voice_wobble(t_dcs_voice *x, t_floatarg f) { x->x_wobble = f; }
 static void dcs_voice_wrate(t_dcs_voice *x, t_floatarg f) { x->x_wrate = f > 0 ? f : 0; }
 static void dcs_voice_bend(t_dcs_voice *x, t_floatarg f) { x->x_bend = f; }
 static void dcs_voice_bendms(t_dcs_voice *x, t_floatarg f) { x->x_bendms = f; }
 static void dcs_voice_chopms(t_dcs_voice *x, t_floatarg f) { x->x_chop = f; }
+static void dcs_voice_octave(t_dcs_voice *x, t_floatarg f) { x->x_octave = f; }
+static void dcs_voice_retrig(t_dcs_voice *x)
+{
+    int k;
+    for (k = 0; k < NV; k++)
+        if (x->x_v[k].on && x->x_v[k].engine == E_SUB && x->x_v[k].slot >= 0 && !x->x_v[k].releasing)
+            x->x_v[k].fenv = 1;
+}
+static void dcs_voice_chance(t_dcs_voice *x, t_floatarg f) { x->x_chance = f; }
+static void dcs_voice_hchance(t_dcs_voice *x, t_floatarg f) { x->x_hchance = f; }
+static void dcs_voice_glide(t_dcs_voice *x, t_floatarg f) { x->x_glide = f; }
+static void dcs_voice_drive(t_dcs_voice *x, t_floatarg f) { x->x_drive = f; }
 static void dcs_voice_tempo(t_dcs_voice *x, t_floatarg f) { if (f > 20) x->x_bpm = f; x->x_lfoph = 0; }   /* (sent on every beat) */
 static void dcs_voice_saws(t_dcs_voice *x, t_floatarg f) { x->x_saws = (int)f; }
 static void dcs_voice_ignore(t_dcs_voice *x, t_floatarg f) { }
@@ -562,6 +615,7 @@ static void dcs_voice_hit(t_dcs_voice *x, t_floatarg role, t_floatarg vel, t_flo
 {
     t_vvoice *v;
     if (x->x_engine != E_DRUMS || vel <= 0 || x->x_sr <= 0) return;
+    if ((int)role == 2 && x->x_hchance < 1 && 0.5 + 0.5 * voice_noise(x) >= x->x_hchance) return;
     v = voice_alloc(x);
     v->on = 1; v->slot = -1; v->engine = E_DRUMS; v->role = (int)role; v->amp = vel;
     v->dec = dec > 0 ? dec : x->x_hdecay;
@@ -584,6 +638,7 @@ static void *dcs_voice_new(void)
     x->x_sr = sys_getsr() > 0 ? sys_getsr() : 44100;
     x->x_bright = 0.4f; x->x_level = 1; x->x_attack = 300; x->x_release = 800; x->x_decay = 3000; x->x_modal = 1;
     x->x_cutoff = 4; x->x_reso = 0.3f; x->x_fenv = 6; x->x_detune = 8; x->x_sub = 0.3f; x->x_saws = 2;
+    x->x_octave = 0; x->x_chance = 1; x->x_hchance = 1; x->x_glide = 0; x->x_drive = 0.3f;
     x->x_wobble = 0; x->x_wrate = 2; x->x_bend = 0; x->x_bendms = 120; x->x_chop = 180; x->x_bpm = 100;
     x->x_ktune = 50; x->x_kdecay = 350; x->x_kdrive = 0.3f; x->x_stone = 185; x->x_sdecay = 180; x->x_hdecay = 45;
     x->x_seed = (unsigned int)(size_t)x;
@@ -619,6 +674,12 @@ void dcs_voice_tilde_setup(void)
     class_addmethod(dcs_voice_class, (t_method)dcs_voice_bendms, gensym("bendms"), A_FLOAT, 0);
     class_addmethod(dcs_voice_class, (t_method)dcs_voice_chopms, gensym("chop"), A_FLOAT, 0);
     class_addmethod(dcs_voice_class, (t_method)dcs_voice_tempo, gensym("tempo"), A_FLOAT, 0);
+    class_addmethod(dcs_voice_class, (t_method)dcs_voice_octave, gensym("octave"), A_FLOAT, 0);
+    class_addmethod(dcs_voice_class, (t_method)dcs_voice_retrig, gensym("retrig"), 0);
+    class_addmethod(dcs_voice_class, (t_method)dcs_voice_chance, gensym("chance"), A_FLOAT, 0);
+    class_addmethod(dcs_voice_class, (t_method)dcs_voice_hchance, gensym("hchance"), A_FLOAT, 0);
+    class_addmethod(dcs_voice_class, (t_method)dcs_voice_glide, gensym("glide"), A_FLOAT, 0);
+    class_addmethod(dcs_voice_class, (t_method)dcs_voice_drive, gensym("drive"), A_FLOAT, 0);
     class_addmethod(dcs_voice_class, (t_method)dcs_voice_hit, gensym("hit"), A_FLOAT, A_FLOAT, A_DEFFLOAT, 0);
     class_addmethod(dcs_voice_class, (t_method)dcs_voice_ktune, gensym("ktune"), A_FLOAT, 0);
     class_addmethod(dcs_voice_class, (t_method)dcs_voice_kdecay, gensym("kdecay"), A_FLOAT, 0);

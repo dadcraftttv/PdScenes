@@ -451,6 +451,21 @@ on = np.nonzero(np.abs(yc) > 0.01)[0]
 check(len(on) and abs(peak_hz(yc[on[0]:on[-1]], 280, 380) / 330 - 1) < 0.005 and 0.15 < (on[-1] - on[0]) / SR < 0.21
       and rms(yf) > 0.01 and peak_hz(yf, 280, 380) > 320,
       f"chop: a slice of the held voice at the note ({peak_hz(yc[on[0]:on[-1]], 280, 380):.1f} Hz, {(on[-1] - on[0]) / SR * 1000:.0f} ms); nothing kept: the analog voice plays it")
+sb = [("engine", 7), ("decay", 2000), ("drive", 0.3)]
+y8 = play(sb + [("glide", 120), ("pnote", 0, 55)], 3.0, [("pnote", 0, 82.4)], 1.5)
+mid = [peak_hz(y8[int(t * SR):int((t + 0.06) * SR)], 40, 100) for t in (1.50, 1.56, 1.62)]
+check(abs(peak_hz(y8[int(0.3 * SR):int(1.4 * SR)], 40, 100) - 55) < 1 and abs(peak_hz(y8[int(1.9 * SR):], 40, 100) - 82.4) < 1
+      and mid[0] < mid[1] < 82 and rms(y8[int(1.55 * SR):int(1.7 * SR)]) > rms(y8[int(1.3 * SR):int(1.45 * SR)]),
+      f"808: a held 55 Hz slides to 82.4 over ~120 ms ({[round(m) for m in mid]} Hz), its level starting again")
+check(db_frames(y8[:int(1.5 * SR)], 100)[1] > db_frames(y8[:int(1.5 * SR)], 100)[13] + 4, "808: each note dies away over its decay")
+oc = play([("engine", 4), ("fenv", 0), ("attack", 5), ("detune", 0), ("octave", -1), ("pnote", 0, 220)], 1.0)[int(0.3 * SR):]
+check(abs(peak_hz(oc, 90, 130) - 110) < 1, "octave -1 plays a 220 Hz note at 110")
+e = Engine(LIB, vp); e.send_msg("vc", "engine", 1); e.send_msg("vc", "chance", 0.3)
+heard = 0
+for k in range(200):                       # (each note dies within its 0.25 s window, so none is counted twice)
+    e.send_msg("vc", "note", 440, 0.5, 120); heard += np.abs(e.run(np.zeros(int(0.25 * SR), np.float32))[:, 0]).max() > 0.01
+e.close()
+check(40 < heard < 80, f"chance 0.3 plays about a third of the notes ({heard} of 200)")
 held = db_frames(play(an + [("cutoff", 4), ("pnote", 0, 110)], 3.0)[int(0.5 * SR):], 100)
 check(held.max() - held.min() < 1, f"analog: a held note stands steady ({held.max() - held.min():.2f} dB)")
 
