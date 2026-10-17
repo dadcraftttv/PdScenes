@@ -85,7 +85,7 @@ final class Params {
             // The user's own hand control: not in presets, not randomized, Realms leave it alone.
             new Param("intensity", "Intensity (calmer to busier, middle = as set)", 0f, 1f, 0.5f, "",
                     Param.Curve.LINEAR).inSection("main").noRandom().noPreset().resetWhenAbsent(),
-            new Param("gain", "Input gain", 0f, 10f, 2.5f, "x", Param.Curve.LINEAR)
+            new Param("gain", "Input gain", 0f, 10f, 1f, "x", Param.Curve.LINEAR)
                     .inSection("main").noRandom().noPreset(),
             // Input conditioning: depends on the room and the mic, so not part of presets/randomize.
             new Param("gate_thresh", "Noise gate threshold (-80 = off)", -80f, -20f, -80f, " dB",

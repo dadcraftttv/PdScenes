@@ -12,7 +12,7 @@ public class R {
     check(all,"every parameter is back at its default "+bad);
     check(!ParamStore.isLocked("echo_time"),"locks are cleared");
     check(ParamStore.get("music_on")==0f && ParamStore.get("music_key")==0f && ParamStore.get("music_scale")==0f,"music is off in C major");
-    check(ParamStore.get("gain")==2.5f,"input gain is the new default 2.5");
+    check(ParamStore.get("gain")==1f,"input gain is the new default 1");
     ParamStore.undo();
     check(ParamStore.get("echo_time")==900f,"undo brings the old settings back");
     System.out.println(fails==0?"ALL PASSED":fails+" FAILED");
