@@ -221,6 +221,10 @@ final class Params {
             new Param("harm_src", "Harmony sound", 0f, 2f, 1f, "", Param.Curve.LINEAR)
                     .choices("Organ", "Your voice (a pitch-shifted copy of you)", "Both")
                     .inSection("music").noPreset().resetWhenAbsent(),
+            // Pitch tracker (prototype, Oct 17): New = our own (dcs_pitch~): exact, and hiss reads as no pitch at all.
+            new Param("harm_tracker", "Pitch tracker (what Harmony hears)", 0f, 1f, 0f, "", Param.Curve.LINEAR)
+                    .choices("Classic", "New (more exact, ignores hiss)")
+                    .inSection("music").noPreset().resetWhenAbsent(),
 
             // ---- Mix (Samuel, Oct 13): a level for every part, 0 = taken out. The x trims sit inside their group's
             // level (Beat level, Pad level, Notes and chimes level, Room notes): 1 = as before. Saved in presets
@@ -284,6 +288,11 @@ final class Params {
                     Param.Curve.LINEAR).inSection("pitch").rand(0f, 0.8f),
             new Param("pitch_window", "Pitch grain size", 20f, 200f, 60f, " ms", Param.Curve.LOG)
                     .inSection("pitch").noRandom(),
+            // Pitch shifter (prototype, Oct 17): New = our own (dcs_shift~): keeps a voice's own tone colour (no
+            // chipmunk) and doesn't warble. Also used by Your voice harmony.
+            new Param("shift_voice", "Pitch shifter (also Your voice harmony)", 0f, 1f, 0f, "", Param.Curve.LINEAR)
+                    .choices("Classic", "New (keeps your voice's tone)")
+                    .inSection("pitch").noPreset().resetWhenAbsent(),
 
             // ---- Bit crusher ---- (added after the first presets: older presets switch it off)
             new Param("crush_on", "Bit crusher enabled", 0f, 1f, 1f, "", Param.Curve.LINEAR)

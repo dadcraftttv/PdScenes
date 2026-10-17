@@ -178,8 +178,8 @@ def band_share(y, f0, rel=0.04):
     total = sp[(f > 50) & (f < 4000)].sum()
     return float(sp[(f > f0 * (1 - rel)) & (f < f0 * (1 + rel))].sum() / total)
 
-def pitched(semi, mix=1, win=60, on=1, freq=440, amp=0.1, secs=2.5):
-    e = fresh(wet=0, dry=1, pitch_semi=semi, pitch_mix=mix, pitch_window=win, pitch_on=on)
+def pitched(semi, mix=1, win=60, on=1, freq=440, amp=0.1, secs=2.5, **over):
+    e = fresh(wet=0, dry=1, pitch_semi=semi, pitch_mix=mix, pitch_window=win, pitch_on=on, **over)
     return e.run(sine(freq, amp, secs))[SR // 2:, 0]
 
 for semi in (12, 7, -5, -12):
@@ -187,6 +187,11 @@ for semi in (12, 7, -5, -12):
     check(band_share(y, want) > 0.9 and band_share(y, 440) < 0.01,
           "pitch %+d st: %.0f%% of energy at %.1f Hz, %.1f%% left at 440 Hz"
           % (semi, 100 * band_share(y, want), want, 100 * band_share(y, 440)))
+for semi in (7, -5):
+    yn = pitched(semi, shift_voice=1); want = 440 * 2 ** (semi / 12)
+    # (PSOLA lays a pure sine's grains down further apart than one period when shifting down: faint side-bands,
+    #  ~88% on the note at -5; it is made for voices, see test_dcs.py)
+    check(band_share(yn, want) > 0.85, "pitch shifter New %+d st: %.0f%% of energy at %.1f Hz" % (semi, 100 * band_share(yn, want), want))
 for win in (40, 100, 200):
     y = pitched(7, win=win); want = 440 * 2 ** (7 / 12)
     check(band_share(y, want) > 0.9, "grain size %d ms: +7 st lands on target (%.0f%%)" % (win, 100 * band_share(y, want)))
@@ -1611,6 +1616,9 @@ check(r_b < 1.15 * r_syn and p_b < 0.75 and r_t > 0.45 * r_syn,
       "found sounds: a clipped snap at the mic (a pop: not kept) plays back no louder than the synth kit (rms %.3f vs %.3f, peak %.2f), and a thump "
       "kit is near it (%.3f)" % (r_b, r_syn, p_b, r_t))
 
+# Pitch tracker New (dcs_pitch~): Harmony answers the same hum on the same chord note
+yh0, dh0, ch0 = harmony(hum(220, 1.5), harm_src=0); yh1, dh1, ch1 = harmony(hum(220, 1.5), harm_src=0, harm_tracker=1)
+check(len(dh1) == 1 and dh1 == dh0, "pitch tracker New: a hummed A3 gets the same answer (%s, Classic %s)" % (dh1, dh0))
 # your voice as the harmony: a held hum gets a pitch-shifted copy of itself on the close chord note (a third or more
 # above, same octave), carrying the hum's own overtones; no organ; it fades soon after the hum stops and only runs then
 def voice_harmony(src):
@@ -1620,6 +1628,19 @@ def voice_harmony(src):
     y = e.run(x)[:, 0] - fresh(**dict(base, music_harm=0)).run(x)[:, 0]
     return y, [int(v) for v in e.heard["harm_deg"]], list(e.heard["harm_semi"]), list(e.heard["sw_hvoice"])
 yv, degs_v, semis_v, sw_v = voice_harmony(1)
+# Pitch shifter New (dcs_shift~): the same copy, on the same note
+def voice_harmony_new():
+    base = dict(music_on=1, music_pad=0, music_arp=0, music_res=0, wet=0, harm_src=1, shift_voice=1)
+    x = hum(220, 1.5)
+    e = fresh(**dict(base, music_harm=1)); e.listen("harm_deg", "harm_semi"); e.send("music_on", 1)
+    y = e.run(x)[:, 0] - fresh(**dict(base, music_harm=0)).run(x)[:, 0]
+    return y, list(e.heard["harm_semi"])
+yn, semis_n = voice_harmony_new()
+fn = 220 * 2 ** (semis_n[-1] / 12) if semis_n else 1
+held_n = yn[int(2.6 * SR):int(3.4 * SR)]
+check(semis_n[-1:] == semis_v[-1:] and tone_level(held_n, fn) > 0.5 * tone_level(yv[int(2.6 * SR):int(3.4 * SR)], fn),
+      "pitch shifter New: your voice copied %.1f semitones up as Classic, at %.0f Hz (level %.4f)" % (semis_n[-1] if semis_n else 0, fn, tone_level(held_n, fn)))
+
 held_v = yv[int(2.6 * SR):int(3.4 * SR)]
 f_v = step_hz(degs_v[0] - 7) if degs_v else 1; f_org = step_hz(degs_v[0]) if degs_v else 1
 check(len(degs_v) == 1 and 2.9 <= semis_v[-1] <= 9.1 and abs(f_v - 220 * 2 ** (semis_v[-1] / 12)) < 3

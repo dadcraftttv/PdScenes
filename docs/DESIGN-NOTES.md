@@ -77,6 +77,19 @@ to date in the same commit when behaviour changes.
   placed within +-8 ms where its waveform best matches the playing grain (WSOLA, 5.3 ms compared, every 2nd
   sample): a held tone swings 0.1 dB (the old 2-grain stretch: grains half-cancel, 22 dB in the same test).
   Cost while glitching +11% of the patch (Classic +7%); in the gcloud switch group, so nothing at Amount 0.
+- `dcs_pitch~` (Pitch tracker = New, `harm_tracker`, Music, noPreset, default Classic) and `dcs_shift~` (Pitch shifter
+  = New, `shift_voice`, Pitch section, noPreset, default Classic; also Your voice harmony), Oct 17, sharing
+  `dcs_yin.h`: YIN at ~11 kHz (25 ms window, 60 Hz up), stopping once the dip under 0.15 bottoms out, every 2nd
+  sample, then refined at the full rate over +-(D/2+1) lags; under 0.3 = a pitch. dcs_pitch~ = sigmund~'s outputs
+  (pitch, -1500 for none; level in Pd dB; + sureness), as control outlets (in CONTROL_TILDE). Measured: sines
+  80 Hz-3 kHz exact, a bright sawtooth no octave errors, noise no pitch; **cost: both ~0.1% of real time at the
+  patch's hop** (sigmund~ at hop 512 at half rate is already cheap: the old "32%" was before that), so the win is
+  accuracy, not battery. dcs_shift~ = TD-PSOLA: analysis points whole periods apart (in step), grains 2 x max(period,
+  spacing) Hann, laid at period / ratio, 30 ms latency, pitch looked for every 10 ms (or `freq` given), 8 ms grains
+  for unpitched sound. A synthetic vowel up a fifth: exact pitch, formant stays at ~674 Hz for 700 (a resampling
+  shifter: ~1050), level within 0.9 dB. A pure sine shifted down keeps ~88% on the note (PSOLA spacing > period).
+  Patch: both trackers in `harmsig`, spigots pick one; the voice harmony's dcs_shift~ reads `delread~ hv_buf 0`
+  (a direct line from the harm group into hvoice and back was a DSP loop).
 - Waiting on Samuel's ears for both. Not in the tester guide (prototype). `dcs_derustle~` (Oct 17): see Pocket rustle. Ideas next: analog-style ladder filter,
   oversampled distortion/crush, a lighter pitch tracker than sigmund~, a dcs phaser, more glitch kinds.
 

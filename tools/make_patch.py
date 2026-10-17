@@ -38,7 +38,7 @@ DEFAULTS = [
     ("music_tone", 0.5), ("music_react", 0.8), ("music_res", 0.8), ("music_harm", 0.6), ("beat_follow", 1), ("beat_when", 1), ("rhythm_src", 1), ("melody_src", 1), ("harm_src", 1), ("pad_src", 1), ("bass_src", 0), ("tempo_mode", 0), ("tempo_bpm", 100), ("chime_char", 0.5), ("res_src", 1), ("cue_sound", 1), ("beat_glitch", 0.4), ("gate_attack", 5), ("gate_hold", 0), ("gate_release", 80), ("comp_attack", 40),
     ("comp_release", 40), ("music_drift", 1), ("echo_scatter", 0.5), ("gc_amount", 0), ("gc_level", 0.7), ("gc_pct_stutter", 35), ("gc_pct_reverse", 25),
     ("gc_pct_shuffle", 20), ("gc_pct_stretch", 20), ("music_pad_reg", 2), ("pocket_hush", 0.5), ("pocket_guard", 0.6), ("handling_hush", 0.5), ("intensity", 0.5), ("mix_kick", 1), ("mix_bass", 1), ("mix_chimes", 1), ("mix_walk", 1), ("mix_ring", 1), ("mix_bells", 1), ("reverb_rev", 0), ("stems_level", 0.8), ("music_answer", 0.5), ("beat_break", 0), ("mel_rhythm", 0), ("mel_phrase", 0),
-    ("gc_voice", 0), ("fm_ring", 0), ("pocket_rustle", 0), ("pocket_steps", 0),
+    ("gc_voice", 0), ("fm_ring", 0), ("pocket_rustle", 0), ("pocket_steps", 0), ("harm_tracker", 0), ("shift_voice", 0),
 ]
 
 # Scales as semitone steps above the key note. The patch snaps every note it plays to these.
@@ -430,7 +430,7 @@ class Patch:
     # self.groups: (group name, compiled regex); first match wins
 
     # objects whose name ends in ~ but whose outlets carry messages
-    CONTROL_TILDE = {"snapshot~", "env~", "samplerate~", "threshold~", "bonk~", "fiddle~", "sigmund~"}
+    CONTROL_TILDE = {"snapshot~", "env~", "samplerate~", "threshold~", "bonk~", "fiddle~", "sigmund~", "dcs_pitch~"}
 
     def group(self, gname, pattern):
         self.groups.append((gname, re.compile(pattern)))
@@ -2787,14 +2787,23 @@ def add_harmony(P, hx, ex, degree_to_hz):
     P.obj("mu_hm_aa", "lop~ 6000", hx, 35); P.c("mu_hm_src", "mu_hm_aa")         # (before halving the rate)
     P.obj("mu_hm_sig", f"sigmund~ -hop {HARM_HOP} -npts {HARM_NPTS} pitch env", hx, 50)   # env comes out first, then pitch
     P.c("mu_hm_aa", "mu_hm_sig")
+    # Pitch tracker (`harm_tracker`, Oct 17): Classic = sigmund~; New = dcs_pitch~ (our YIN: exact, noise reads as no
+    # pitch). Same outputs (level, then pitch), so the logic below doesn't know which it hears.
+    P.obj("mu_hm_sig2", f"dcs_pitch~ {HARM_HOP}", hx + 100, 50); P.c("mu_hm_aa", "mu_hm_sig2")
+    P.obj("mu_hm_trk_r", "r harm_tracker", hx + 300, 20)
+    P.obj("mu_hm_trk", "expr $f1==0 ; $f1>=1".replace("$", BS + "$").replace(" ; ", " " + BS + "; "), hx + 300, 35)
+    P.c("mu_hm_trk_r", "mu_hm_trk")
+    for nm, init, src, o, sel in (("mu_hm_tcp", 1, "mu_hm_sig", 0, 0), ("mu_hm_tce", 1, "mu_hm_sig", 1, 0),
+                                  ("mu_hm_tnp", 0, "mu_hm_sig2", 0, 1), ("mu_hm_tne", 0, "mu_hm_sig2", 1, 1)):
+        P.obj(nm, f"spigot {init}", hx + 300 + 40 * len(nm), 65); P.c(src, nm, o, 0); P.c("mu_hm_trk", nm, sel, 1)
     P.obj("mu_hm_thr", "value mthr", hx + 200, 80)
     P.obj("mu_hm_env_t", "t f b", hx + 200, 50)
     ex("mu_hm_loud", f"$f1-$f2", hx + 200, 110)
-    P.c("mu_hm_sig", "mu_hm_env_t", 1, 0); P.c("mu_hm_env_t", "mu_hm_thr", 1, 0)
+    P.c("mu_hm_tce", "mu_hm_env_t"); P.c("mu_hm_tne", "mu_hm_env_t"); P.c("mu_hm_env_t", "mu_hm_thr", 1, 0)
     P.c("mu_hm_thr", "mu_hm_loud", 0, 1); P.c("mu_hm_env_t", "mu_hm_loud", 0, 0)
     # Each pitch frame: steady (close to the frame before) and loud enough? Count the steady frames in a row.
     P.obj("mu_hm_p_t", "t f f", hx, 80)
-    P.c("mu_hm_sig", "mu_hm_p_t", 0, 0)
+    P.c("mu_hm_tcp", "mu_hm_p_t"); P.c("mu_hm_tnp", "mu_hm_p_t")
     ex("mu_hm_ok", f"($f1>{HARM_RANGE[0]})*($f1<{HARM_RANGE[1]})*(abs($f1-$f2)<{HARM_STEADY_ST})*($f3>{HARM_ABOVE_DB})*($f4>0)", hx, 140)
     P.c("mu_hm_p_t", "mu_hm_ok", 1, 0); P.c("mu_hm_p_t", "mu_hm_ok", 0, 1)   # right first: compare with the old pitch
     P.c("mu_hm_loud", "mu_hm_ok", 0, 2)
@@ -2985,7 +2994,19 @@ def add_harmony(P, hx, ex, degree_to_hz):
     P.obj("hv_env", "vline~", vx + 200, vy + 120)
     P.c("mu_hm_vatk", "hv_env"); P.c("mu_hm_vrel", "hv_env")
     P.sig2("hv_env2", "*~", "hv_env", "hv_env", vx + 200, vy + 140)       # eased in and out
-    P.sig2("hv_s", "*~", "hv_shifted", "hv_env2", vx, vy + 160)
+    # Pitch shifter (`shift_voice`, Oct 17): New = dcs_shift~ (PSOLA: keeps the voice's tone colour, no warble)
+    # (it reads the voice from hv_buf, like the classic grains: a direct line from the harm group into this one
+    #  and back would be a DSP loop between the two)
+    P.obj("hv_din", "delread~ hv_buf 0", vx + 300, vy + 90)
+    P.obj("hv_dcs", "dcs_shift~ 0", vx + 300, vy + 100); P.c("hv_din", "hv_dcs")
+    P.msg("hv_dsemi", f"semi {BS}$1", vx + 300, vy + 80); P.c("mu_hm_vsemi", "hv_dsemi"); P.c("hv_dsemi", "hv_dcs")
+    P.obj("hv_sv_r", "r shift_voice", vx + 400, vy + 60)
+    P.obj("hv_sv", "expr 1-$f1 ; $f1".replace("$", BS + "$").replace(" ; ", " " + BS + "; "), vx + 400, vy + 80)
+    P.c("hv_sv_r", "hv_sv")
+    P.obj("hv_mc", "*~ 1", vx, vy + 145); P.obj("hv_mn", "*~ 0", vx + 300, vy + 145)
+    P.c("hv_shifted", "hv_mc"); P.c("hv_dcs", "hv_mn"); P.c("hv_sv", "hv_mc", 0, 1); P.c("hv_sv", "hv_mn", 1, 1)
+    P.sig2("hv_shift2", "+~", "hv_mc", "hv_mn", vx, vy + 150)
+    P.sig2("hv_s", "*~", "hv_shift2", "hv_env2", vx, vy + 160)
     P.obj("hv_out", f"*~ {HV_GAIN}", vx, vy + 180); P.c("hv_s", "hv_out")
     P.sig2("mu_hm_both", "+~", "mu_hm_gain", "hv_out", hx, 980)
     return P.sig2("mu_hm_out", "*~", "mu_hm_both", lvl, hx, 990)
@@ -3923,7 +3944,16 @@ def build():
     pm = smoothed(P, "pitch_mix", "pitch_mix", 350, 280)
     pon = smoothed(P, "pitch_on", "pitch_on", 450, 280)
     P.sig2("pmix_eff", "*~", pm, pon, 350, 360)                 # amount, forced to 0 when bypassed
-    P.sig2("shifted_amt", "*~", "shifted", "pmix_eff", 350, 700)
+    # Pitch shifter (`shift_voice`): New = dcs_shift~ (keeps a voice's tone colour; Pitch grain size is unused then)
+    P.obj("pshift_dcs", "dcs_shift~ 0", 300, 640); P.c("ring_out", "pshift_dcs")
+    P.msg("pshift_semi", f"semi {BS}$1", 300, 620); P.c("r_pitch_semi", "pshift_semi"); P.c("pshift_semi", "pshift_dcs")
+    P.obj("pshift_sv_r", "r shift_voice", 420, 600)
+    P.obj("pshift_sv", "expr 1-$f1 ; $f1".replace("$", BS + "$").replace(" ; ", " " + BS + "; "), 420, 620)
+    P.c("pshift_sv_r", "pshift_sv")
+    P.obj("shifted_c", "*~ 1", 200, 690); P.obj("shifted_n", "*~ 0", 300, 690)
+    P.c("shifted", "shifted_c"); P.c("pshift_dcs", "shifted_n"); P.c("pshift_sv", "shifted_c", 0, 1); P.c("pshift_sv", "shifted_n", 1, 1)
+    P.sig2("shifted_sel", "+~", "shifted_c", "shifted_n", 200, 695)
+    P.sig2("shifted_amt", "*~", "shifted_sel", "pmix_eff", 350, 700)
     P.obj("pmix_minus1", "-~ 1", 450, 360)
     P.c("pmix_eff", "pmix_minus1")
     P.obj("pmix_keep", "*~ -1", 450, 390)                       # 1 - amount
@@ -4550,7 +4580,7 @@ def build():
     P.group("stems", r"^st(\d+_(ix|rl|rr|ln|ol|or)|_sum[lr]\d+|_mix_[lr])$")   # a stem pack's audio: on while one plays
     add_switch(P, "stems", ("stem_on", "stems_level"), 300)
     add_switch(P, "revrev", ("reverb_on", "reverb_mix", "reverb_rev"), 300)
-    P.group("pitch", r"^(rate_hz|ph1|ph2|ph2_off|delwrite_p|tap[12]_\w+|rd[12]|cos[12]|cos[12]_neg|win[12]|grain[12]|shifted)$")
+    P.group("pitch", r"^(rate_hz|ph1|ph2|ph2_off|delwrite_p|tap[12]_\w+|rd[12]|cos[12]|cos[12]_neg|win[12]|grain[12]|shifted|shifted_c|shifted_n|shifted_sel|pshift_dcs)$")
     add_switch(P, "pitch", ("pitch_on", "pitch_mix"), 300)
     P.group("chorus", r"^(chorus_wr|chorus_ph|ch[01]_\w+|ch_sum|ch_wet)$")
     add_switch(P, "chorus", ("chorus_on", "chorus_mix"), 300)
@@ -4580,7 +4610,7 @@ def build():
     P.group("horgan", r"^mu_hm\d_")                                      # the organ voices: off for "Your voice"
     add_switch(P, "horgan", ("music_on", "music_harm", "harm_organ"), 2500)
     P.group("hvoice", r"^hv_")                                           # your voice as harmony: on only while it sings
-    P.group("harmsig", r"^mu_hm_sig$")                                  # the pitch tracker, at half the sample rate
+    P.group("harmsig", r"^mu_hm_sig2?$")                                  # the pitch tracker, at half the sample rate
     add_switch(P, "harmsig", ("music_on", "harm_run"), 100, block="64 1 0.5")
     P.group("harm", r"^mu_hm")                                          # Harmony's tracker and voices: off at 0
     add_switch(P, "harm", ("music_on", "harm_run"), 2500)            # (its notes fade over 1.8 s)
