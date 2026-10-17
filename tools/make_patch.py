@@ -38,6 +38,7 @@ DEFAULTS = [
     ("music_tone", 0.5), ("music_react", 0.8), ("music_res", 0.8), ("music_harm", 0.6), ("beat_follow", 1), ("beat_when", 1), ("rhythm_src", 1), ("melody_src", 1), ("harm_src", 1), ("pad_src", 1), ("bass_src", 0), ("tempo_mode", 0), ("tempo_bpm", 100), ("chime_char", 0.5), ("res_src", 1), ("cue_sound", 1), ("beat_glitch", 0.4), ("gate_attack", 5), ("gate_hold", 0), ("gate_release", 80), ("comp_attack", 40),
     ("comp_release", 40), ("music_drift", 1), ("echo_scatter", 0.5), ("gc_amount", 0), ("gc_level", 0.7), ("gc_pct_stutter", 35), ("gc_pct_reverse", 25),
     ("gc_pct_shuffle", 20), ("gc_pct_stretch", 20), ("music_pad_reg", 2), ("pocket_hush", 0.5), ("pocket_guard", 0.6), ("handling_hush", 0.5), ("intensity", 0.5), ("mix_kick", 1), ("mix_bass", 1), ("mix_chimes", 1), ("mix_walk", 1), ("mix_ring", 1), ("mix_bells", 1), ("reverb_rev", 0), ("stems_level", 0.8), ("music_answer", 0.5), ("beat_break", 0), ("mel_rhythm", 0), ("mel_phrase", 0),
+    ("gc_voice", 0), ("fm_ring", 0),
 ]
 
 # Scales as semitone steps above the key note. The patch snaps every note it plays to these.
@@ -227,6 +228,10 @@ FM_CHAR_RING = 0.85               # ...the ring this much quieter...
 FM_CHAR_SHORT = 0.7               # ...and this much shorter, the hit's band widened to Q 0.3
 FM_STRIKE_Q = 1.2                 # the strike is band-passed around the note (rounder than high-passed: Samuel)
 FM_ATTACK_MS = 5
+FM_STR_GAIN = 40                 # Found note ring = String (dcs_string~): the string's level...
+FM_STR_BRIGHT = 0.3              # ...its brightness (0 dark .. 1 bright), at Chime character 0...
+FM_STR_CHAR_BRIGHT = 0.4          # ...and this much brighter at 1
+FM_PLUCK = 0.3                    # each note's pluck, x the note's loudness (velocity x the slice's gain)
 CUE_LOW_HZ, CUE_HIGH_HZ = 440, 880     # the Realm cue: a warp gliding between A4 and A5 (up into a Realm)...
 CUE_SIDE_HZ = 659.3               # ...or, Realm to Realm, a sideways swerve around E5...
 CUE_GLIDE_MS = 900                # ...over this long...
@@ -321,6 +326,7 @@ GC_ONSET_DB = 10           # a sudden sound: the 5 ms level jumps this far above
 GC_MIN_DB = 55             # ...and is at least this loud (-45 dBFS), so a quiet room's flicker doesn't count
 GC_COOL_MS = (600, 2400)   # rest after a glitch: at Amount 1 / near 0 (also keeps the two voices from overlapping)
 GC_STEP_WAIT_MS = 2500     # a step this recently = walking: a glitch waits for the next step or half-step
+GC_NEW_VOICES = 4          # Glitch voice = New (dcs_glitch~): this many glitches can sound at once
 GC_PREROLL_MS = 15         # a glitch of a sudden sound starts this long before it was noticed (5 ms meter), so its attack stays
 HARM_RELEASE_MS = 1800
 
@@ -460,7 +466,7 @@ class Patch:
                 parent[n] = len(order); order.append(("obj", n))
             elif g not in seen:
                 seen.add(g); parent["grp:" + g] = len(order); order.append(("grp", g))
-        out = ["#N canvas 0 0 900 900 12;"]
+        out = ["#N canvas 0 0 900 900 12;", "#X declare -lib dcs;"]   # our own objects (dcs/), before any is made
         for kind, x in order:
             if kind == "obj":
                 out.append(self.lines[self.index[x]])
@@ -1005,7 +1011,7 @@ def add_found_note(P, k, vx, vy, ex, caught, prefix="fm", gate="mel_src[0]>=1"):
     P.c(f"{n}_ft", f"{n}_fs1", 2, 0)
     ex(f"{n}_rate", f"min(max($f1/$f2,{FM_RATE[0]}),{FM_RATE[1]})", vx + 400, vy + 140)
     P.obj(f"{n}_rv", "t f f", vx + 400, vy + 160); P.c(f"{n}_ft", f"{n}_rate", 0, 0); P.c(f"{n}_rate", f"{n}_rv")
-    ex(f"{n}_qg", f"{FM_RES}*$f1*(1-{FM_CHAR_RING}*fm_cc)", vx + 560, vy + 160)                  # (a narrower ring catches less: feed it harder)
+    ex(f"{n}_qg", f"{FM_RES}*$f1*(1-{FM_CHAR_RING}*fm_cc)*(1-fmring)", vx + 560, vy + 160)       # (a narrower ring catches less: feed it harder)
     P.c(f"{n}_q", f"{n}_qg")
     # 3. play: the read ramp over the slice's length / rate, and the strike's loudness = velocity x the slice's gain
     # (the rate arrived with the note, into the cold inlets; then: the slice's gain, the read ramp, the loudness)
@@ -1031,15 +1037,29 @@ def add_found_note(P, k, vx, vy, ex, caught, prefix="fm", gate="mel_src[0]>=1"):
     P.obj(f"{n}_r1", "vcf~", vx + 100, vy + 320)
     P.c(f"{n}_raw", f"{n}_r1"); P.c(f"{n}_fs1", f"{n}_r1", 0, 1); P.c(f"{n}_q", f"{n}_r1", 0, 2)
     P.obj(f"{n}_res", "*~ 1", vx + 100, vy + 390); P.c(f"{n}_r1", f"{n}_res"); P.c(f"{n}_qg", f"{n}_res", 0, 1)
+    # ...or a plucked string (Found note ring = String, `fm_ring`; dcs_string~): the strike, band-passed around
+    # the note below, plucks a string on the note that rings the chime's fade (shorter and brighter toward
+    # "your sound"). (The raw strike rang a clap's 1-3 kHz harmonics: thin, not round.)
+    P.obj(f"{n}_str", "dcs_string~ 440 1500 0.5", vx + 200, vy + 360)
+    P.c(f"{n}_ft", f"{n}_str", 1, 1)
+    ex(f"{n}_t60", f"$f1*(1-{FM_CHAR_SHORT}*fm_cc)", vx + 560, vy + 100); P.c(f"{n}_dc", f"{n}_t60"); P.c(f"{n}_t60", f"{n}_str", 0, 2)
+    ex(f"{n}_sbr", f"{FM_STR_BRIGHT}+{FM_STR_CHAR_BRIGHT}*fm_cc+$f1*0", vx + 560, vy + 120); P.c(f"{n}_nt", f"{n}_sbr", 2, 0); P.c(f"{n}_sbr", f"{n}_str", 0, 3)
+    ex(f"{n}_sg", f"{FM_STR_GAIN}*(1-{FM_CHAR_RING}*fm_cc)*fmring+$f1*0", vx + 560, vy + 180); P.c(f"{n}_nt", f"{n}_sg", 2, 0)
+    P.obj(f"{n}_strg", "*~ 0", vx + 200, vy + 390); P.c(f"{n}_str", f"{n}_strg"); P.c(f"{n}_sg", f"{n}_strg", 0, 1)
+    # each note plucks it (a clap has nothing down at the note itself: fed in alone, it rang the overtones, thin)
+    ex(f"{n}_plk", f"$f1*{FM_PLUCK}", vx + 300, vy + 345); P.msg(f"{n}_plm", f"pluck {BS}$1", vx + 300, vy + 355)
+    P.c(f"{n}_amp", f"{n}_plk"); P.c(f"{n}_plk", f"{n}_plm"); P.c(f"{n}_plm", f"{n}_str")
     # the strike itself keeps its character but not its own low pitch (that would fight the note) nor its harsh top:
     # a soft band around the note
     P.obj(f"{n}_bp", "vcf~ 1", vx, vy + 360); P.c(f"{n}_raw", f"{n}_bp"); P.c(f"{n}_fs1", f"{n}_bp", 0, 1)
+    P.c(f"{n}_bp", f"{n}_str")                  # (the caught sound runs into the string too: the pluck's texture)
     ex(f"{n}_bpq", f"{FM_STRIKE_Q}*(1-fm_cc)+0.3*fm_cc+$f1*0", vx + 60, vy + 340); P.c(f"{n}_nt", f"{n}_bpq", 2, 0)
     P.c(f"{n}_bpq", f"{n}_bp", 0, 2)
     P.obj(f"{n}_mix", f"*~ {FM_RAW}", vx, vy + 390); P.c(f"{n}_bp", f"{n}_mix")
     ex(f"{n}_mixg", f"{FM_RAW}*(1+{FM_CHAR_RAW}*fm_cc)+$f1*0", vx + 60, vy + 375); P.c(f"{n}_nt", f"{n}_mixg", 2, 0)
     P.c(f"{n}_mixg", f"{n}_mix", 0, 1)
-    P.sig2(f"{n}_out", "+~", f"{n}_mix", f"{n}_res", vx, vy + 410)
+    P.sig2(f"{n}_ring", "+~", f"{n}_res", f"{n}_strg", vx + 100, vy + 400)
+    P.sig2(f"{n}_out", "+~", f"{n}_mix", f"{n}_ring", vx, vy + 410)
 
 
 def add_found_pad(P, px, bx, ex):
@@ -2139,6 +2159,7 @@ def add_music(P):
     P.sig2("fm_lvl", "*~", facc, "fm_agc_ln", cx + 800, cy + 1940)
     soft_limit(P, "fm_lim", "fm_lvl", FM_LIMIT, 1.0, cx + 800, cy + 1960)
     P.obj("fm_cc_r", "r chime_char", cx + 1000, cy + 1880); P.obj("fm_cc_v", "value fm_cc", cx + 1000, cy + 1895); P.c("fm_cc_r", "fm_cc_v")
+    P.obj("fm_rg_r", "r fm_ring", cx + 1100, cy + 1880); P.obj("fm_rg_v", "value fmring", cx + 1100, cy + 1895); P.c("fm_rg_r", "fm_rg_v")
     P.sig2("mu_chime_all", "+~", acc, "fm_lim", cx + 600, cy + 370)
     P.obj("mu_chime_scale", "*~ 0.22", cx + 600, cy + 380)
     P.c("mu_chime_all", "mu_chime_scale")
@@ -3143,7 +3164,7 @@ def add_glitch_cloud(P):
     for k in range(3, 0, -1):
         P.c("gc_spar", "gc_spack", k, k)
     P.c("gc_spar", "gc_spack", 0, 0)
-    voice_switch("gcs", "gc_spack", 700, x + 900, y + 820)
+    voice_switch("gcs", "gc_vc_scls", 700, x + 900, y + 820)
     P.c("gc_fire", "gc_rn0", 6, 0); P.c("gc_rn0", "gc_par", 0, 6)
     P.c("gc_fire", "gc_rn1", 5, 0); P.c("gc_rn1", "gc_par", 0, 4)
     P.c("gc_fire", "gc_rn2", 4, 0); P.c("gc_rn2", "gc_par", 0, 3)
@@ -3161,6 +3182,21 @@ def add_glitch_cloud(P):
     P.obj("gc_wait_l", "list", x + 100, y + 855)
     P.c("gc_pack", "gc_wait"); P.c("gc_wait", "gc_wait_del", 1, 0); P.c("gc_wait", "gc_wait_l", 0, 1)
     P.c("gc_wait_del", "gc_wait_l")
+    # Glitch voice (`gc_voice`): Classic = the voices below, one at a time; New = dcs_glitch~ (our own C object:
+    # several at once, each starting on its exact sample, and a stretch whose grains line up with each other)
+    P.obj("gc_vc_vr", "r gc_voice", x + 300, y + 780)
+    ex("gc_vc_ex", "$f1==0 ; $f1>=1".replace(" ; ", " " + BS + "; "), x + 300, y + 800)
+    P.c("gc_vc_vr", "gc_vc_ex")
+    for nm, init, src, sel in (("gc_vc_cls", 1, "gc_wait_l", 0), ("gc_vc_new", 0, "gc_wait_l", 1),
+                               ("gc_vc_scls", 1, "gc_spack", 0), ("gc_vc_snew", 0, "gc_spack", 1)):
+        P.obj(nm, f"spigot {init}", x + 400 + 60 * len(nm), y + 830)
+        P.c(src, nm); P.c("gc_vc_ex", nm, sel, 1)
+    P.obj("gc_vc_pre", "list prepend slice", x + 500, y + 860); P.obj("gc_vc_trim", "list trim", x + 500, y + 880)
+    P.c("gc_vc_new", "gc_vc_pre"); P.c("gc_vc_pre", "gc_vc_trim"); P.c("gc_vc_trim", "gc_dcs")
+    P.obj("gc_vc_spre", "list prepend stretch", x + 650, y + 860); P.obj("gc_vc_strim", "list trim", x + 650, y + 880)
+    P.c("gc_vc_snew", "gc_vc_spre"); P.c("gc_vc_spre", "gc_vc_strim"); P.c("gc_vc_strim", "gc_dcs")
+    P.obj("gc_dcs", f"dcs_glitch~ {GC_BUF_MS} {GC_NEW_VOICES}", x + 500, y + 900)
+    P.c("gc_src", "gc_dcs")
     if os.environ.get("GC_DEBUG"):
         P.obj("gc_dbg1", "s gc_packed", x + 400, y + 920); P.c("gc_pack", "gc_dbg1")
         P.obj("gc_dbg2", "s gc_parL", x + 500, y + 920); P.c("gc_par", "gc_dbg2")
@@ -3170,7 +3206,7 @@ def add_glitch_cloud(P):
     P.msg("gc_vc_fade", "0 4", x + 100, y + 890)
     P.obj("gc_vc_l", "list", x, y + 910)
     P.obj("gc_vc_del", "del 5", x + 100, y + 910)
-    P.c("gc_wait_l", "gc_vc_t"); P.c("gc_vc_t", "gc_vc_fade", 1, 0); P.c("gc_vc_t", "gc_vc_del", 1, 0)
+    P.c("gc_vc_cls", "gc_vc_t"); P.c("gc_vc_t", "gc_vc_fade", 1, 0); P.c("gc_vc_t", "gc_vc_del", 1, 0)
     P.c("gc_vc_t", "gc_vc_l", 0, 1); P.c("gc_vc_del", "gc_vc_l")
     voice_switch("gcv", "gc_vc_l", 100, x + 300, y + 900)
     P.obj("gc_dbg_mode", "s gc_mode", x + 200, y + 700); P.c("gc_mode_ok", "gc_dbg_mode", 1, 0)
@@ -3234,7 +3270,7 @@ def add_glitch_cloud(P):
     # the stretch voice: two overlapping Hann-windowed grains; the grain start creeps forward at `rate`, each grain
     # plays at normal speed, so time slows and pitch stays. Its own place between the ears (no time offset).
     vx, vy = x + 1800, y + 600
-    P.obj("gc2_up", "unpack f f f f", vx, vy); P.c("gc_spack", "gc2_up")
+    P.obj("gc2_up", "unpack f f f f", vx, vy); P.c("gc_vc_scls", "gc2_up")
     P.obj("grp_gcs_r", "r sw_gcs", 10, 10); P.obj("grp_gcs_sw", "switch~", 10, 40); P.c("grp_gcs_r", "grp_gcs_sw")
     P.obj("gc2_L", "t f f", vx, vy + 30); P.c("gc2_up", "gc2_L", 0, 0)
     P.msg("gc2_tmsg", f"0 {BS}, {BS}$1 {BS}$1", vx, vy + 60)
@@ -3269,7 +3305,9 @@ def add_glitch_cloud(P):
     P.obj("gc2_gl", "sig~", vx + 300, vy + 60); P.obj("gc2_gr", "sig~", vx + 370, vy + 60)
     P.c("gc2_pan", "gc2_gl", 0, 0); P.c("gc2_pan", "gc2_gr", 1, 0)
     P.sig2("gc2_l", "*~", "gc2_s", "gc2_gl", vx, vy + 310); P.sig2("gc2_r", "*~", "gc2_s", "gc2_gr", vx + 100, vy + 310)
-    P.sig2("gc_mix_l", "+~", outs_l[0], "gc2_l", vx, vy + 330); P.sig2("gc_mix_r", "+~", outs_r[0], "gc2_r", vx + 100, vy + 330)
+    P.sig2("gc_mix_l0", "+~", outs_l[0], "gc2_l", vx, vy + 320); P.sig2("gc_mix_r0", "+~", outs_r[0], "gc2_r", vx + 100, vy + 320)
+    P.obj("gc_mix_l", "+~", vx, vy + 330); P.c("gc_mix_l0", "gc_mix_l"); P.c("gc_dcs", "gc_mix_l", 0, 1)
+    P.obj("gc_mix_r", "+~", vx + 100, vy + 330); P.c("gc_mix_r0", "gc_mix_r"); P.c("gc_dcs", "gc_mix_r", 1, 1)
     outs_l[0], outs_r[0] = "gc_mix_l", "gc_mix_r"
     P.sig2("gc_pre_mono", "+~", "gc_mix_l", "gc_mix_r", vx, vy + 340)    # (for the glitch loops: before the level)
     for i, sig in enumerate(getattr(P, "_probes", [])):
@@ -4483,7 +4521,7 @@ def build():
     P.group("roomnotes", r"^rn\d*_")
     add_switch(P, "roomnotes", ("music_on", "music_res", "rn_ring"), 2500)
     for k in range(2):                                                  # Room notes, found: each voice on while it rings
-        P.group(f"rfv{k}", rf"^rf{k}_(rd|ix|env|raw|bp|fs1|r1|res|mix|out)$")
+        P.group(f"rfv{k}", rf"^rf{k}_(rd|ix|env|raw|bp|fs1|r1|res|str|strg|ring|mix|out)$")
     P.group("rnfound", r"^(rnf_(sum|env|agc_ln|lvl|lim(_\w+)?))$")
     add_switch(P, "rnfound", ("music_on", "music_res", "rnf_found"), 3000)       # rings run up to ~2 s
     for k in range(4):                                                  # each synth chime voice: on only while it rings
@@ -4509,7 +4547,7 @@ def build():
     P.group("gloop", r"^gl_(rec_in|rec|ix|rd|env|s0|out)$")                    # the glitch loop's audio
     add_switch(P, "gloop", ("beat_glitch", "beat_level", "gc_amount"), 3500)
     for k in range(4):                                                  # each found melody voice: on only while it rings
-        P.group(f"fmv{k}", rf"^fm{k}_(rd|ix|env|raw|bp|fs1|r1|res|mix|out)$")
+        P.group(f"fmv{k}", rf"^fm{k}_(rd|ix|env|raw|bp|fs1|r1|res|str|strg|ring|mix|out)$")
     P.group("fmelody", r"^fm_(acc\d|lim(_\w+)?|env|agc_ln|lvl)$")             # the found melody's mix
     add_switch(P, "fmelody", ("music_on", "melody_src"), 3000)
     P.group("fsound", r"^(fs_(src|wr|rd|rec|lo|hi|env_\w+|ks0|ks(_\w+)?|hat_lim(_\w+)?)|fsv_\w+_(rd|ixl|env|s|f))$")    # the found-sound kit's audio

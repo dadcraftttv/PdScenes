@@ -1744,6 +1744,22 @@ t0, d0, l0 = chime_char(0); t1, d1, l1 = chime_char(1)
 check(t1 < 0.7 * t0 and d1 < 0.6 * d0 and 0.4 < l1 / l0 < 2.5,
       "found melody: Chime character from ring to your sound: the note's share in the tuned ring %.2f -> %.2f, the ring after "
       "0.5 s %.2f -> %.2f of the start, level %.3f -> %.3f" % (t0, t1, d0, d1, l0, l1))
+# Found note ring = String (dcs_string~): the same notes, rung by a plucked string instead of the resonator: the note
+# itself the strongest (a pluck: the clap alone rang only overtones), mostly tonal, about as loud
+def found_ring(ring):
+    x = (np.random.default_rng(3).standard_normal(6 * SR) * 0.0005).astype(np.float32); c = clap(); x[SR:SR + len(c)] += c.astype(np.float32)
+    e = fresh(music_on=1, music_pad=0, music_arp=1, wet=0, music_res=0, music_react=0, melody_src=1, chime_char=0.5, fm_ring=ring)
+    e.run(x[:3 * SR]); pk, tonal, lvl = [], [], []
+    for deg in (7, 9, 11):
+        e.send_list("motif", deg, 0.5); y = e.run(x[3 * SR:4 * SR])[:, 0]
+        S_ = np.abs(np.fft.rfft(y[:int(0.5 * SR)])) ** 2; f = np.fft.rfftfreq(int(0.5 * SR), 1 / SR)
+        p_ = f[np.argmax(S_ * (f > 150))]; band = sum(S_[(np.abs(f - p_ * m) < 6)].sum() for m in (1, 2, 3, 4))
+        pk.append(float(p_)); tonal.append(band / S_[f > 150].sum()); lvl.append(rms(y))
+    return pk, np.mean(tonal), np.mean(lvl)
+pr, tr, lr_ = found_ring(0); ps, ts, ls = found_ring(1)
+check(all(abs(a - b) < 4 for a, b in zip(pr, ps)) and ts > 0.4 and 0.5 < ls / lr_ < 2,
+      "found note ring: String plays the same notes (%s Hz vs %s), tonal %.2f (resonator %.2f), level %.4f vs %.4f"
+      % ([round(v) for v in ps], [round(v) for v in pr], ts, tr, ls, lr_))
 # Room notes, found: after a catch, each sudden sound plays a caught sound on a chord tone (the ring resonators off)
 def room_found(src):
     x = (np.random.default_rng(3).standard_normal(9 * SR) * 0.0005).astype(np.float32)
@@ -2062,6 +2078,34 @@ check(tries >= 40 and set(modes) <= {1, 2} and 0.08 < len(modes) / tries < 0.35,
 modes, tries = matrix(gc_pct_stutter=100, gc_pct_reverse=100)
 check(set(modes) == {0, 1} and len(modes) > 0.9 * tries, "glitch matrix: past 100%% the shares count as proportions (%d/%d stutter)" % (modes.count(0), len(modes)))
 
+# Glitch voice = New (dcs_glitch~): the same kinds from the same brain, and glitches can overlap
+y, m = gc_run(burst_in(chirp), "gc_pct_reverse", gc_voice=1); g, _ = glitch_part(y); q = len(g) // 4
+check(m[:1] == [1] and len(g) > 0.1 * SR and centroid(g[:q]) > 1.3 * centroid(g[-q:]),
+      "glitch voice New: reverse plays a rising sound falling (centroid %.0f -> %.0f Hz, %s)" % (centroid(g[:q]), centroid(g[-q:]), m))
+y, m = gc_run(burst_in(steady), "gc_pct_stutter", gc_voice=1); g, _ = glitch_part(y)
+jump = np.max(np.abs(np.diff(y)))
+check(m[:1] == [0] and len(g) > 0.2 * SR and jump < 0.15 * max(np.max(np.abs(y)), 1e-9) + 0.01,
+      "glitch voice New: a stutter repeats the sound (%.2f s) without clicks (%.3f of peak %.3f)" % (len(g) / SR, jump, np.max(np.abs(y))))
+y, m = gc_run(burst_in(steady, total=8.0), "gc_pct_stretch", gc_voice=1); g, _ = glitch_part(y, thr=0.02)
+held = g[int(0.4 * SR):int(1.0 * SR)] if len(g) > SR else np.zeros(4)
+check(m[:1] == [3] and len(g) > 1.0 * SR and 800 < zc(held) / 2 < 1250,
+      "glitch voice New: stretch smears a 0.3 s sound over %.1f s at its own pitch (%.0f Hz)" % (len(g) / SR, zc(held) / 2))
+y, m = gc_run(burst_in(steady, at=3.1), "gc_pct_stutter", steps=0.5, gc_voice=1)
+_, start = glitch_part(y, at=3.1, thr=0.05)
+check(start is not None and 0.15 <= start <= 0.18,
+      "glitch voice New: while walking it lands on the half-step (%.3f s after the sound)" % (start or -1))
+def two_stretches(voice):
+    """A 1 kHz sound, then a 600 Hz one 0.8 s later, both stretched: is the first still heard after the second?"""
+    t5 = np.arange(int(0.3 * SR)) / SR
+    x = burst_in(steady, total=7.0); i = int(3.8 * SR)              # (the rest after a glitch at Amount 1: 0.6 s)
+    x[i:i + len(t5)] += (0.3 * np.sin(2 * np.pi * 600 * t5)).astype(np.float32)
+    y, m = gc_run(x, "gc_pct_stretch", gc_voice=voice)
+    w = y[int(3.95 * SR):int(4.15 * SR)]
+    return tone_level(w, 1000), tone_level(w, 600), m
+a1k, a600, ma = two_stretches(0); b1k, b600, mb = two_stretches(1)
+check(ma[:2] == [3, 3] and mb[:2] == [3, 3] and b600 > 0.005 and b1k > 0.3 * b600 and b1k > 5 * a1k,
+      "glitch voice New: two stretches overlap (after the second, the first still sounds: 1 kHz %.4f with 600 Hz %.4f; "
+      "Classic cuts it: %.4f)" % (b1k, b600, a1k))
 # wide: each glitch sits well out to one side (the far ear quieter and a little later)
 def gc_sides(seed):
     x = burst_in(steady, seed=seed)
@@ -2095,6 +2139,9 @@ def cost(**over):
 c_off = min(cost(gc_amount=0) for _ in range(2)); c_on = min(cost(gc_amount=1) for _ in range(2))
 check(c_on < c_off * 1.35, "glitch cloud: cost while on +%.0f%% of the whole patch (off %.2f s, on %.2f s for 20 s of audio)"
       % (100 * (c_on / c_off - 1), c_off, c_on))
+c_new = min(cost(gc_amount=1, gc_voice=1) for _ in range(2))
+check(c_new < c_off * 1.35, "glitch voice New: cost while on +%.0f%% of the whole patch (Classic +%.0f%%)"
+      % (100 * (c_new / c_off - 1), 100 * (c_on / c_off - 1)))
 
 # room notes: resonators make the mic's own sound ring the current chord
 def claps(n, gap, amp, quiet=0.0005, seed=1):

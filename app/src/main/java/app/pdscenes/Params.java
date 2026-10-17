@@ -194,6 +194,11 @@ final class Params {
                     Param.Curve.LINEAR).inSection("music").toggle().noPreset().resetWhenAbsent(),
             new Param("chime_char", "Chime character (ring to your sound)", 0f, 1f, 0.5f, "", Param.Curve.LINEAR)
                     .inSection("music").rand(0f, 1f).resetWhenAbsent(),
+            // Found note ring (prototype, Oct 16): what a found melody note rings with. String = our own C object
+            // (dcs_string~): the caught sound plucks a string tuned to the note.
+            new Param("fm_ring", "Found note ring", 0f, 1f, 0f, "", Param.Curve.LINEAR)
+                    .choices("Resonator", "String (the sound plucks a string)")
+                    .inSection("music").noPreset().resetWhenAbsent(),
             new Param("music_tone", "Tone (dark to bright)", 0f, 1f, 0.5f, "", Param.Curve.LINEAR)
                     .inSection("music").rand(0.2f, 0.9f).resetWhenAbsent(),
             new Param("music_react", "How much the music follows what it hears", 0f, 1f, 0.8f, "",
@@ -364,6 +369,11 @@ final class Params {
                     Param.Curve.LINEAR).inSection("glitch").rand(0f, 0.6f).resetWhenAbsent(),
             new Param("gc_level", "Glitch cloud level", 0f, 1f, 0.7f, "", Param.Curve.LINEAR)
                     .inSection("glitch").rand(0.4f, 1f).resetWhenAbsent(),
+            // Glitch voice (prototype, Oct 16): New = our own C object (dcs_glitch~): several glitches at once, each
+            // starting on its exact sample, and a smoother stretch. Same kinds, shares and timing as Classic.
+            new Param("gc_voice", "Glitch voice", 0f, 1f, 0f, "", Param.Curve.LINEAR)
+                    .choices("Classic", "New (several at once, smoother stretch)")
+                    .inSection("glitch").noPreset().resetWhenAbsent(),
             // The glitch matrix: how each glitch is shared out. Together at most 100%, and what is left over is the chance
             // that nothing happens (Samuel's idea). Amount says how often a glitch gets its chance.
             new Param("gc_pct_stutter", "Stutter share (a slice repeated, on the beat while walking)", 0f, 100f, 35f, " %",
