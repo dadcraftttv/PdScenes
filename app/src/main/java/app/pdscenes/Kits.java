@@ -25,15 +25,16 @@ final class Kits {
     static final String ID = "kit";
     static final String[] PARTS = {"mel", "bass", "pad", "drums"};
     /** The Kit menu, in order (Params' choices for "kit" follow it). */
-    static final String[] BUILT_IN = {"classic", "acoustic", "synth", "edm", "futurebass"};
-    static final String[] ENGINES = {"classic", "pluck", "bowed", "modal", "analog", "drums", "chop"};
+    static final String[] BUILT_IN = {"classic", "acoustic", "synth", "edm", "futurebass", "lowend"};
+    static final String[] ENGINES = {"classic", "pluck", "bowed", "modal", "analog", "drums", "chop", "sub"};
     static final String[] MODAL = {"", "bell", "marimba", "bowl"};
     /** The voice's own defaults, sent before a kit's settings (so nothing lingers from the kit before). */
     static final String[][] DEFAULTS = {{"engine", "0"}, {"bright", "0.4"}, {"level", "1"}, {"attack", "300"},
             {"release", "800"}, {"decay", "3000"}, {"modal", "1"}, {"cutoff", "4"}, {"reso", "0.3"}, {"fenv", "6"},
             {"detune", "8"}, {"sub", "0.3"}, {"saws", "2"}, {"ktune", "50"}, {"kdecay", "350"}, {"kdrive", "0.3"},
             {"stone", "185"}, {"sdecay", "180"}, {"hdecay", "45"}, {"pump", "0"}, {"pumprel", "250"}, {"wobble", "0"},
-            {"wrate", "2"}, {"bend", "0"}, {"bendms", "120"}, {"chop", "180"}};
+            {"wrate", "2"}, {"bend", "0"}, {"bendms", "120"}, {"chop", "180"}, {"octave", "0"}, {"chance", "1"},
+            {"hchance", "1"}, {"glide", "0"}, {"drive", "0.3"}};
 
     /** Reads a built-in kit's text (assets on the phone, files on the desktop); null if missing. */
     interface Source {

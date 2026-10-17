@@ -1813,10 +1813,11 @@ check(all(abs(a - b) < 4 for a, b in zip(pr, ps)) and ts > 0.4 and 0.5 < ls / lr
 KIT_DEFAULTS = (("bright", 0.4), ("level", 1), ("attack", 300), ("release", 800), ("decay", 3000), ("modal", 1),
                 ("cutoff", 4), ("reso", 0.3), ("fenv", 6), ("detune", 8), ("sub", 0.3), ("saws", 2), ("ktune", 50),
                 ("kdecay", 350), ("kdrive", 0.3), ("stone", 185), ("sdecay", 180), ("hdecay", 45), ("pump", 0), ("pumprel", 250),
-                ("wobble", 0), ("wrate", 2), ("bend", 0), ("bendms", 120), ("chop", 180))
+                ("wobble", 0), ("wrate", 2), ("bend", 0), ("bendms", 120), ("chop", 180), ("octave", 0), ("chance", 1),
+                ("hchance", 1), ("glide", 0), ("drive", 0.3))
 def read_kit(name):
     """A kit file as Kits.java reads it: part -> [(setting, value)], the engine last."""
-    eng, modal, kit = ["classic", "pluck", "bowed", "modal", "analog", "drums", "chop"], ["", "bell", "marimba", "bowl"], {}
+    eng, modal, kit = ["classic", "pluck", "bowed", "modal", "analog", "drums", "chop", "sub"], ["", "bell", "marimba", "bowl"], {}
     for line in open(os.path.join(ROOT, "app/src/main/assets/kits", name + ".txt")):
         key, _, rest = line.strip().partition(":")
         if line.startswith("#") or key not in ("mel", "bass", "pad", "drums"):
@@ -1826,7 +1827,7 @@ def read_kit(name):
         kit[key] = [kv for kv in vals if kv[0] != "engine"] + [kv for kv in vals if kv[0] == "engine"]
     return kit
 ACOUSTIC = read_kit("acoustic")
-KITS = {name: read_kit(name) for name in ("acoustic", "synth", "edm", "futurebass")}
+KITS = {name: read_kit(name) for name in ("acoustic", "synth", "edm", "futurebass", "lowend")}
 def send_kit(e, kit):
     for part in ("mel", "bass", "pad", "drums"):
         e.send_msg("kit_" + part, "engine", 0)
@@ -1845,8 +1846,8 @@ def kit_run(kit, part):
     over = dict(music_on=1, music_arp=1 if part == "mel" else 0, music_res=0, wet=0, music_react=0, melody_src=0, pad_src=0, bass_src=0,
                 music_pad=1 if part != "mel" else 0, music_pad_reg={"mel": 2, "bass": 0, "pad": 1}[part])
     e = fresh(**over)
-    if kit is not None:
-        send_kit(e, kit)
+    if kit is not None:                    # (every note: a kit's sparseness (chance) is tested in test_dcs)
+        send_kit(e, {p: [kv for kv in v if kv[0] not in ("chance", "hchance")] for p, v in kit.items()})
     x = (np.random.default_rng(3).standard_normal(6 * SR) * 0.0005).astype(np.float32)
     e.run(x[:SR])
     if part == "mel":

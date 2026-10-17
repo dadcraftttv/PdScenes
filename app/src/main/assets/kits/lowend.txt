@@ -1,0 +1,9 @@
+# Low end (Oct 17): an 808 sub that slides between notes, a deep dark pad an octave down, a sparse soft marimba
+# on top, and 808-style drums: a long boomy kick, a clap-like snare, thinned-out hats. No pump: the low end breathes.
+#   sub: decay ms (each note dies over it), drive 0..1, glide ms (the slide between notes)
+#   octave -1 = an octave down, chance 0..1 = how many melody notes play, hchance = how many hats play
+title: Low end
+mel: engine modal, modal marimba, chance 0.45, bright 0.3, level 8
+bass: engine sub, decay 2500, drive 0.35, glide 90, level 2.5
+pad: engine analog, saws 3, detune 10, cutoff 1.2, reso 0.1, fenv 0.3, sub 0, octave -1, attack 2000, release 3000, level 0.5
+drums: engine drums, ktune 42, kdecay 900, kdrive 0.2, stone 230, sdecay 220, hdecay 30, hchance 0.4, pump 0, level 0.38

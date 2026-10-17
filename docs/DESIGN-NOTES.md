@@ -169,6 +169,14 @@ to date in the same commit when behaviour changes.
   178 ms. futurebass.txt: chop melody (saws 5 fallback), sub bass, pad 7 saws 35 c wobble 0.7 wrate 2 bend -2,
   drums with pump 0.7 / 320 ms. The test runner now silences checks run only as another section's dependency
   (they ran under other random choices and counted), and the glitch cost check interleaves its three setups.
+  **Low end kit** (Oct 17, step 4, the last style): engine 7 sub (an 808): a sine x `drive` through tanh, falling
+  60 dB over `decay` from each note; a held slot that moves glides there (`glide` ms, ~ x 0.3 time constant) and
+  starts its level again; `retrig` restarts held 808 notes, sent by the patch on each kick while beat_level > 0,
+  else on each beat (an 808 note otherwise died long before the next chord change: silence). Any engine:
+  `octave` (notes n octaves off), `chance` (a one-shot plays with this chance), `hchance` (the same for hats).
+  lowend.txt: marimba melody at chance 0.45 (level 8), 808 bass decay 2.5 s drive 0.35 glide 90 (level 2.5), pad
+  3 saws an octave down, attack 2 s, drums ktune 42 kdecay 900, hats at hchance 0.4, no pump. Kit tests play every
+  note (chance and hchance dropped there; sparseness is test_dcs's, over 200 notes: 55-64 of 200 at 0.3).
   Not yet: user kits, register Low for kit pads, kit drums in "Your steps" mode (the old step drums send no
   drum_* messages).
 - Waiting on Samuel's ears for both. Not in the tester guide (prototype). `dcs_derustle~` (Oct 17): see Pocket rustle. Ideas next: analog-style ladder filter,

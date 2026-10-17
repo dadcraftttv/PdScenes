@@ -3606,6 +3606,14 @@ def add_kit_drums(P, x=4300, y=1700):
     P.obj("kd_pp", "pack f f", x + 300, y + 75); P.c("kd_pump", "kd_pp", 1, 1); P.c("kd_pump", "kd_pp", 0, 0)
     P.msg("kd_pm", f"{BS}$1 4 {BS}, 1 {BS}$2 4", x + 300, y + 85); P.c("kd_pp", "kd_pm")
     P.obj("kit_pump", "vline~", x + 300, y + 100); P.c("kd_pm", "kit_pump")
+    # the bass's 808 (a kit's `sub` engine) plays in rhythm: its held note starts again on each kick while the beat
+    # is on, else on each beat (other engines ignore it)
+    P.obj("kd_blr", "r beat_level", x + 500, y); P.obj("kd_bl1", "> 0", x + 500, y + 15); P.c("kd_blr", "kd_bl1")
+    P.obj("kd_bl0", "== 0", x + 560, y + 15); P.c("kd_blr", "kd_bl0")
+    P.obj("kd_rtk", "spigot 0", x + 500, y + 50); P.c("kd_rk", "kd_rtk"); P.c("kd_bl1", "kd_rtk", 0, 1)
+    P.obj("kd_rtt_r", "r tempo", x + 560, y + 35); P.obj("kd_rtt", "spigot 1", x + 560, y + 50)
+    P.c("kd_rtt_r", "kd_rtt"); P.c("kd_bl0", "kd_rtt", 0, 1)
+    P.msg("kd_rtm", "retrig", x + 530, y + 70); P.c("kd_rtk", "kd_rtm"); P.c("kd_rtt", "kd_rtm"); P.c("kd_rtm", "ba_kv")
     P.obj("kd_plb", "loadbang", x + 400, y + 80); P.msg("kd_p1", "1", x + 400, y + 90); P.c("kd_plb", "kd_p1"); P.c("kd_p1", "kit_pump")
 
 
