@@ -58,6 +58,20 @@ Setup: `export JAVA_HOME=~/.jdks/jbr-21.0.11 PATH=$JAVA_HOME/bin:$PATH`; libpd v
   `quick glitch`, `quick pocket`), plus the Java tests. `tools/run_tests.sh list` shows the section titles.
 - Android build: `./gradlew assembleDebug`. Real-device check is Samuel's.
 
+## Current state (update this when it changes)
+As of Oct 17:
+- **Waiting on Samuel's ears** (all behind switches or kits, the old sound the default): the five kits (Acoustic,
+  Synth, EDM, Future bass, Low end; Music tab, Kit * and Melody/Bass/Pad/Drums from *), Glitch voice New, Found note
+  ring String, Rustle squash + Step duck (pocket), Pitch tracker / Pitch shifter / Sudden-sound detector New.
+  Settings that use our C objects show " *" after their name. Kit levels were matched to Classic by measurement
+  only; each kit's sound is one line per part in `app/src/main/assets/kits/<name>.txt`.
+- **Next on the kit plan** (ROADMAP 19): user kits (load a kit folder/zip with kit.txt + samples, a format page
+  for sound designers), then retire the stems player. Smaller open items: register Low for kit pads, kit drums
+  in "Your steps" mode, the desktop app shows no Pd console prints.
+- **Release:** rc3 is with testers; rc4 not built yet (our pd-core, the unplug fix, input gain 1, and whatever of
+  the above Samuel approves). Rename to Ouralia (no USPTO/EUIPO hits) waits for release prep.
+- Check `git status` / `git log origin/main..HEAD` for unpushed commits: push only when Samuel asks.
+
 ## Pd gotchas
 - In message boxes write commas as space + `\,`. `[t b b f]` fires right to left; a `[t]` outlet feeding two objects
   has no defined order. A `[value]` feeding several destinations fires all on a bang: one reader per consumer.
