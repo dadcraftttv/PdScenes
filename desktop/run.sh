@@ -9,7 +9,7 @@ H="$(cd "$(dirname "$0")" && pwd)"
 CP="$H/lib/libpd.jar:$H/lib/jnajack-1.4.0.jar:$H/lib/jna-5.14.0.jar:$H/lib/json-20240303.jar:$H/lib/flatlaf-3.4.1.jar"
 A="$H/../app/src/main/java/app/pdscenes"
 # the phone app's own logic, unchanged, with desktop stand-ins (shim/) for the little Android it touches
-SHARED="Param Params ParamStore PresetManager Modulation PhoneContext Intensity CalmBuild PackPlayer StemPack Worlds WorldSelector MotifMemory NoteRegister CallResponse"
+SHARED="Param Params ParamStore PresetManager Modulation PhoneContext Intensity CalmBuild PackPlayer StemPack Worlds WorldSelector MotifMemory NoteRegister CallResponse Kits"
 make -s -C "$H/../dcs"   # our own Pd objects (build/dcs.pd_linux), loaded by the patch
 rm -rf "$H/build"; mkdir -p "$H/build"
 javac -d "$H/build" -cp "$CP" $(for c in $SHARED; do echo "$A/$c.java"; done) $(find "$H/shim" "$H/src" -name '*.java')

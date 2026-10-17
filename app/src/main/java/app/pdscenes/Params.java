@@ -195,6 +195,11 @@ final class Params {
             new Param("melody_src", "Melody sounds", 0f, 2f, 1f, "", Param.Curve.LINEAR)
                     .choices("Synth chimes", "Found sounds (tuned from what the mic hears)", "Both")
                     .inSection("music").noPreset().resetWhenAbsent(),
+            // Kit (Oct 17): what each part of the music sounds like (Kits.java, assets/kits). Classic = as always.
+            // Saved in presets, so a shared preset sounds the same.
+            new Param("kit", "Kit (the sound of the music)", 0f, 1f, 0f, "", Param.Curve.LINEAR)
+                    .choices("Classic", "Acoustic (plucked and bowed strings)")
+                    .inSection("music").noRandom().noPd().resetWhenAbsent(),
             // Melody rhythm (Oct 15): the walking notes and the standing-still chimes follow one-bar rhythm patterns
             // (whole to 8th notes, or dotted and syncopated ones), each note ringing as long as it lasts. Off = as before.
             new Param("mel_rhythm", "Melody rhythm", 0f, 3f, 0f, "", Param.Curve.LINEAR)

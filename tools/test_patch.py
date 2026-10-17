@@ -77,7 +77,7 @@ check(not bad, "patch loads with no Pd errors" + (": %s" % bad if bad else ""))
 
 jp = java_params()
 patch_text = open(PATCH).read()
-receivers = set(re.findall(r"#X obj \d+ \d+ r (\w+);", patch_text)) - {"step", "scale_n", "pad_glide", "mic_level", "pad_slot", "pool_n", "pool_x", "pocket", "pocket_down", "duck", "step_strength", "step_hit", "beat_sure", "groove", "gc_mode", "gc_try", "density_on", "motif", "drift_now", "drift_set", "drift_n", "music_register", "music_warm", "pulse", "tick16", "clock_walking", "gc_mode", "fs_need", "harm_organ", "fpad_need", "harm_run", "fpad_kick", "fpad_caught", "rh_swing_set", "fs_flourish_set", "rn_ring", "rnf_found", "realm_cue", "handling", "jolt", "msync", "tempo", "calm_chimes", "stem_on", "stem_file", "stem_bars", "stem_lvl", "stem_start", "heard_deg", "heard_off", "shift_voice_c", "harm_tracker_c"} - {r for r in re.findall(r"#X obj \d+ \d+ r (sw_\w+);", open(PATCH).read())}   # events and internal links, not settings
+receivers = set(re.findall(r"#X obj \d+ \d+ r (\w+);", patch_text)) - {"step", "scale_n", "pad_glide", "mic_level", "pad_slot", "pool_n", "pool_x", "pocket", "pocket_down", "duck", "step_strength", "step_hit", "beat_sure", "groove", "gc_mode", "gc_try", "density_on", "motif", "drift_now", "drift_set", "drift_n", "music_register", "music_warm", "pulse", "tick16", "clock_walking", "gc_mode", "fs_need", "harm_organ", "fpad_need", "harm_run", "fpad_kick", "fpad_caught", "rh_swing_set", "fs_flourish_set", "rn_ring", "rnf_found", "realm_cue", "handling", "jolt", "msync", "tempo", "calm_chimes", "stem_on", "stem_file", "stem_bars", "stem_lvl", "stem_start", "heard_deg", "heard_off", "shift_voice_c", "harm_tracker_c", "kit_mel", "kit_bass", "kit_pad", "kit_bass_new", "kit_pad_new"} - {r for r in re.findall(r"#X obj \d+ \d+ r (sw_\w+);", open(PATCH).read())}   # events and internal links, not settings
 pd_ids = {i for i, _, nopd in jp if not nopd}
 check(len(jp) >= 10, "parsed %d params from Params.java" % len(jp))
 check(pd_ids == receivers, "Params.java ids == patch receivers (java-only %s, patch-only %s)"
@@ -1809,6 +1809,52 @@ pr, tr, lr_ = found_ring(0); ps, ts, ls = found_ring(1)
 check(all(abs(a - b) < 4 for a, b in zip(pr, ps)) and ts > 0.4 and 0.5 < ls / lr_ < 2,
       "found note ring: String plays the same notes (%s Hz vs %s), tonal %.2f (resonator %.2f), level %.4f vs %.4f"
       % ([round(v) for v in ps], [round(v) for v in pr], ts, tr, ls, lr_))
+# Kits: Classic changes nothing; Acoustic plays each part's notes through its kit voice and the Classic sound gives way
+KIT_DEFAULTS = (("bright", 0.4), ("level", 1), ("attack", 300), ("release", 800), ("decay", 3000), ("modal", 1))
+def read_kit(name):
+    """A kit file as Kits.java reads it: part -> [(setting, value)], the engine last."""
+    eng, modal, kit = ["classic", "pluck", "bowed", "modal"], ["", "bell", "marimba", "bowl"], {}
+    for line in open(os.path.join(ROOT, "app/src/main/assets/kits", name + ".txt")):
+        key, _, rest = line.strip().partition(":")
+        if line.startswith("#") or key not in ("mel", "bass", "pad"):
+            continue
+        items = [w.split() for w in rest.split(",") if len(w.split()) >= 2]
+        vals = [(k, eng.index(v) if k == "engine" else modal.index(v) if k == "modal" else float(v)) for k, v, *_ in items]
+        kit[key] = [kv for kv in vals if kv[0] != "engine"] + [kv for kv in vals if kv[0] == "engine"]
+    return kit
+ACOUSTIC = read_kit("acoustic")
+def send_kit(e, kit):
+    for part in ("mel", "bass", "pad"):
+        e.send_msg("kit_" + part, "engine", 0)
+        for k, v in KIT_DEFAULTS:
+            e.send_msg("kit_" + part, k, v)
+        for k, v in kit.get(part, ()):
+            e.send_msg("kit_" + part, k, v)
+def kit_run(kit, part):
+    """Music with only `part` audible (melody: motif notes; bass: Pad register Low; pad: Mid), the kit sent or not."""
+    over = dict(music_on=1, music_arp=1 if part == "mel" else 0, music_res=0, wet=0, music_react=0, melody_src=0, pad_src=0, bass_src=0,
+                music_pad=1 if part != "mel" else 0, music_pad_reg={"mel": 2, "bass": 0, "pad": 1}[part])
+    e = fresh(**over)
+    if kit is not None:
+        send_kit(e, kit)
+    x = (np.random.default_rng(3).standard_normal(6 * SR) * 0.0005).astype(np.float32)
+    e.run(x[:SR])
+    if part == "mel":
+        ys = []
+        for deg in (7, 9, 11):
+            e.send_list("motif", deg, 0.5); ys.append(e.run(x[SR:2 * SR])[:, 0])
+        return np.concatenate(ys)
+    return e.run(x[:5 * SR])[:, 0][2 * SR:]
+for part in ("mel", "bass", "pad"):
+    y_none, y_classic, y_ac = kit_run(None, part), kit_run({}, part), kit_run(ACOUSTIC, part)
+    f_none = spec_peaks(y_none)[:3]; f_ac = spec_peaks(y_ac)[:3]
+    same = lambda a, b: abs(a / b - round(a / b)) < 0.01 or abs(b / a - round(b / a)) < 0.01   # (a note or its overtone)
+    # (Classic = engine 0: no kit voice, the part's own sound. Two runs in one process never match sample for sample:
+    #  Pd's random choices go on from run to run, so "unchanged" is checked by level here, and exactly in test_dcs/Q)
+    check(0.75 < rms(y_classic) / rms(y_none) < 1.33 and 0.5 < rms(y_ac) / rms(y_none) < 2 and rms(y_none - y_ac) > 0.3 * rms(y_none)
+          and any(same(f, g) for f in f_ac for g in f_none),
+          "kits, %s: Classic unchanged; Acoustic sounds on the same notes, differently (rms %.4f vs %.4f, peaks %s vs %s)"
+          % (part, rms(y_ac), rms(y_none), [round(f) for f in f_ac[:3]], [round(f) for f in f_none]))
 # Room notes, found: after a catch, each sudden sound plays a caught sound on a chord tone (the ring resonators off)
 def room_found(src):
     x = (np.random.default_rng(3).standard_normal(9 * SR) * 0.0005).astype(np.float32)

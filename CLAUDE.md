@@ -36,6 +36,8 @@ behaviour changes, or tell Samuel it needs one).
 - `app/src/main/assets/scene_lib` (rjlib + our scene helpers), `builtin_scenes/` (4 official RjDj scenes).
 - `dcs/` — our own Pd objects in C (prefix `dcs_`, BSD-3, loaded by `#X declare -lib dcs;`). After changing
   `dcs/src`: `make -C dcs`, `tools/build_dcs_android.sh` (commits `app/src/main/jniLibs/*/libdcs.so`), `tools/test_dcs.py`.
+- `app/src/main/assets/kits/*.txt` + `Kits.java` — kits (what each music part sounds like; `dcs_voice~` engines,
+  Classic = the Pd voices). Details: DESIGN-NOTES "Kits".
 - `desktop/` — Linux stream mode (Swing + JACK via pw-jack), compiles the phone's logic classes unchanged.
 - `app/src/main/res/values/strings.xml` — escape apostrophes as `\'`.
 

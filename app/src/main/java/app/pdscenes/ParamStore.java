@@ -56,6 +56,9 @@ final class ParamStore {
         }
         float v = p.clamp(value);
         values.put(id, v);
+        if (Kits.ID.equals(id) && AudioService.isRunning()) {
+            sendKit();
+        }
         if (p.sendToPd && AudioService.isRunning()) {
             PdBase.sendFloat(id, Modulation.output(p, v));
             if (Intensity.ID.equals(id)) {   // everything Intensity scales goes out again
@@ -246,6 +249,12 @@ final class ParamStore {
                 PdBase.sendFloat(p.id, Modulation.output(p, get(p.id)));
             }
         }
+        sendKit();
+    }
+
+    /** The chosen kit's settings, as messages to each part's kit voice (Kits). */
+    static void sendKit() {
+        Kits.send(Math.round(get(Kits.ID)), (recv, sel, val) -> PdBase.sendMessage(recv, sel, val));
     }
 
     private static void applyValues(Map<String, Float> map) {

@@ -209,7 +209,8 @@ and microphone declarations, icon, store listing, numbered pd-core release.
       a loop, which would let old stem packs load as kits).
     - The mic still never touches disk: kits may bring their own files, and "found" parts stay in memory.
     - **Order** (Samuel, Oct 17: the quick wins dcs_shift~, dcs_pitch~, dcs_onset~ first, then kits; first new kit
-      style: Acoustic): (a) dcs_voice~ with the engines Classic needs, so today's sound is reproduced behind a Kit switch,
+      style: Acoustic; **(a) and the first of (b) built Oct 17**: Classic = the Pd voices themselves, dcs_voice~ with
+      pluck / bowed / modal, Acoustic; see DESIGN-NOTES "Kits"): (a) dcs_voice~ with the engines Classic needs, so today's sound is reproduced behind a Kit switch,
       (b) the first built-in kits one style at a time (each one Samuel's ears pass before the next), (c) mix and match
       per part, (d) user kits and the format page, (e) retire stems.
 

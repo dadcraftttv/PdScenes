@@ -110,6 +110,27 @@ to date in the same commit when behaviour changes.
   compares: worst 1.3e-6), ~55-60% of its cost (the maths is the same; the saving is per-object overhead: Pd's own
   objects are already tight C). Reverb at Samuel's settings 0.069 -> 0.039 s. Still always on: 338 small signal
   objects (117 *~, 84 line~ smoothers, 62 +~...), ~0.9% of a desktop core idle.
+- **Kits** (Oct 17, roadmap 19 step a+b; Samuel: kits for acoustic / synth / EDM / future bass / low end, mix and
+  match, loadable, to replace the stems player; first new style: Acoustic). The music brain is untouched; a kit says
+  what each part sounds like. **Classic = today's Pd voices**, nothing ported: a part's kit engine 0 leaves it as it
+  was. `dcs_voice~` (one per part: `mu_kv_mel`, `ba_kv`, `mu_kv_pad`, in the music group) has engines 1 pluck
+  (Karplus-Strong as dcs_string~, x1.5), 2 bowed (the string kept up by a pulse once a period + 0.1 breath noise:
+  plain noise wandered 6 dB; x6; released strings die over `release`), 3 modal (bell / marimba / bowl partial banks,
+  struck once, gain ~ sin w); `note hz vel ms [bright]` one-shots, `pnote slot hz` held notes that crossfade when the
+  slot moves. Patch (`add_kits`): `kit_<part>` receivers feed the voices; `route engine` -> melody `value kmel`
+  (the synth's vsyn and the found twin's gate x (kmel==0); each voice's note also goes out as `note cfreq cvel cdec
+  cbright`), bass/pad `kit_<part>_cl` (== 0, 50 ms line~) on the Classic sound (synth + found), and
+  `kit_<part>_new` resends the held notes (`ba_kf`, `mu_pad<i>_kf`) so a kit chosen mid-chord sounds at once.
+  Java: `Kits.java` reads `assets/kits/<name>.txt` (one line per part: `mel: engine pluck, bright 0.45, level 4.3`;
+  unknown parts/settings skipped), `Kits.BUILT_IN` = the Kit menu; Param `kit` (Music, noPd, in presets); on a
+  change and in `ParamStore.sendAllToPd` every part gets the voice's defaults, the kit's settings, the engine last
+  (PdBase.sendMessage). Desktop reads assets/kits from the repo (run.sh/test.sh SHARED + Kits). Tests: test_dcs
+  (each engine: pitch, harmonics, a held note's level within 2.4 dB in 100 ms frames, slot moves, poff, bell's
+  2.76x partial, engine 0 silent), Java Q, test_patch "kits" (reads acoustic.txt; each part sounds on the same
+  notes within +-6 dB of Classic; Classic within the natural run-to-run spread, ~12%). Acoustic levels set to
+  match Classic (melody 4.3, bass 5, pad 0.05). Pd lessons: in add_music `ex()` doesn't escape ";" (a 4-output expr
+  became 1 output and three stray messages: `note 0 0.5 0 0`); two runs in one process never match sample for
+  sample (random choices carry on). Not yet: per-part mix and match, user kits, drums, register Low for kit pads.
 - Waiting on Samuel's ears for both. Not in the tester guide (prototype). `dcs_derustle~` (Oct 17): see Pocket rustle. Ideas next: analog-style ladder filter,
   oversampled distortion/crush, a lighter pitch tracker than sigmund~, a dcs phaser, more glitch kinds.
 

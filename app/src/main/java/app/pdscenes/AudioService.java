@@ -784,6 +784,13 @@ public class AudioService extends Service {
         } else {
             PackPlayer.stop();
         }
+        Kits.source = name -> {                          // the built-in kits, from the app's assets
+            try (InputStream kitIn = getAssets().open("kits/" + name + ".txt")) {
+                return new String(kitIn.readAllBytes(), StandardCharsets.UTF_8);
+            } catch (IOException e) {
+                return null;
+            }
+        };
         ParamStore.sendAllToPd();
         if (packEntry != null) {
             loadPack(packEntry);

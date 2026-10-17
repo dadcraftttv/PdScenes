@@ -139,6 +139,15 @@ final class DesktopApp {
         Modulation.reset();
         motif.reset();
         Worlds.reset();
+        File kits = new File(new File(patch).getAbsoluteFile().getParentFile().getParentFile(), "kits");   // (assets/kits)
+        Kits.source = name -> {
+            try {
+                return new String(java.nio.file.Files.readAllBytes(new File(kits, name + ".txt").toPath()),
+                        java.nio.charset.StandardCharsets.UTF_8);
+            } catch (IOException e) {
+                return null;
+            }
+        };
         ParamStore.sendAllToPd();
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             ParamStore.save(context);

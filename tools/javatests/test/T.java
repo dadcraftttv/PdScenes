@@ -68,7 +68,7 @@ public class T {
     PdBase.sent.clear(); ParamStore.set("wet",0.3f); check(PdBase.sent.isEmpty(),"no Pd send while stopped");
     AudioService.running=true; ParamStore.set("wet",0.4f); check(PdBase.sent.size()==1,"Pd send while running: "+PdBase.sent);
     PdBase.sent.clear(); ParamStore.sendAllToPd(); int pdCount=0; for(Param p:Params.ALL) if(p.sendToPd) pdCount++;
-    check(PdBase.sent.size()==pdCount && pdCount>=10,"sendAllToPd sends every Pd param ("+pdCount+"), not app-only ones");
+    check(PdBase.sent.stream().filter(m->!m.startsWith("kit_")).count()==pdCount && pdCount>=10,"sendAllToPd sends every Pd param ("+pdCount+"), not app-only ones");
     PdBase.sent.clear(); ParamStore.set("nudge_amount",0.1f); check(PdBase.sent.isEmpty() && Math.abs(ParamStore.get("nudge_amount")-0.1f)<1e-6,"nudge_amount is app-only (never sent to Pd)");
     // toggles
     ParamStore.set("echo_on",0.7f); check(ParamStore.get("echo_on")==1f,"toggle rounds 0.7 -> 1");
