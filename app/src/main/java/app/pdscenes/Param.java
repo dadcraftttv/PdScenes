@@ -36,6 +36,8 @@ final class Param {
     String moverOf = null;
     /** When a preset doesn't mention this parameter, reset it to its default instead of keeping it. */
     boolean resetWhenAbsent = false;
+    /** Uses one of our own C objects (dcs/): shown with an asterisk, so Samuel can tell the new options apart. */
+    boolean dcs = false;
     /** False: no mover for this slider (settings about the mic, where automatic wandering would only confuse). */
     boolean movable = true;
     /** Sliders with the same budget share it: together they may not go past their max (the glitch matrix: 100%). */
@@ -109,6 +111,17 @@ final class Param {
     Param resetWhenAbsent() {
         resetWhenAbsent = true;
         return this;
+    }
+
+    Param dcs() {
+        dcs = true;
+        return this;
+    }
+
+    /** The name on screen: the label, with " *" after one that uses our own C objects. (Screen readers get the
+     *  plain label.) */
+    String shown() {
+        return dcs ? label + " *" : label;
     }
 
     Param decimals(int n) {

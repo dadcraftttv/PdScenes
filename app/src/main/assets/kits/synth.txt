@@ -1,0 +1,6 @@
+# Synth (Oct 17): analog-style voices, two detuned saws (and a sub square) through a resonant ladder filter.
+#   cutoff = x the note's pitch, reso 0..1, fenv = how far the filter opens at each note, detune in cents, sub 0..1
+title: Synth
+mel: engine analog, cutoff 2.5, reso 0.35, fenv 8, detune 6, sub 0, attack 4, release 250, level 7
+bass: engine analog, cutoff 1.2, reso 0.5, fenv 5, detune 3, sub 0.7, attack 8, release 300, level 13
+pad: engine analog, cutoff 1.6, reso 0.2, fenv 1, detune 14, sub 0, attack 1500, release 2500, level 0.5

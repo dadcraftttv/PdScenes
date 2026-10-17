@@ -1356,7 +1356,7 @@ public class MainActivity extends Activity {
     private void addRow(LinearLayout parent, Param p, boolean compact) {
         if (p.toggle) {
             Switch sw = new Switch(this);
-            sw.setText(p.label);
+            sw.setText(p.shown());
             sw.setTextSize(16);
             sw.setPadding(0, dp(16), 0, 0);
             sw.setChecked(ParamStore.get(p.id) >= 0.5f);   // right from the start (folded rows aren't refreshed)
@@ -1428,7 +1428,7 @@ public class MainActivity extends Activity {
     /** A label with a dropdown, for settings that pick one of a few named options. */
     private void addChoiceRow(LinearLayout parent, Param p, boolean compact) {
         TextView label = new TextView(this);
-        label.setText(p.label);
+        label.setText(p.shown());
         label.setTextSize(compact ? 14 : 16);
         label.setPadding(0, dp(compact ? 4 : 16), 0, 0);
         parent.addView(label);
@@ -1494,7 +1494,7 @@ public class MainActivity extends Activity {
     }
 
     private String valueText(Param p, float value) {
-        return getString(R.string.param_value, p.label, p.format(value));
+        return getString(R.string.param_value, p.shown(), p.format(value));
     }
 
     /** Pull current values from the store into every control. */

@@ -25,12 +25,13 @@ final class Kits {
     static final String ID = "kit";
     static final String[] PARTS = {"mel", "bass", "pad"};
     /** The Kit menu, in order (Params' choices for "kit" follow it). */
-    static final String[] BUILT_IN = {"classic", "acoustic"};
-    static final String[] ENGINES = {"classic", "pluck", "bowed", "modal"};
+    static final String[] BUILT_IN = {"classic", "acoustic", "synth"};
+    static final String[] ENGINES = {"classic", "pluck", "bowed", "modal", "analog"};
     static final String[] MODAL = {"", "bell", "marimba", "bowl"};
     /** The voice's own defaults, sent before a kit's settings (so nothing lingers from the kit before). */
     static final String[][] DEFAULTS = {{"engine", "0"}, {"bright", "0.4"}, {"level", "1"}, {"attack", "300"},
-            {"release", "800"}, {"decay", "3000"}, {"modal", "1"}};
+            {"release", "800"}, {"decay", "3000"}, {"modal", "1"}, {"cutoff", "4"}, {"reso", "0.3"}, {"fenv", "6"},
+            {"detune", "8"}, {"sub", "0.3"}};
 
     /** Reads a built-in kit's text (assets on the phone, files on the desktop); null if missing. */
     interface Source {

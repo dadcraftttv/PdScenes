@@ -1810,10 +1810,11 @@ check(all(abs(a - b) < 4 for a, b in zip(pr, ps)) and ts > 0.4 and 0.5 < ls / lr
       "found note ring: String plays the same notes (%s Hz vs %s), tonal %.2f (resonator %.2f), level %.4f vs %.4f"
       % ([round(v) for v in ps], [round(v) for v in pr], ts, tr, ls, lr_))
 # Kits: Classic changes nothing; Acoustic plays each part's notes through its kit voice and the Classic sound gives way
-KIT_DEFAULTS = (("bright", 0.4), ("level", 1), ("attack", 300), ("release", 800), ("decay", 3000), ("modal", 1))
+KIT_DEFAULTS = (("bright", 0.4), ("level", 1), ("attack", 300), ("release", 800), ("decay", 3000), ("modal", 1),
+                ("cutoff", 4), ("reso", 0.3), ("fenv", 6), ("detune", 8), ("sub", 0.3))
 def read_kit(name):
     """A kit file as Kits.java reads it: part -> [(setting, value)], the engine last."""
-    eng, modal, kit = ["classic", "pluck", "bowed", "modal"], ["", "bell", "marimba", "bowl"], {}
+    eng, modal, kit = ["classic", "pluck", "bowed", "modal", "analog"], ["", "bell", "marimba", "bowl"], {}
     for line in open(os.path.join(ROOT, "app/src/main/assets/kits", name + ".txt")):
         key, _, rest = line.strip().partition(":")
         if line.startswith("#") or key not in ("mel", "bass", "pad"):
@@ -1823,6 +1824,7 @@ def read_kit(name):
         kit[key] = [kv for kv in vals if kv[0] != "engine"] + [kv for kv in vals if kv[0] == "engine"]
     return kit
 ACOUSTIC = read_kit("acoustic")
+KITS = {name: read_kit(name) for name in ("acoustic", "synth")}
 def send_kit(e, kit):
     for part in ("mel", "bass", "pad"):
         e.send_msg("kit_" + part, "engine", 0)
@@ -1845,18 +1847,27 @@ def kit_run(kit, part):
             e.send_list("motif", deg, 0.5); ys.append(e.run(x[SR:2 * SR])[:, 0])
         return np.concatenate(ys)
     return e.run(x[:5 * SR])[:, 0][2 * SR:]
-for part in ("mel", "bass", "pad"):
-    y_none, y_classic, y_ac = kit_run(None, part), kit_run({}, part), kit_run(ACOUSTIC, part)
-    f_none = spec_peaks(y_none)[:3]; f_ac = spec_peaks(y_ac)[:3]
-    # (the same note name: a part's notes move within the window, and a slow bowed attack shifts which peak is biggest)
+for name, part in [(n, p) for n in KITS for p in ("mel", "bass", "pad")]:
+    y_none, y_classic, y_ac = kit_run(None, part), kit_run({}, part), kit_run(KITS[name], part)
+    def strongest(y, n=3, apart=20):
+        """The n strongest spectral peaks at least `apart` Hz apart (a fast-dying pluck is a broad lobe whose ripples
+        would each count as a peak, listed from the lowest: they sat just under the note and looked out of key)."""
+        S_ = np.abs(np.fft.rfft(y * np.hanning(len(y)))); fr = np.fft.rfftfreq(len(y), 1 / SR); out = []
+        for i in np.argsort(S_ * (fr > 60))[::-1]:
+            if all(abs(fr[i] - g) > apart for g in out): out.append(float(fr[i]))
+            if len(out) == n: return out
+        return out
+    f_none = strongest(y_none); f_ac = strongest(y_ac)
+    # (in key: each run in this process hears different random choices, so the chords themselves can differ; that
+    #  each part gets the music's own notes was traced note for note when kits were built, Oct 17)
     pc = lambda f: 12 * np.log2(f / 261.63) % 12
-    same = lambda a, b: min(abs(pc(a) - pc(b)), 12 - abs(pc(a) - pc(b))) < 0.45
+    in_key = lambda f: min(min(abs(pc(f) - d), 12 - abs(pc(f) - d)) for d in SCALE_IV[0]) < 0.45
     # (Classic = engine 0: no kit voice, the part's own sound. Two runs in one process never match sample for sample:
     #  Pd's random choices go on from run to run, so "unchanged" is checked by level here, and exactly in test_dcs/Q)
     check(0.75 < rms(y_classic) / rms(y_none) < 1.33 and 0.5 < rms(y_ac) / rms(y_none) < 2 and rms(y_none - y_ac) > 0.3 * rms(y_none)
-          and any(same(f, g) for f in f_ac for g in f_none),
-          "kits, %s: Classic unchanged; Acoustic sounds on the same notes, differently (rms %.4f vs %.4f, peaks %s vs %s)"
-          % (part, rms(y_ac), rms(y_none), [round(f) for f in f_ac[:3]], [round(f) for f in f_none]))
+          and f_ac and all(in_key(f) for f in f_ac),
+          "kits, %s %s: Classic unchanged; it plays in key, differently, about as loud (rms %.4f vs %.4f, peaks %s vs %s)"
+          % (name, part, rms(y_ac), rms(y_none), [round(f) for f in f_ac[:3]], [round(f) for f in f_none]))
 # Room notes, found: after a catch, each sudden sound plays a caught sound on a chord tone (the ring resonators off)
 def room_found(src):
     x = (np.random.default_rng(3).standard_normal(9 * SR) * 0.0005).astype(np.float32)

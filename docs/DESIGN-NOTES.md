@@ -135,7 +135,17 @@ to date in the same commit when behaviour changes.
   sends only parts whose kit changed (a resent part's held notes would start over), all of them from
   `ParamStore.sendAllToPd`. **Kit settings are not resetWhenAbsent**: a Realm's preset (no kit in it) would have
   reset the Kit to Classic whenever a Realm took over the Music ingredient; now a preset that doesn't mention them
-  leaves them. Not yet: user kits, drums, register Low for kit pads.
+  leaves them. **Synth kit** (Oct 17, step 1 of "one by one"): `dcs_voice~` engine 4 analog = two PolyBLEP saws
+  `detune` cents apart + a PolyBLEP sub square (`sub`) into a 4-pole TPT ladder (zero-delay feedback solved,
+  tanh on the input, k = 3.9 x `reso`), cutoff = note x `cutoff` x (1 + `fenv` x env), the env falling over the
+  note (or `decay` for held notes), cutoff per block. Measured: in tune; brightness 218 / 341 / 819 Hz at cutoff
+  1.5 / 4 / 16; reso 0.9 lifts the 6th harmonic 20x; stable at full resonance; a 3 kHz saw 100% on its harmonics;
+  a held note within 0.09 dB (detune off: detuned saws beat on purpose). synth.txt: melody cutoff 2.5 reso 0.35
+  fenv 8, bass cutoff 1.2 reso 0.5 sub 0.7, pad cutoff 1.6 detune 14 attack 1.5 s; levels 7 / 13 / 0.5 to sit
+  near Classic. The kits test now checks every kit plays in key at Classic's level (each run in a process hears
+  other random chords; a dying pluck's FFT lobe had ripples just under the note: take the 3 strongest peaks 20 Hz
+  apart). **Marker**: `Param.dcs()` -> `shown()` adds " *" on phone and desktop to every setting using our C
+  objects (Samuel, Oct 17; content descriptions stay plain). Not yet: user kits, drums, register Low for kit pads.
 - Waiting on Samuel's ears for both. Not in the tester guide (prototype). `dcs_derustle~` (Oct 17): see Pocket rustle. Ideas next: analog-style ladder filter,
   oversampled distortion/crush, a lighter pitch tracker than sigmund~, a dcs phaser, more glitch kinds.
 

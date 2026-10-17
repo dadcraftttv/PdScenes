@@ -384,7 +384,7 @@ final class DesktopWindow {
         g.insets = new Insets(3, 2, 3, 6);
         g.anchor = GridBagConstraints.WEST;
         if (p.toggle) {
-            JCheckBox box = new JCheckBox(p.label);
+            JCheckBox box = new JCheckBox(p.shown());
             box.addActionListener(e -> {
                 if (!quiet) {
                     send(p.id, box.isSelected() ? 1f : 0f);
@@ -398,7 +398,7 @@ final class DesktopWindow {
             r.refresh();
             return;
         }
-        JLabel label = new JLabel(SHORT.getOrDefault(p.id, p.label));
+        JLabel label = new JLabel(SHORT.containsKey(p.id) ? SHORT.get(p.id) + (p.dcs ? " *" : "") : p.shown());
         label.setPreferredSize(new Dimension(LABEL_WIDTH, label.getPreferredSize().height));
         label.setToolTipText(p.label);
         body.add(label, g);

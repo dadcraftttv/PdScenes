@@ -123,11 +123,11 @@ final class Params {
             // count and a clap still does in a loud room.
             new Param("onset_mode", "Sudden-sound detector", 0f, 1f, 0f, "", Param.Curve.LINEAR)
                     .choices("Classic (how loud)", "New (how the sound changes)")
-                    .inSection("main").noPreset().resetWhenAbsent(),
+                    .inSection("main").noPreset().resetWhenAbsent().dcs(),
             new Param("pocket_rustle", "Rustle squash (pocket: sudden cloth noise pulled down to the room)", 0f, 1f, 0f, "",
-                    Param.Curve.LINEAR).inSection("main").noRandom().noPreset().resetWhenAbsent(),
+                    Param.Curve.LINEAR).inSection("main").noRandom().noPreset().resetWhenAbsent().dcs(),
             new Param("pocket_steps", "Step duck (pocket, walking: the mic dips at each footfall)", 0f, 1f, 0f, "",
-                    Param.Curve.LINEAR).inSection("main").noRandom().noPreset().resetWhenAbsent(),
+                    Param.Curve.LINEAR).inSection("main").noRandom().noPreset().resetWhenAbsent().dcs(),
             // Taps, grips and rubbing on the phone (the motion sensors notice them): mic down by up to 24 dB at 1 while
             // it lasts. Their sounds never start chimes or glitches and are never caught for the found sounds, at any setting.
             new Param("handling_hush", "Handling hush (mic quieter while the phone is tapped or rubbed)", 0f, 1f, 0.5f, "",
@@ -198,16 +198,16 @@ final class Params {
             // Kit (Oct 17): what each part of the music sounds like (Kits.java, assets/kits). Classic = as always.
             // Saved in presets, so a shared preset sounds the same. Not reset when a preset or Realm says nothing
             // about it (a Realm would otherwise switch the kit back to Classic).
-            new Param("kit", "Kit (the sound of the music)", 0f, 1f, 0f, "", Param.Curve.LINEAR)
-                    .choices("Classic", "Acoustic (plucked and bowed strings)")
-                    .inSection("music").noRandom().noPd(),
+            new Param("kit", "Kit (the sound of the music)", 0f, 2f, 0f, "", Param.Curve.LINEAR)
+                    .choices("Classic", "Acoustic (plucked and bowed strings)", "Synth (saws through a resonant filter)")
+                    .inSection("music").noRandom().noPd().dcs(),
             // Mix and match (Oct 17): each part can take its sound from another kit. "The kit" = the Kit above.
-            new Param("kitp_mel", "Melody from", 0f, 2f, 0f, "", Param.Curve.LINEAR)
-                    .choices("The kit", "Classic", "Acoustic").inSection("music").noRandom().noPd(),
-            new Param("kitp_bass", "Bass from", 0f, 2f, 0f, "", Param.Curve.LINEAR)
-                    .choices("The kit", "Classic", "Acoustic").inSection("music").noRandom().noPd(),
-            new Param("kitp_pad", "Pad from", 0f, 2f, 0f, "", Param.Curve.LINEAR)
-                    .choices("The kit", "Classic", "Acoustic").inSection("music").noRandom().noPd(),
+            new Param("kitp_mel", "Melody from", 0f, 3f, 0f, "", Param.Curve.LINEAR)
+                    .choices("The kit", "Classic", "Acoustic", "Synth").inSection("music").noRandom().noPd().dcs(),
+            new Param("kitp_bass", "Bass from", 0f, 3f, 0f, "", Param.Curve.LINEAR)
+                    .choices("The kit", "Classic", "Acoustic", "Synth").inSection("music").noRandom().noPd().dcs(),
+            new Param("kitp_pad", "Pad from", 0f, 3f, 0f, "", Param.Curve.LINEAR)
+                    .choices("The kit", "Classic", "Acoustic", "Synth").inSection("music").noRandom().noPd().dcs(),
             // Melody rhythm (Oct 15): the walking notes and the standing-still chimes follow one-bar rhythm patterns
             // (whole to 8th notes, or dotted and syncopated ones), each note ringing as long as it lasts. Off = as before.
             new Param("mel_rhythm", "Melody rhythm", 0f, 3f, 0f, "", Param.Curve.LINEAR)
@@ -224,7 +224,7 @@ final class Params {
             // (dcs_string~): the caught sound plucks a string tuned to the note.
             new Param("fm_ring", "Found note ring", 0f, 1f, 0f, "", Param.Curve.LINEAR)
                     .choices("Resonator", "String (the sound plucks a string)")
-                    .inSection("music").noPreset().resetWhenAbsent(),
+                    .inSection("music").noPreset().resetWhenAbsent().dcs(),
             new Param("music_tone", "Tone (dark to bright)", 0f, 1f, 0.5f, "", Param.Curve.LINEAR)
                     .inSection("music").rand(0.2f, 0.9f).resetWhenAbsent(),
             new Param("music_react", "How much the music follows what it hears", 0f, 1f, 0.8f, "",
@@ -243,7 +243,7 @@ final class Params {
             // Pitch tracker (prototype, Oct 17): New = our own (dcs_pitch~): exact, and hiss reads as no pitch at all.
             new Param("harm_tracker", "Pitch tracker (what Harmony hears)", 0f, 1f, 0f, "", Param.Curve.LINEAR)
                     .choices("Classic", "New (more exact, ignores hiss)")
-                    .inSection("music").noPreset().resetWhenAbsent(),
+                    .inSection("music").noPreset().resetWhenAbsent().dcs(),
 
             // ---- Mix (Samuel, Oct 13): a level for every part, 0 = taken out. The x trims sit inside their group's
             // level (Beat level, Pad level, Notes and chimes level, Room notes): 1 = as before. Saved in presets
@@ -311,7 +311,7 @@ final class Params {
             // chipmunk) and doesn't warble. Also used by Your voice harmony.
             new Param("shift_voice", "Pitch shifter (also Your voice harmony)", 0f, 1f, 0f, "", Param.Curve.LINEAR)
                     .choices("Classic", "New (keeps your voice's tone)")
-                    .inSection("pitch").noPreset().resetWhenAbsent(),
+                    .inSection("pitch").noPreset().resetWhenAbsent().dcs(),
 
             // ---- Bit crusher ---- (added after the first presets: older presets switch it off)
             new Param("crush_on", "Bit crusher enabled", 0f, 1f, 1f, "", Param.Curve.LINEAR)
@@ -408,7 +408,7 @@ final class Params {
             // starting on its exact sample, and a smoother stretch. Same kinds, shares and timing as Classic.
             new Param("gc_voice", "Glitch voice", 0f, 1f, 0f, "", Param.Curve.LINEAR)
                     .choices("Classic", "New (several at once, smoother stretch)")
-                    .inSection("glitch").noPreset().resetWhenAbsent(),
+                    .inSection("glitch").noPreset().resetWhenAbsent().dcs(),
             // The glitch matrix: how each glitch is shared out. Together at most 100%, and what is left over is the chance
             // that nothing happens (Samuel's idea). Amount says how often a glitch gets its chance.
             new Param("gc_pct_stutter", "Stutter share (a slice repeated, on the beat while walking)", 0f, 100f, 35f, " %",
