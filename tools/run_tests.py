@@ -178,13 +178,21 @@ def worker(path, lib, ids):
     sys.path.insert(0, os.path.dirname(path))
     g = {"__name__": "__main__", "__file__": path}
     times = {}
+    import io, contextlib
     for i in run:
         t0 = time.perf_counter()
+        mine = i in own_of
+        before = g.get("fails", 0)
         try:
-            exec(compile(ast.Module([stmts[i]["node"]], []), path, "exec"), g)
+            # (a statement run only because a section needs what it sets: its own checks are that section's
+            #  business, run under other random choices here, so they neither print nor count)
+            with contextlib.redirect_stdout(sys.stdout if mine else io.StringIO()):
+                exec(compile(ast.Module([stmts[i]["node"]], []), path, "exec"), g)
         except Exception as ex:
             print("FAIL: line %d raised %s: %s" % (stmts[i]["node"].lineno, type(ex).__name__, ex), flush=True)
             g["fails"] = g.get("fails", 0) + 1
+        if not mine:
+            g["fails"] = before
         k = own_of.get(i)
         if k is not None:
             times[k] = times.get(k, 0) + time.perf_counter() - t0

@@ -158,6 +158,17 @@ to date in the same commit when behaviour changes.
   chimes; not room notes or harmony). edm.txt: supersaw lead (7 saws, 22 c), sub bass (sub 0.9), supersaw pad
   (7 saws, 30 c), drums ktune 52 kdecay 380 kdrive 0.6, pump 0.55 / 220 ms; drums level 0.38 (0.068 rms = Classic's).
   Measured in the patch: the music dips 5.3 dB right after each kick (median of 10), +0.4 without the pump.
+  **Future bass kit** (Oct 17, step 3): analog `wobble` 0..1 / `wrate` cycles a beat = one LFO shared by the
+  voice's notes, restarted by `tempo <bpm>` (the patch sends `r tempo` to the melody/bass/pad kit voices on every
+  beat): each cycle the level dips (1 - 0.8 x wobble x phase) and the cutoff closes (x (1 + 2 x wobble x (1 -
+  phase))); `bend` semitones / `bendms`: each note starts off and glides in. Engine 6 chop: a note plays `chop` ms
+  of the newest found-pad take (reads fpad_n [count, newest], fpad_<n>, fpad_f0, fpad_g with garray_getfloatwords),
+  from 0.2-0.3 s in, at note / take pitch folded into 0.75-1.5, 3 ms in, 25 ms out, x fpad_g x `CHOP_GAIN` 0.15;
+  nothing kept yet: the note plays on analog with the same settings. Tests (test_dcs): 2 a beat at 120 BPM pulses
+  at 4.00 Hz (158x vs none), a -2 bend starts at 206 Hz and lands on 220, a 220 Hz take plays a 330 Hz note for
+  178 ms. futurebass.txt: chop melody (saws 5 fallback), sub bass, pad 7 saws 35 c wobble 0.7 wrate 2 bend -2,
+  drums with pump 0.7 / 320 ms. The test runner now silences checks run only as another section's dependency
+  (they ran under other random choices and counted), and the glitch cost check interleaves its three setups.
   Not yet: user kits, register Low for kit pads, kit drums in "Your steps" mode (the old step drums send no
   drum_* messages).
 - Waiting on Samuel's ears for both. Not in the tester guide (prototype). `dcs_derustle~` (Oct 17): see Pocket rustle. Ideas next: analog-style ladder filter,

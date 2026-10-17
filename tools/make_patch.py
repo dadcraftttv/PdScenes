@@ -3564,6 +3564,9 @@ def add_kits(P, x=3000, y=1700):
         xx = x + 300 * ("mel", "bass", "pad", "drums").index(part)
         P.obj(f"kit_{part}_r", f"r kit_{part}", xx, y)
         P.obj(voice, "dcs_voice~", xx, y + 60); P.c(f"kit_{part}_r", voice)
+        if part != "drums":                              # the tempo on every beat: a kit's wobble keeps to it
+            P.obj(f"kit_{part}_tr", "r tempo", xx + 200, y); P.msg(f"kit_{part}_tm", f"tempo {BS}$1", xx + 200, y + 20)
+            P.c(f"kit_{part}_tr", f"kit_{part}_tm"); P.c(f"kit_{part}_tm", voice)
         P.obj(f"kit_{part}_rt", "route engine", xx + 100, y + 20); P.c(f"kit_{part}_r", f"kit_{part}_rt")
         if part == "mel":
             P.obj("kit_mel_v", "value kmel", xx + 100, y + 40); P.c("kit_mel_rt", "kit_mel_v")

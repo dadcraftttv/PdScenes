@@ -1812,10 +1812,11 @@ check(all(abs(a - b) < 4 for a, b in zip(pr, ps)) and ts > 0.4 and 0.5 < ls / lr
 # Kits: Classic changes nothing; Acoustic plays each part's notes through its kit voice and the Classic sound gives way
 KIT_DEFAULTS = (("bright", 0.4), ("level", 1), ("attack", 300), ("release", 800), ("decay", 3000), ("modal", 1),
                 ("cutoff", 4), ("reso", 0.3), ("fenv", 6), ("detune", 8), ("sub", 0.3), ("saws", 2), ("ktune", 50),
-                ("kdecay", 350), ("kdrive", 0.3), ("stone", 185), ("sdecay", 180), ("hdecay", 45), ("pump", 0), ("pumprel", 250))
+                ("kdecay", 350), ("kdrive", 0.3), ("stone", 185), ("sdecay", 180), ("hdecay", 45), ("pump", 0), ("pumprel", 250),
+                ("wobble", 0), ("wrate", 2), ("bend", 0), ("bendms", 120), ("chop", 180))
 def read_kit(name):
     """A kit file as Kits.java reads it: part -> [(setting, value)], the engine last."""
-    eng, modal, kit = ["classic", "pluck", "bowed", "modal", "analog", "drums"], ["", "bell", "marimba", "bowl"], {}
+    eng, modal, kit = ["classic", "pluck", "bowed", "modal", "analog", "drums", "chop"], ["", "bell", "marimba", "bowl"], {}
     for line in open(os.path.join(ROOT, "app/src/main/assets/kits", name + ".txt")):
         key, _, rest = line.strip().partition(":")
         if line.startswith("#") or key not in ("mel", "bass", "pad", "drums"):
@@ -1825,7 +1826,7 @@ def read_kit(name):
         kit[key] = [kv for kv in vals if kv[0] != "engine"] + [kv for kv in vals if kv[0] == "engine"]
     return kit
 ACOUSTIC = read_kit("acoustic")
-KITS = {name: read_kit(name) for name in ("acoustic", "synth", "edm")}
+KITS = {name: read_kit(name) for name in ("acoustic", "synth", "edm", "futurebass")}
 def send_kit(e, kit):
     for part in ("mel", "bass", "pad", "drums"):
         e.send_msg("kit_" + part, "engine", 0)
@@ -2282,10 +2283,11 @@ check(moves >= 5 and max(abs(v) for v in b0) < 0.02,
 import time
 def cost(**over):
     e = fresh(**over); x = burst_in(chirp, total=20.0); t0 = time.process_time(); e.run(x); return time.process_time() - t0
-c_off = min(cost(gc_amount=0) for _ in range(2)); c_on = min(cost(gc_amount=1) for _ in range(2))
+# (interleaved, the best of three each: other processes' load then sways all three alike)
+runs = [(cost(gc_amount=0), cost(gc_amount=1), cost(gc_amount=1, gc_voice=1)) for _ in range(3)]
+c_off, c_on, c_new = (min(r[k] for r in runs) for k in range(3))
 check(c_on < c_off * 1.35, "glitch cloud: cost while on +%.0f%% of the whole patch (off %.2f s, on %.2f s for 20 s of audio)"
       % (100 * (c_on / c_off - 1), c_off, c_on))
-c_new = min(cost(gc_amount=1, gc_voice=1) for _ in range(2))
 check(c_new < c_off * 1.35, "glitch voice New: cost while on +%.0f%% of the whole patch (Classic +%.0f%%)"
       % (100 * (c_new / c_off - 1), 100 * (c_on / c_off - 1)))
 

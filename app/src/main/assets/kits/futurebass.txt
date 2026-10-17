@@ -1,0 +1,10 @@
+# Future bass (Oct 17): wobbly supersaw chords that scoop up into each new chord, vocal chops (short slices of a note
+# you sang or hummed, played at the melody's notes; until one is kept, a bright saw plays them), a deep sub,
+# a drum machine and a deep, slow sidechain pump.
+#   wobble 0..1 and wrate (cycles a beat): the chords pulse in time; bend (semitones) and bendms: each chord scoops in
+#   chop (ms): how long each vocal chop lasts
+title: Future bass
+mel: engine chop, chop 160, saws 5, detune 15, cutoff 6, fenv 2, attack 3, release 120, level 7
+bass: engine analog, saws 1, sub 1, cutoff 1.8, reso 0.2, fenv 2, attack 5, release 200, level 13
+pad: engine analog, saws 7, detune 35, cutoff 4, reso 0.15, fenv 1, wobble 0.7, wrate 2, bend -2, bendms 140, attack 20, release 500, level 0.5
+drums: engine drums, ktune 48, kdecay 420, kdrive 0.5, stone 200, sdecay 260, hdecay 35, pump 0.7, pumprel 320, level 0.38
