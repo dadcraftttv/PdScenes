@@ -196,10 +196,18 @@ final class Params {
                     .choices("Synth chimes", "Found sounds (tuned from what the mic hears)", "Both")
                     .inSection("music").noPreset().resetWhenAbsent(),
             // Kit (Oct 17): what each part of the music sounds like (Kits.java, assets/kits). Classic = as always.
-            // Saved in presets, so a shared preset sounds the same.
+            // Saved in presets, so a shared preset sounds the same. Not reset when a preset or Realm says nothing
+            // about it (a Realm would otherwise switch the kit back to Classic).
             new Param("kit", "Kit (the sound of the music)", 0f, 1f, 0f, "", Param.Curve.LINEAR)
                     .choices("Classic", "Acoustic (plucked and bowed strings)")
-                    .inSection("music").noRandom().noPd().resetWhenAbsent(),
+                    .inSection("music").noRandom().noPd(),
+            // Mix and match (Oct 17): each part can take its sound from another kit. "The kit" = the Kit above.
+            new Param("kitp_mel", "Melody from", 0f, 2f, 0f, "", Param.Curve.LINEAR)
+                    .choices("The kit", "Classic", "Acoustic").inSection("music").noRandom().noPd(),
+            new Param("kitp_bass", "Bass from", 0f, 2f, 0f, "", Param.Curve.LINEAR)
+                    .choices("The kit", "Classic", "Acoustic").inSection("music").noRandom().noPd(),
+            new Param("kitp_pad", "Pad from", 0f, 2f, 0f, "", Param.Curve.LINEAR)
+                    .choices("The kit", "Classic", "Acoustic").inSection("music").noRandom().noPd(),
             // Melody rhythm (Oct 15): the walking notes and the standing-still chimes follow one-bar rhythm patterns
             // (whole to 8th notes, or dotted and syncopated ones), each note ringing as long as it lasts. Off = as before.
             new Param("mel_rhythm", "Melody rhythm", 0f, 3f, 0f, "", Param.Curve.LINEAR)

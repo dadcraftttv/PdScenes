@@ -130,7 +130,12 @@ to date in the same commit when behaviour changes.
   notes within +-6 dB of Classic; Classic within the natural run-to-run spread, ~12%). Acoustic levels set to
   match Classic (melody 4.3, bass 5, pad 0.05). Pd lessons: in add_music `ex()` doesn't escape ";" (a 4-output expr
   became 1 output and three stray messages: `note 0 0.5 0 0`); two runs in one process never match sample for
-  sample (random choices carry on). Not yet: per-part mix and match, user kits, drums, register Low for kit pads.
+  sample (random choices carry on). **Mix and match** (Oct 17): "Melody from" / "Bass from" / "Pad from"
+  (`kitp_<part>`, Music, noPd, in presets; 0 = the Kit, else BUILT_IN[n - 1]); `Kits.send(kit, from, force, out)`
+  sends only parts whose kit changed (a resent part's held notes would start over), all of them from
+  `ParamStore.sendAllToPd`. **Kit settings are not resetWhenAbsent**: a Realm's preset (no kit in it) would have
+  reset the Kit to Classic whenever a Realm took over the Music ingredient; now a preset that doesn't mention them
+  leaves them. Not yet: user kits, drums, register Low for kit pads.
 - Waiting on Samuel's ears for both. Not in the tester guide (prototype). `dcs_derustle~` (Oct 17): see Pocket rustle. Ideas next: analog-style ladder filter,
   oversampled distortion/crush, a lighter pitch tracker than sigmund~, a dcs phaser, more glitch kinds.
 

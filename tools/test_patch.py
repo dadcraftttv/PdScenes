@@ -1848,7 +1848,9 @@ def kit_run(kit, part):
 for part in ("mel", "bass", "pad"):
     y_none, y_classic, y_ac = kit_run(None, part), kit_run({}, part), kit_run(ACOUSTIC, part)
     f_none = spec_peaks(y_none)[:3]; f_ac = spec_peaks(y_ac)[:3]
-    same = lambda a, b: abs(a / b - round(a / b)) < 0.01 or abs(b / a - round(b / a)) < 0.01   # (a note or its overtone)
+    # (the same note name: a part's notes move within the window, and a slow bowed attack shifts which peak is biggest)
+    pc = lambda f: 12 * np.log2(f / 261.63) % 12
+    same = lambda a, b: min(abs(pc(a) - pc(b)), 12 - abs(pc(a) - pc(b))) < 0.45
     # (Classic = engine 0: no kit voice, the part's own sound. Two runs in one process never match sample for sample:
     #  Pd's random choices go on from run to run, so "unchanged" is checked by level here, and exactly in test_dcs/Q)
     check(0.75 < rms(y_classic) / rms(y_none) < 1.33 and 0.5 < rms(y_ac) / rms(y_none) < 2 and rms(y_none - y_ac) > 0.3 * rms(y_none)

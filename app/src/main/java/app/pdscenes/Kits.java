@@ -17,8 +17,9 @@ import java.util.Map;
  * mel: engine pluck, bright 0.45, level 1.2
  * bass: engine bowed, bright 0.25, attack 400, release 900
  * </pre>
- * A part not listed stays Classic. On each kit choice (and when the patch opens) every part first gets the voice's
- * defaults, then the kit's settings, as messages to kit_<part>.
+ * A part not listed stays Classic. Mix and match: each part can take its sound from another kit ("Melody from" etc.,
+ * Params kitp_<part>: 0 = the Kit, else BUILT_IN[n - 1]). A part whose kit changed (or every part when the patch
+ * opens) first gets the voice's defaults, then its kit's settings, the engine last, as messages to kit_<part>.
  */
 final class Kits {
     static final String ID = "kit";
@@ -48,6 +49,9 @@ final class Kits {
     }
 
     static volatile Source source;
+    /** The kit each part last got (-1 = none yet): a part whose kit didn't change isn't sent again (its held notes
+     *  would start over). */
+    private static final int[] sentKit = {-1, -1, -1};
 
     private Kits() {
     }
@@ -97,8 +101,30 @@ final class Kits {
         return kit;
     }
 
-    /** Sends kit number `index` (the Kit menu's) to the patch: every part reset, then the kit's settings. */
+    /** The kit (BUILT_IN index) a part plays: its own choice (1 = the first kit...), or the Kit when 0. */
+    static int kitFor(int kit, int from) {
+        return from > 0 ? from - 1 : kit;
+    }
+
+    /** Sends the sound of every part whose kit changed (all of them when `force`, e.g. the patch just opened).
+     *  `from` = each part's "from" choice (Params kitp_<part>), in PARTS order. */
+    static synchronized void send(int kit, int[] from, boolean force, Out out) {
+        for (int k = 0; k < PARTS.length; k++) {
+            int which = kitFor(kit, k < from.length ? from[k] : 0);
+            if (!force && sentKit[k] == which) {
+                continue;
+            }
+            sentKit[k] = which;
+            sendPart(PARTS[k], which, out);
+        }
+    }
+
+    /** The whole kit `index` to every part (no mix and match). */
     static void send(int index, Out out) {
+        send(index, new int[PARTS.length], true, out);
+    }
+
+    private static void sendPart(String part, int index, Out out) {
         Kit kit = null;
         Source src = source;
         if (src != null && index >= 0 && index < BUILT_IN.length) {
@@ -107,14 +133,14 @@ final class Kits {
                 kit = parse(text);
             }
         }
-        for (String part : PARTS) {
+        {
             String recv = "kit_" + part;
             for (String[] d : DEFAULTS) {
                 out.send(recv, d[0], Float.parseFloat(d[1]));
             }
             List<Object[]> settings = kit == null ? null : kit.parts.get(part);
             if (settings == null) {
-                continue;
+                return;
             }
             // settings first, the engine last: a note arriving in between hears the new sound whole
             Object[] engine = null;

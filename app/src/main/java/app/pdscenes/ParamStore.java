@@ -56,8 +56,8 @@ final class ParamStore {
         }
         float v = p.clamp(value);
         values.put(id, v);
-        if (Kits.ID.equals(id) && AudioService.isRunning()) {
-            sendKit();
+        if ((Kits.ID.equals(id) || id.startsWith("kitp_")) && AudioService.isRunning()) {
+            sendKit(false);
         }
         if (p.sendToPd && AudioService.isRunning()) {
             PdBase.sendFloat(id, Modulation.output(p, v));
@@ -249,12 +249,17 @@ final class ParamStore {
                 PdBase.sendFloat(p.id, Modulation.output(p, get(p.id)));
             }
         }
-        sendKit();
+        sendKit(true);
     }
 
-    /** The chosen kit's settings, as messages to each part's kit voice (Kits). */
-    static void sendKit() {
-        Kits.send(Math.round(get(Kits.ID)), (recv, sel, val) -> PdBase.sendMessage(recv, sel, val));
+    /** Each part's kit (the Kit, or the part's own "from" choice), as messages to its kit voice (Kits); only the
+     *  parts that changed unless `all`. */
+    static void sendKit(boolean all) {
+        int[] from = new int[Kits.PARTS.length];
+        for (int k = 0; k < from.length; k++) {
+            from[k] = Math.round(get("kitp_" + Kits.PARTS[k]));
+        }
+        Kits.send(Math.round(get(Kits.ID)), from, all, (recv, sel, val) -> PdBase.sendMessage(recv, sel, val));
     }
 
     private static void applyValues(Map<String, Float> map) {
