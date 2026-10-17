@@ -11,7 +11,7 @@ include $(CLEAR_VARS)
 LOCAL_MODULE := dcs
 LOCAL_C_INCLUDES := $(PD_SRC)
 LOCAL_CFLAGS := -DPD -O3 -ffast-math -Wall -Wno-unused-parameter
-LOCAL_SRC_FILES := ../src/dcs.c ../src/dcs_glitch_tilde.c ../src/dcs_string_tilde.c ../src/dcs_derustle_tilde.c ../src/dcs_pitch_tilde.c ../src/dcs_shift_tilde.c
+LOCAL_SRC_FILES := ../src/dcs.c ../src/dcs_glitch_tilde.c ../src/dcs_string_tilde.c ../src/dcs_derustle_tilde.c ../src/dcs_pitch_tilde.c ../src/dcs_shift_tilde.c ../src/dcs_onset_tilde.c
 LOCAL_SHARED_LIBRARIES := pd
 LOCAL_LDLIBS := -lm
 LOCAL_LDFLAGS := -Wl,-z,max-page-size=16384

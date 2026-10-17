@@ -275,5 +275,39 @@ check(abs(form - 700) < f0 * 0.75, f"its tone colour stays: the strongest harmon
 d = db_frames(y)
 check(d.max() - d.min() < 2, f"no warble: the level holds within {d.max() - d.min():.1f} dB")
 
+# ---------------------------------------------------------------- dcs_onset~
+print("dcs_onset~:")
+op = patch("onset", ["adc~", "dcs_onset~", "f 1", "s on_b"], [(0, 0, 1, 0), (1, 0, 2, 0), (2, 0, 3, 0)])   # (the test hears numbers, not bangs)
+def onsets(x):
+    e = Engine(LIB, op); e.listen("on_b"); out, n, k = [], 64, 0
+    for i in range(0, len(x) - n + 1, n):                  # block by block, so each onset has a time
+        e.run(x[i:i + n]); m = len(e.heard["on_b"])
+        out += [i / SR] * (m - k); k = m
+    e.close(); return out
+def claps_over(room_db, clap_db, secs=8.0, seed=11):
+    r = np.random.default_rng(seed); n = int(secs * SR); x = r.standard_normal(n) * 10 ** (room_db / 20); at = []
+    for t in np.arange(1.0, secs - 0.5, 0.7):
+        i = int(t * SR); k = int(0.05 * SR); x[i:i + k] += r.standard_normal(k) * 10 ** (clap_db / 20) * np.exp(-np.arange(k) / (0.01 * SR)); at.append(t)
+    return x.astype(np.float32), at
+def score(found, at, tol=0.03):
+    hit = [min((f - a for f in found if 0 <= f - a < tol), default=None) for a in at]
+    late = [h for h in hit if h is not None]
+    false = sum(1 for f in found if not any(0 <= f - a < tol for a in at))
+    return len(late), false, (max(late) if late else 1)
+x, at = claps_over(-60, -15)
+h, fa, lat = score(onsets(x), at)
+check(h == len(at) and fa == 0 and lat < 0.012, f"claps in a quiet room: {h}/{len(at)} found, {fa} false, at most {lat * 1000:.0f} ms late")
+x, at = claps_over(-25, -17)
+h, fa, lat = score(onsets(x), at)
+check(h >= len(at) - 1 and fa <= 1, f"claps 8 dB over a loud roar: {h}/{len(at)} found, {fa} false")
+t = np.arange(4 * SR) / SR
+vib = (0.1 * np.sin(2 * np.pi * np.cumsum(440 * 2 ** (0.05 * np.sin(2 * np.pi * 6 * t))) / SR)).astype(np.float32)
+f = [v for v in onsets(vib) if v > 0.5]
+check(len(f) == 0, f"a held note with vibrato: {len(f)} onsets after its start")
+env = np.clip(t / 0.4, 0, 1) ** 2
+swell = (rng.standard_normal(len(t)) * 0.1 * env + rng.standard_normal(len(t)) * 0.001).astype(np.float32)
+f = onsets(swell)
+check(len(f) <= 1, f"a sound swelling up over 0.4 s: {len(f)} onsets (a level detector fires on swells)")
+
 print("ALL PASSED" if not fails else f"{len(fails)} FAILED")
 sys.exit(1 if fails else 0)
