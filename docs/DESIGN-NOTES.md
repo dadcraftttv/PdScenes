@@ -77,7 +77,7 @@ to date in the same commit when behaviour changes.
   placed within +-8 ms where its waveform best matches the playing grain (WSOLA, 5.3 ms compared, every 2nd
   sample): a held tone swings 0.1 dB (the old 2-grain stretch: grains half-cancel, 22 dB in the same test).
   Cost while glitching +11% of the patch (Classic +7%); in the gcloud switch group, so nothing at Amount 0.
-- Waiting on Samuel's ears for both. Not in the tester guide (prototype). Ideas next: analog-style ladder filter,
+- Waiting on Samuel's ears for both. Not in the tester guide (prototype). `dcs_derustle~` (Oct 17): see Pocket rustle. Ideas next: analog-style ladder filter,
   oversampled distortion/crush, a lighter pitch tracker than sigmund~, a dcs phaser, more glitch kinds.
 
 ## Tests (run these after touching patch or Java logic)
@@ -244,6 +244,20 @@ to date in the same commit when behaviour changes.
   quiet room already reads 12-20k zero crossings/s and highs only 5-7 dB under the whole (mic hiss); sleeve rubbing
   read as a few loud thumps (+33 dB, highs -6..-13, 1 burst), talking and music as 2-3 bursts a few dB over the room:
   no cheap feature separated them. Motion handling (fiddle) and pocket hush/guard are the protection.
+- **Pocket rustle: squash and step duck** (prototype, Oct 17; Samuel: even with the hushes maxed he still got "tons
+  of rustle", and turning gain/dry down lost the world, the point of the app; his event log: in a pocket while walking
+  -38 dB against a -58 dB room, so a flat hush cuts both alike). `add_pocket_rustle`, both main section, noRandom,
+  noPreset, default 0 = as before, phone-only on the desktop. Their gain joins `hush_ln` (everything that hears the
+  hushed mic). **Rustle squash** (`pocket_rustle`): `dcs_derustle~ 0 6 80` on `mic_comp1` (after the compressor,
+  before the hush: no loop), amount = pocket x slider: a 1/10 ms mean square judged against a floor built on a 50 ms
+  average (drops into gaps over 40 ms, climbs 3 dB/s, or 60 dB/s after 1.5 s over the line without a gap: a louder
+  room, not rustle; at amount 0 and its first 50 ms the floor is simply the room); more than 6 dB over it is pulled
+  back by (excess x amount), at once, let go over 80 ms. Measured: bursts 23 dB over a noise room -22 dB, the room
+  between them -1 dB; a steady tone untouched. **Step duck** (`pocket_steps`): each `step <interval>` books a vline~:
+  -18 dB x pocket x slider now for `SD_NOW_MS` 120, and from `SD_LEAD_MS` 100 before the next step is due for
+  `SD_HOLD_MS` 220 (none past a 1.5 s interval), back up over 80 ms. Lead/hold are guesses: the step message's lag
+  after the footfall is unmeasured. Untested in a real pocket. Earbud mic for pockets: NOT made a default (Samuel:
+  non-LE Bluetooth mics are call-mode).
 - **Mic-down protection** (`pocket_guard`, main, noPreset, default 0.6; 0 = no change): Samuel found mic-end-down pockets
   rustly but mic-up pockets fine. `PhoneContext.micDown()` (gravity along +y averaged ~1 s, hysteresis 0.5/0.3) and
   AudioService sends `pocket_down` = pocket && micDown. The patch adds guard*12 dB more cut and crossfades in a 2x `hip~ 300`.

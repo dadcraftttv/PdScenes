@@ -115,6 +115,13 @@ final class Params {
             // Extra help only while the phone is pocketed mic end first (more cloth on the mic). 0 = exactly as without it.
             new Param("pocket_guard", "Mic-down protection (pocket, mic end first)", 0f, 1f, 0.6f, "",
                     Param.Curve.LINEAR).inSection("main").noRandom().noPreset().resetWhenAbsent(),
+            // Pocket rustle (prototype, Oct 17): Rustle squash pulls sudden cloth noise back down to the room's own level
+            // (dcs_derustle~), so the world stays while the rustle drops. Step duck dips the mic around each footfall
+            // while walking. Both only in a pocket. 0 = as before.
+            new Param("pocket_rustle", "Rustle squash (pocket: sudden cloth noise pulled down to the room)", 0f, 1f, 0f, "",
+                    Param.Curve.LINEAR).inSection("main").noRandom().noPreset().resetWhenAbsent(),
+            new Param("pocket_steps", "Step duck (pocket, walking: the mic dips at each footfall)", 0f, 1f, 0f, "",
+                    Param.Curve.LINEAR).inSection("main").noRandom().noPreset().resetWhenAbsent(),
             // Taps, grips and rubbing on the phone (the motion sensors notice them): mic down by up to 24 dB at 1 while
             // it lasts. Their sounds never start chimes or glitches and are never caught for the found sounds, at any setting.
             new Param("handling_hush", "Handling hush (mic quieter while the phone is tapped or rubbed)", 0f, 1f, 0.5f, "",

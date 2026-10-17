@@ -1174,6 +1174,34 @@ check(inp < 0.1 * out and abs(off - out) < 0.02 * out,
 e = fresh(wet=0, dry=1); e.run(sine(440, 0.05, 0.5))
 e.send("pocket", 1); yy = e.run(sine(440, 0.05, 1.0))[:, 0]
 check(max_jump(yy) < 0.03, "pocket hush: fades in without a click (max step %.4f)" % max_jump(yy))
+# pocket rustle: Rustle squash pulls cloth bursts back to the room while the room between them stays; Step duck dips
+# the mic around each footfall; neither does anything out of a pocket
+def rustle_mic(secs=7.0, seed=6):
+    rng = np.random.default_rng(seed); n = int(secs * SR); x = rng.standard_normal(n) * 0.003
+    mask = np.zeros(n, bool)
+    for t in np.arange(2.0, secs - 0.2, 0.55):
+        i = int(t * SR); k = int(0.08 * SR); x[i:i + k] += rng.standard_normal(k) * 0.05 * np.hanning(k) * 1.6; mask[i:i + k] = True
+    return x.astype(np.float32), mask
+def pocket_rustle(pocket, amount):
+    x, mask = rustle_mic()
+    e = fresh(wet=0, dry=1, pocket_hush=0, pocket_guard=0, comp_thresh=0, pocket_rustle=amount)
+    e.send("pocket", pocket); y = e.run(x)[:, 0]
+    late = np.arange(len(y)) > 3 * SR; gap = late & ~np.convolve(mask, np.ones(int(0.12 * SR)), "same").astype(bool)
+    return 20 * np.log10(rms(y[late & mask])), 20 * np.log10(rms(y[gap]))
+b0, r0 = pocket_rustle(1, 0); b1, r1 = pocket_rustle(1, 1); bo, ro = pocket_rustle(0, 1)
+check(b0 - b1 > 12 and abs(r1 - r0) < 1.5 and abs(bo - b0) < 0.5 and abs(ro - r0) < 0.5,
+      "rustle squash: in a pocket the bursts drop %.1f dB, the room between them %+.1f dB; out of a pocket nothing changes"
+      % (b0 - b1, r1 - r0))
+def step_dips(pocket, steps):
+    e = fresh(wet=0, dry=1, pocket_hush=0, pocket_guard=0, comp_thresh=0, pocket_steps=steps, beat_follow=0)
+    e.send("pocket", pocket); x = (np.random.default_rng(7).standard_normal(2 * SR) * 0.01).astype(np.float32)
+    e.run(x[:SR // 2]); e.send("step", 0.5); y = e.run(x[SR // 2:])[:, 0]
+    lv = lambda a, b: 20 * np.log10(rms(y[int(a * SR):int(b * SR)]))
+    return lv(0.02, 0.1) - lv(0.75, 0.95), lv(0.43, 0.6) - lv(0.75, 0.95)     # now, around the next step (due at 0.5)
+n1, p1 = step_dips(1, 1); n0, p0 = step_dips(1, 0); no, po = step_dips(0, 1)
+check(n1 < -12 and p1 < -12 and abs(n0) < 1 and abs(p0) < 1 and abs(no) < 1 and abs(po) < 1,
+      "step duck: in a pocket the mic dips at a step (%.0f dB) and around the next one due (%.0f dB); off or out of a "
+      "pocket it doesn't (%.1f, %.1f dB)" % (n1, p1, p0, po))
 # mic-down protection: only with the phone pocketed mic end first; it cuts the low cloth thump hardest, and at 0 changes nothing
 def guarded(down, guard, freq):
     e = fresh(wet=0, dry=1, pocket_guard=guard)

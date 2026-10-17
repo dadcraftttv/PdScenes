@@ -38,7 +38,7 @@ DEFAULTS = [
     ("music_tone", 0.5), ("music_react", 0.8), ("music_res", 0.8), ("music_harm", 0.6), ("beat_follow", 1), ("beat_when", 1), ("rhythm_src", 1), ("melody_src", 1), ("harm_src", 1), ("pad_src", 1), ("bass_src", 0), ("tempo_mode", 0), ("tempo_bpm", 100), ("chime_char", 0.5), ("res_src", 1), ("cue_sound", 1), ("beat_glitch", 0.4), ("gate_attack", 5), ("gate_hold", 0), ("gate_release", 80), ("comp_attack", 40),
     ("comp_release", 40), ("music_drift", 1), ("echo_scatter", 0.5), ("gc_amount", 0), ("gc_level", 0.7), ("gc_pct_stutter", 35), ("gc_pct_reverse", 25),
     ("gc_pct_shuffle", 20), ("gc_pct_stretch", 20), ("music_pad_reg", 2), ("pocket_hush", 0.5), ("pocket_guard", 0.6), ("handling_hush", 0.5), ("intensity", 0.5), ("mix_kick", 1), ("mix_bass", 1), ("mix_chimes", 1), ("mix_walk", 1), ("mix_ring", 1), ("mix_bells", 1), ("reverb_rev", 0), ("stems_level", 0.8), ("music_answer", 0.5), ("beat_break", 0), ("mel_rhythm", 0), ("mel_phrase", 0),
-    ("gc_voice", 0), ("fm_ring", 0),
+    ("gc_voice", 0), ("fm_ring", 0), ("pocket_rustle", 0), ("pocket_steps", 0),
 ]
 
 # Scales as semitone steps above the key note. The patch snaps every note it plays to these.
@@ -358,6 +358,13 @@ HND_CHECK_MS = 40           # a glitch waits this long for a jolt reported just 
 POCKET_HUSH_MS = 400        # how fast the hush fades in and out
 POCKET_GUARD_DB = 12        # mic-down protection at 1 turns the mic down this much more...
 POCKET_GUARD_HP_HZ = 300    # ...and filters out the cloth thump below about this (12 dB/octave)
+RUSTLE_ABOVE_DB = 6         # Rustle squash (pocket_rustle, dcs_derustle~): bursts this far over the room's floor are
+RUSTLE_RELEASE_MS = 80      # ...pulled back toward it (amount = the slider), letting go over this
+SD_DB = 18                  # Step duck (pocket_steps): at 1 the mic dips this far around each footfall...
+SD_NOW_MS = 120             # ...for this long when a step is reported (its own rustle is mostly past by then)...
+SD_LEAD_MS = 100            # ...and from this long before the next step is due (step interval from now)...
+SD_HOLD_MS = 220            # ...for this long, then back up over SD_RELEASE_MS
+SD_RELEASE_MS = 80
 
 # Flanger: the delay sweeps from this minimum up to minimum + depth (ms). [delread4~] cannot go
 # below one audio block (1.35 ms at 48 kHz) and the feedback loop needs at least that, so 2 ms.
@@ -3468,6 +3475,40 @@ def handling_gate(P, n, src, x, y, outlet=0, wait=True):
     return f"{n}_sel"
 
 
+def add_pocket_rustle(P, x=1300, y=170):
+    """Pocket only (both 0 = as before; Oct 17, Samuel: hush cut the world with the rustle): Rustle squash
+    (pocket_rustle) = dcs_derustle~ on the compressed mic pulls sudden bursts back toward the room's floor; Step duck
+    (pocket_steps) dips the mic around each footfall (now, and around the next one due). Returns the gain signal
+    (1 = untouched) that joins hush_ln."""
+    def ex(name, text, xx, yy):
+        return P.obj(name, "expr " + text.replace(",", BS + ",").replace("$", BS + "$").replace(" ; ", " " + BS + "; "), xx, yy)
+    P.obj("pr_rp", "r pocket", x, y); P.obj("pr_rr", "r pocket_rustle", x + 80, y); P.obj("pr_rs", "r pocket_steps", x + 200, y)
+    P.obj("pr_vp", "value prpk", x, y + 15); P.obj("pr_vs", "value prst", x + 200, y + 15)
+    P.c("pr_rp", "pr_vp"); P.c("pr_rs", "pr_vs")
+    # rustle squash: amount = pocket x slider
+    ex("pr_amt", "$f1*$f2", x, y + 40)
+    P.obj("pr_rt", "t b f", x + 80, y + 20); P.c("pr_rr", "pr_rt"); P.c("pr_rt", "pr_amt", 1, 1); P.c("pr_rt", "pr_amt", 0, 0)
+    P.c("pr_rp", "pr_amt")
+    P.msg("pr_am", f"amount {BS}$1", x, y + 60); P.c("pr_amt", "pr_am")
+    P.obj("pr_dr", f"dcs_derustle~ 0 {RUSTLE_ABOVE_DB} {RUSTLE_RELEASE_MS}", x, y + 80)
+    P.c("mic_comp1", "pr_dr"); P.c("pr_am", "pr_dr")
+    # step duck: each step (its interval, s) dips now and books a dip around the next one (none past 1.5 s)
+    P.obj("pr_st", "r step", x + 300, y)
+    ex("pr_sd", f"pow(10,-prpk*prst*{SD_DB}/20) ; if($f1<1.5,$f1*1000-{SD_LEAD_MS},100000) ; "
+                f"if($f1<1.5,$f1*1000-{SD_LEAD_MS}+{SD_HOLD_MS},100000)", x + 300, y + 20)
+    P.c("pr_st", "pr_sd")
+    P.obj("pr_sp", "pack f f f", x + 300, y + 40)
+    for k in (2, 1, 0):
+        P.c("pr_sd", "pr_sp", k, k)
+    P.msg("pr_sm", f"{BS}$1 10 {BS}, 1 {SD_RELEASE_MS} {SD_NOW_MS} {BS}, {BS}$1 15 {BS}$2 {BS}, 1 {SD_RELEASE_MS} {BS}$3", x + 300, y + 60)
+    P.obj("pr_sl", "vline~", x + 300, y + 80)
+    P.c("pr_sp", "pr_sm"); P.c("pr_sm", "pr_sl")
+    P.obj("pr_lb", "loadbang", x + 450, y + 40); P.msg("pr_one", "1", x + 450, y + 60)
+    P.c("pr_lb", "pr_one"); P.c("pr_one", "pr_sl")
+    P.obj("pr_g", "*~", x, y + 100); P.c("pr_dr", "pr_g", 1, 0); P.c("pr_sl", "pr_g", 0, 1)
+    return "pr_g"
+
+
 def add_handling(P, x=2200, y=300):
     """Handling noise (taps, grips, rubbing; the app's HandlingDetector): [handling 0..1( turns the mic down by up to
     handling_hush x HND_HUSH_DB (fast down, slower up), and [jolt( marks the next HND_JOLT_MS as handling for the
@@ -3799,7 +3840,8 @@ def build():
     P.obj("ph_init", "loadbang", 1160, 230); P.msg("ph_init_msg", "1", 1160, 260)
     P.c("ph_init", "ph_init_msg"); P.c("ph_init_msg", "ph_v"); P.c("ph_init_msg", "ph_ln")
     # handling noise (taps, grips, rubbing) is turned down the same way: hush_ln = everything that hears the hushed mic
-    P.sig2("hush_ln", "*~", "ph_ln", add_handling(P), 800, 365)
+    P.sig2("hush0", "*~", "ph_ln", add_handling(P), 800, 365)
+    P.sig2("hush_ln", "*~", "hush0", add_pocket_rustle(P), 800, 372)
     # the thump filter, crossfaded in by (mic down) x (protection)
     ex("pg_amt", "$f1*$f2", 1100, 290)
     P.obj("pg_down", "f", 1040, 260)

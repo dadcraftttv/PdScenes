@@ -65,7 +65,7 @@ final class DesktopWindow {
      * stairs, the beat following your steps or playing only while walking, and the stem packs' level (packs stay on
      * the phone). Kept at their defaults here (the beat on its own clock, always playing) and out of sight.
      */
-    static final java.util.Set<String> PHONE_ONLY = java.util.Set.of("pocket_hush", "pocket_guard", "handling_hush",
+    static final java.util.Set<String> PHONE_ONLY = java.util.Set.of("pocket_hush", "pocket_guard", "pocket_rustle", "pocket_steps", "handling_hush",
             "music_follow", "beat_follow", "beat_when", "stems_level");
 
     private final JFrame frame = new JFrame("PdScenes");
