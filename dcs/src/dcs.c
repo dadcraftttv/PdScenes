@@ -10,11 +10,15 @@
 void dcs_glitch_tilde_setup(void);
 void dcs_string_tilde_setup(void);
 void dcs_derustle_tilde_setup(void);
+void dcs_pitch_tilde_setup(void);
+void dcs_shift_tilde_setup(void);
 
 void dcs_setup(void)
 {
     dcs_glitch_tilde_setup();
     dcs_string_tilde_setup();
     dcs_derustle_tilde_setup();
-    post("dcs %s: dcs_glitch~ dcs_string~ dcs_derustle~", DCS_VERSION);
+    dcs_pitch_tilde_setup();
+    dcs_shift_tilde_setup();
+    post("dcs %s: dcs_glitch~ dcs_string~ dcs_derustle~ dcs_pitch~ dcs_shift~", DCS_VERSION);
 }

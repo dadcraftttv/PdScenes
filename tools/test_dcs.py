@@ -227,5 +227,53 @@ step = np.concatenate([rng.standard_normal(3 * SR) * 0.003, rng.standard_normal(
 g = derustle(step, 1)[:, 1]
 check(g[int(5.5 * SR):].min() > 0.9, f"a room that gets 24 dB louder and stays is let through within ~2.5 s (gain after {g[int(5.5 * SR):].min():.2f})")
 
+# ---------------------------------------------------------------- dcs_pitch~
+print("dcs_pitch~:")
+pp = patch("pitch", ["adc~", "dcs_pitch~ 512", "s pt_p", "s pt_l", "s pt_s"], [(0, 0, 1, 0), (1, 0, 2, 0), (1, 1, 3, 0), (1, 2, 4, 0)])
+def track(x):
+    e = Engine(LIB, pp); e.listen("pt_p", "pt_l", "pt_s"); e.run(x); h = dict(e.heard); e.close(); return h
+t = np.arange(2 * SR) / SR
+worst = 0
+for f in (80, 220, 440, 1000, 3000):
+    h = track((0.1 * np.sin(2 * np.pi * f * t)).astype(np.float32))
+    p = np.array(h["pt_p"][20:]); want = 69 + 12 * np.log2(f / 440)
+    worst = max(worst, np.max(np.abs(p - want)) * 100 if len(p) and (p > 0).all() else 1e9)
+check(worst < 5, f"sines from 80 Hz to 3 kHz within {worst:.1f} cents")
+saw = (0.1 * (2 * ((150 * t) % 1) - 1)).astype(np.float32)
+p = np.array(track(saw)["pt_p"][20:]); want = 69 + 12 * np.log2(150 / 440)
+check((np.abs(p - want) < 0.1).mean() > 0.97, f"a bright 150 Hz sawtooth: no octave mistakes ({(np.abs(p - want) < 0.1).mean() * 100:.0f}% right)")
+h = track((rng.standard_normal(2 * SR) * 0.05).astype(np.float32))
+check(np.mean(np.array(h["pt_p"][20:]) < 0) > 0.9, f"noise has no pitch ({np.mean(np.array(h['pt_p'][20:]) < 0) * 100:.0f}% of frames)")
+h = track((0.1 * np.sin(2 * np.pi * 440 * t)).astype(np.float32))
+check(abs(np.median(h["pt_l"][20:]) - (100 + 20 * np.log10(0.1 / np.sqrt(2)))) < 0.5, f"level in Pd dB ({np.median(h['pt_l'][20:]):.1f})")
+import time
+def cost(obj):
+    q = patch("cost", ["adc~", obj], [(0, 0, 1, 0)])
+    e = Engine(LIB, q); x = (0.1 * np.sin(2 * np.pi * 220 * np.arange(20 * SR) / SR)).astype(np.float32)
+    t0 = time.process_time(); e.run(x); c = time.process_time() - t0; e.close(); return c
+cs, cd = min(cost("sigmund~ -hop 512 -npts 1024 pitch env") for _ in range(2)), min(cost("dcs_pitch~ 512") for _ in range(2))
+check(cd < cs, f"costs {100 * cd / cs:.0f}% of sigmund~ with the same hop (both ~0.1% of real time: the win is accuracy)")
+
+# ---------------------------------------------------------------- dcs_shift~
+print("dcs_shift~:")
+sp = patch("shift", ["adc~", "dcs_shift~ 7", "dac~"], [(0, 0, 1, 0), (1, 0, 2, 0), (1, 0, 2, 1)])
+def vowel(f0=150, secs=3.0, formant=700):
+    """A synthetic voice: a pulse train at f0 through a resonance at `formant` (its tone colour)."""
+    n = int(secs * SR); x = np.zeros(n); x[(np.arange(0, n, SR / f0)).astype(int)] = 1.0
+    r, th = 0.995, 2 * np.pi * formant / SR; y = np.zeros(n)
+    for i in range(2, n):
+        y[i] = x[i] + 2 * r * np.cos(th) * y[i - 1] - r * r * y[i - 2]
+    return (0.1 * y / np.abs(y).max()).astype(np.float32)
+v = vowel()
+y = Engine(LIB, sp).run(v)[:, 0][SR:]
+f0 = peak_hz(y, 180, 270)
+check(abs(1200 * np.log2(f0 / (150 * 2 ** (7 / 12)))) < 5, f"a voice up a fifth lands on the fifth ({f0:.1f} Hz for {150 * 2 ** (7 / 12):.1f})")
+S_ = np.abs(np.fft.rfft(y * np.hanning(len(y)))); fr = np.fft.rfftfreq(len(y), 1 / SR)
+harm = [(k * f0, S_[np.argmin(np.abs(fr - k * f0))]) for k in range(1, 12)]
+form = max(harm, key=lambda h: h[1])[0]
+check(abs(form - 700) < f0 * 0.75, f"its tone colour stays: the strongest harmonic at {form:.0f} Hz (formant 700; a plain shifter: ~1050)")
+d = db_frames(y)
+check(d.max() - d.min() < 2, f"no warble: the level holds within {d.max() - d.min():.1f} dB")
+
 print("ALL PASSED" if not fails else f"{len(fails)} FAILED")
 sys.exit(1 if fails else 0)
