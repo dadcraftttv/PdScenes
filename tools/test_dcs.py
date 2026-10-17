@@ -309,5 +309,44 @@ swell = (rng.standard_normal(len(t)) * 0.1 * env + rng.standard_normal(len(t)) *
 f = onsets(swell)
 check(len(f) <= 1, f"a sound swelling up over 0.4 s: {len(f)} onsets (a level detector fires on swells)")
 
+# ---------------------------------------------------------------- dcs_reverb~
+print("dcs_reverb~:")
+COMB, ALLP, EXTRA = [25.3, 26.9, 29.0, 30.7, 32.2, 33.8, 35.3, 36.7], [12.6, 10.0, 7.7, 5.1], 0.52   # (make_patch.py's)
+def reverb_reference():
+    """The reverb as make_patch.py builds it from Pd objects (both ears), fed by adc~, feedback 0.9, tone 4000."""
+    objs, conns = ["adc~", "sig~ 0.9", "r tone", "dac~"], []
+    def add(t):
+        objs.append(t); return len(objs) - 1
+    for side, extra, outlet in (("l", 0.0, 0), ("r", EXTRA, 1)):
+        combs = []
+        for i, ms in enumerate(COMB):
+            rd = add(f"delread~ c{side}{i} {ms + extra:.2f}"); lp = add("lop~ 6000"); fbm = add("*~"); sm = add("+~")
+            wr = add(f"delwrite~ c{side}{i} 100")
+            conns += [(rd, 0, lp, 0), (2, 0, lp, 1), (lp, 0, fbm, 0), (1, 0, fbm, 1), (0, 0, sm, 0), (fbm, 0, sm, 1), (sm, 0, wr, 0)]
+            combs.append(rd)
+        acc = combs[0]
+        for c in combs[1:]:
+            a = add("+~"); conns += [(acc, 0, a, 0), (c, 0, a, 1)]; acc = a
+        for k, ms in enumerate(ALLP):
+            rd = add(f"delread~ a{side}{k} {ms + extra:.2f}"); g1 = add("*~ 0.5"); wv = add("+~"); wr = add(f"delwrite~ a{side}{k} 100")
+            g2 = add("*~ 0.5"); y = add("-~")
+            conns += [(rd, 0, g1, 0), (acc, 0, wv, 0), (g1, 0, wv, 1), (wv, 0, wr, 0), (wv, 0, g2, 0), (rd, 0, y, 0), (g2, 0, y, 1)]
+            acc = y
+        conns.append((acc, 0, 3, outlet))
+    return patch("rev_ref", objs, conns)
+def reverb_dcs():
+    args = " ".join(str(v) for v in [EXTRA, len(COMB)] + COMB + ALLP)
+    return patch("rev_dcs", ["adc~", "sig~ 0.9", "r tone", "dac~", f"dcs_reverb~ {args}", "msg tone \\$1"],
+                 [(0, 0, 4, 0), (1, 0, 4, 1), (2, 0, 5, 0), (5, 0, 4, 0), (4, 0, 3, 0), (4, 1, 3, 1)])
+rd_ = reverb_dcs(); src = open(rd_).read().replace("#X obj 10 165 msg tone", "#X msg 10 165 tone"); open(rd_, "w").write(src)
+xin = np.zeros(4 * SR, np.float32); xin[100] = 0.5; xin[SR:SR + 2000] = rng.standard_normal(2000) * 0.2
+outs, costs = [], []
+for p in (reverb_reference(), rd_):
+    e = Engine(LIB, p); e.send("tone", 4000); e.run(np.zeros(640, np.float32))
+    t0 = time.process_time(); outs.append(e.run(xin)); costs.append(time.process_time() - t0); e.close()
+diff = np.abs(outs[0] - outs[1]).max(); peak = np.abs(outs[0]).max()
+check(peak > 0.05 and diff < 1e-5 * max(peak, 1), f"matches the Pd-object reverb sample for sample (worst {diff:.1e}, peak {peak:.2f}), both ears")
+check(costs[1] < 0.75 * costs[0], f"costs {100 * costs[1] / costs[0]:.0f}% of the Pd-object version (the maths is the same: it saves the overhead of ~100 objects)")
+
 print("ALL PASSED" if not fails else f"{len(fails)} FAILED")
 sys.exit(1 if fails else 0)
