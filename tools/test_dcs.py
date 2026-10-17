@@ -40,6 +40,10 @@ def peak_hz(x, lo, hi):
     return f[k] + 0.5 * (a - c) / (a - 2 * b + c) * (f[1] - f[0])
 
 
+def rms(x):
+    return float(np.sqrt(np.mean(np.asarray(x, dtype=float) ** 2)))
+
+
 def db_frames(x, ms=20):
     m = int(SR * ms / 1000)
     fr = x[:len(x) // m * m].reshape(-1, m)
@@ -401,6 +405,23 @@ hi = play(an + [("cutoff", 16), ("sub", 0), ("pnote", 0, 3000)], 1.0)[int(0.3 * 
 S_ = np.abs(np.fft.rfft(hi * np.hanning(len(hi)))) ** 2; f = np.fft.rfftfreq(len(hi), 1 / SR)
 on_harm = sum(S_[np.abs(f - 3000 * k) < 15].sum() for k in range(1, 9))
 check(on_harm / S_.sum() > 0.9, f"analog: a 3 kHz saw is band-limited ({100 * on_harm / S_.sum():.0f}% of its energy on its harmonics)")
+dr = [("engine", 5)]
+k = play(dr + [("hit", 0, 1)], 1.0)
+check(abs(peak_hz(k[int(0.15 * SR):int(0.45 * SR)], 30, 120) - 50) < 4 and 0.3 < np.abs(k).max() <= 1.05
+      and np.abs(k[int(0.9 * SR):]).max() < 0.25 * np.abs(k).max(),
+      f"drums: the kick dives to its 50 Hz tune and dies away (peak {np.abs(k).max():.2f})")
+sn = play(dr + [("hit", 1, 1)], 0.5)[:int(0.2 * SR)]
+S_ = np.abs(np.fft.rfft(sn)) ** 2; fr = np.fft.rfftfreq(len(sn), 1 / SR)
+check(S_[fr > 2000].sum() > 0.3 * S_.sum() and harm(sn, 185, 1) > 0.01, f"drums: the snare has its tone and its crack ({100 * S_[fr > 2000].sum() / S_.sum():.0f}% above 2 kHz)")
+hc = play(dr + [("hit", 2, 1, 45)], 0.6); ho = play(dr + [("hit", 2, 1, 300)], 0.6)
+S_ = np.abs(np.fft.rfft(hc)) ** 2; fr = np.fft.rfftfreq(len(hc), 1 / SR)
+check(S_[fr > 5000].sum() > 0.8 * S_.sum() and rms(ho[int(0.15 * SR):]) > 10 * rms(hc[int(0.15 * SR):]),
+      f"drums: hats are high ({100 * S_[fr > 5000].sum() / S_.sum():.0f}% above 5 kHz), an open one rings on")
+check(np.abs(play([("engine", 4), ("hit", 0, 1)], 0.3)).max() == 0, "drums: hits only play on the drums engine")
+one = play(an + [("cutoff", 16), ("saws", 1), ("pnote", 0, 220)], 1.5)[int(0.3 * SR):]
+sev = play(an + [("cutoff", 16), ("saws", 7), ("detune", 25), ("pnote", 0, 220)], 1.5)[int(0.3 * SR):]
+lift = 20 * np.log10(rms(sev) / rms(one))
+check(abs(lift) < 3 and abs(peak_hz(sev, 210, 230) / 220 - 1) < 0.01, f"supersaw: 7 saws across 25 cents, about as loud as one ({lift:+.1f} dB), around the note")
 held = db_frames(play(an + [("cutoff", 4), ("pnote", 0, 110)], 3.0)[int(0.5 * SR):], 100)
 check(held.max() - held.min() < 1, f"analog: a held note stands steady ({held.max() - held.min():.2f} dB)")
 
